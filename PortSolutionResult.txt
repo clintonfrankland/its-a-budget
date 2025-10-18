@@ -1,0 +1,87 @@
+==========
+References
+==========
+ClintonFrankland
+System.Web.UI
+System
+System.Data
+System.Web.UI.WebControls
+ClintonFrankland.Properties
+System.Globalization
+System.Drawing
+System.Web.UI.HtmlControls
+System.Collections.Generic
+System.Linq
+System.Web
+System.IO
+System.Runtime.CompilerServices
+Microsoft.AspNet.SignalR
+System.Threading.Tasks
+System.Text
+System.Security.Cryptography
+System.CodeDom.Compiler
+System.Configuration
+System.Diagnostics
+System.Data.SqlClient
+System.ComponentModel
+System.Reflection
+Newtonsoft.Json
+System.Net.Http
+System.Runtime.InteropServices
+project.all
+
+===============
+DownloadedFiles
+===============
+project.all.json
+system.data.sqlclient.json
+system.configuration.json
+system.web.json
+
+==============
+ProjectResults
+==============
+----------------------
+Showing results for: C:\Users\clint\OneDrive\source\repos\ClintonFrankland\ClintonFrankland.csproj
+----------------------
+---------------------------
+Target Versions:
+---------------------------
+net7.0
+---------------------------
+Source Versions:
+---------------------------
+net48
+---------------------------
+Upgrade packages:
+---------------------------
+---------------------------
+Action packages:
+---------------------------
+Microsoft.Data.SqlClient,5.0.1
+
+----------------------
+Showing results for: C:\Users\clint\OneDrive\source\repos\ClintonFrankland\ClintonFrankland.csproj
+----------------------
+---------------------------
+Target Versions:
+---------------------------
+net7.0
+---------------------------
+Source Versions:
+---------------------------
+net48
+---------------------------
+Upgrade packages:
+---------------------------
+---------------------------
+Action packages:
+---------------------------
+Microsoft.Data.SqlClient,5.0.1
+
+
+===========
+BuildErrors
+===========
+
+
