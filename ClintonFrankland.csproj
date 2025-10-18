@@ -220,11 +220,9 @@
     <Content Include="Content\typeahead.css" />
     <Content Include="Content\v4-shims.css" />
     <Content Include="Content\v4-shims.min.css" />
-    <Content Include="Data.aspx" />
     <Content Include="Default.aspx" />
     <Content Include="EditAccount.ascx" />
     <Content Include="favicon.ico" />
-    <Content Include="Global.asax" />
     <Content Include="images\150-icon_bill-shock.png" />
     <Content Include="images\20181021_152107.png" />
     <Content Include="images\add.gif" />
@@ -238,7 +236,6 @@
     <Content Include="images\spacer.gif" />
     <Content Include="images\unchecked.gif" />
     <Content Include="images\view.gif" />
-    <Content Include="index.html" />
     <Content Include="Login.aspx" />
     <Content Include="Payees.aspx" />
     <Content Include="Scripts\bloodhound.js" />
@@ -301,6 +298,7 @@
     <Content Include="Scripts\esm\popper.js.map" />
     <Content Include="Scripts\esm\popper-utils.min.js.map" />
     <Content Include="Scripts\esm\popper-utils.js.map" />
+    <Content Include="README.md" />
     <None Include="Scripts\jquery-3.7.1.intellisense.js" />
     <Content Include="Scripts\jquery-3.7.1.js" />
     <Content Include="Scripts\jquery-3.7.1.min.js" />
@@ -496,7 +494,6 @@
     <Compile Include="BudgetItems.aspx.designer.cs">
       <DependentUpon>BudgetItems.aspx</DependentUpon>
     </Compile>
-    <Compile Include="LslRequest.cs" />
     <Compile Include="AccountInfo.cs" />
     <Compile Include="Accounts.aspx.designer.cs">
       <DependentUpon>Accounts.aspx</DependentUpon>
@@ -526,13 +523,6 @@
       <DependentUpon>ClintonFrankland.Master</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
-    <Compile Include="Data.aspx.designer.cs">
-      <DependentUpon>Data.aspx</DependentUpon>
-    </Compile>
-    <Compile Include="Data.aspx.cs">
-      <DependentUpon>Data.aspx</DependentUpon>
-      <SubType>ASPXCodebehind</SubType>
-    </Compile>
     <Compile Include="Default.aspx.designer.cs">
       <DependentUpon>Default.aspx</DependentUpon>
     </Compile>
@@ -546,9 +536,6 @@
     <Compile Include="EditAccount.ascx.cs">
       <DependentUpon>EditAccount.ascx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
-    </Compile>
-    <Compile Include="Global.asax.cs">
-      <DependentUpon>Global.asax</DependentUpon>
     </Compile>
     <Compile Include="Hubs\BotHub.cs" />
     <Compile Include="Login.aspx.designer.cs">

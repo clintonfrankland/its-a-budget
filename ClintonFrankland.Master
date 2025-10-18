@@ -50,7 +50,7 @@
                 </asp:ContentPlaceHolder>
                 <hr />
                 <footer>
-                    <p>&copy; <%: DateTime.Now.Year %> - <%: SiteInfo.SiteName %></p>
+                    <p>&copy; <%: DateTime.Now.Year %> - <%: SiteInfo.SiteName %> <small class="text-muted">(<%: SiteInfo.Version %>)</small></p>
                 </footer>
             </div>
         </form>
