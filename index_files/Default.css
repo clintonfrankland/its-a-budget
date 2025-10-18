@@ -1,0 +1,13 @@
+﻿.cf-jobtitle {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.cf-jobrow {
+    position: relative;
+    overflow: hidden;
+}
+.cf-jobtime {
+    position: absolute;
+    right: 0;
+    top: 0;
+}

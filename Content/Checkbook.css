@@ -1,0 +1,7 @@
+﻿body {
+}
+.pirate {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 4rem;
+}
