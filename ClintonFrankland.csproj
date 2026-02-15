@@ -165,6 +165,7 @@
     <Content Include="BudgetItems.aspx" />
     <Content Include="Budget.aspx" />
     <Content Include="Checkbook.aspx" />
+    <Content Include="ClintonFrankland.Blazor\wwwroot\css\app.css" />
     <Content Include="Content\agecheck.min.css" />
     <Content Include="Content\all.css" />
     <Content Include="Content\all.min.css" />
@@ -277,6 +278,20 @@
     <Content Include="Content\bootstrap-datepicker3.css.map" />
     <Content Include="Content\bootstrap-datepicker.standalone.css.map" />
     <Content Include="Content\bootstrap-datepicker.css.map" />
+    <Content Include="ClintonFrankland.Blazor\ClintonFrankland.Blazor.csproj" />
+    <Content Include="ClintonFrankland.Blazor\appsettings.json" />
+    <Content Include="ClintonFrankland.Blazor\appsettings.Development.json" />
+    <Content Include="ClintonFrankland.Blazor\Components\_Imports.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\App.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Routes.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Layout\MainLayout.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\Home.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\Login.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\Checkbook.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\Budget.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\BudgetItems.razor" />
+    <Content Include="ClintonFrankland.Blazor\Components\Pages\Accounts.razor" />
+    <Content Include="ClintonFrankland.Blazor\wwwroot\images\.gitkeep" />
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -491,6 +506,15 @@
     <Compile Include="BudgetItems.aspx.designer.cs">
       <DependentUpon>BudgetItems.aspx</DependentUpon>
     </Compile>
+    <Compile Include="ClintonFrankland.Blazor\Models\AccountInfo.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Models\NamedValue.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Models\PageInfo.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Models\SiteInfo.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Models\UserInfo.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Program.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Services\AuthService.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Services\SiteInfoService.cs" />
+    <Compile Include="ClintonFrankland.Blazor\Services\SqlProvider.cs" />
     <Compile Include="Models\AccountInfo.cs" />
     <Compile Include="Accounts.aspx.designer.cs">
       <DependentUpon>Accounts.aspx</DependentUpon>

@@ -1,0 +1,113 @@
+@page "/login"
+@rendermode InteractiveServer
+
+<PageTitle>Sign In</PageTitle>
+
+<div class="login-page">
+    <div class="login-container">
+        <RadzenCard class="login-card">
+            <div class="login-header">
+                <RadzenIcon Icon="lock" Style="font-size: 48px; color: var(--rz-primary);" />
+                <h1>Welcome Back</h1>
+                <p class="text-muted">Sign in to your account</p>
+            </div>
+
+            @if (showWarning)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" 
+                             AllowClose="false" class="mb-3">
+                    Invalid username or password.
+                </RadzenAlert>
+            }
+
+            <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="loginForm">
+                <div class="mb-4">
+                    <RadzenLabel Text="Username" Component="username" class="d-block mb-1" />
+                    <RadzenTextBox @bind-Value="loginModel.Username" Name="username" 
+                                   Placeholder="Enter your username" 
+                                   Style="width: 100%;" 
+                                   AutoComplete="true" />
+                </div>
+                
+                <div class="mb-4">
+                    <RadzenLabel Text="Password" Component="password" class="d-block mb-1" />
+                    <RadzenPassword @bind-Value="loginModel.Password" Name="password" 
+                                    Placeholder="Enter your password" 
+                                    Style="width: 100%;" />
+                </div>
+
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Sign In" 
+                              ButtonStyle="ButtonStyle.Primary" 
+                              Size="ButtonSize.Large"
+                              Style="width: 100%;" 
+                              Icon="login" />
+            </EditForm>
+        </RadzenCard>
+        
+        <p class="login-footer text-muted">
+            &copy; @DateTime.Now.Year Clinton Frankland
+        </p>
+    </div>
+</div>
+
+<style>
+    .login-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--rz-base-background-color);
+        padding: 20px;
+    }
+
+    .login-container {
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-card {
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--rz-border-color);
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .login-header h1 {
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin: 15px 0 5px 0;
+        color: var(--rz-text-color);
+    }
+
+    .login-header p {
+        font-size: 0.9rem;
+        margin: 0;
+        color: var(--rz-text-secondary-color);
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 0.85rem;
+        color: var(--rz-text-secondary-color);
+    }
+
+    /* Override Radzen styles for better appearance */
+    .login-card .rz-textbox,
+    .login-card .rz-password {
+        border-radius: 8px;
+    }
+
+    .login-card .rz-button {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 12px;
+    }
+</style>
+
+

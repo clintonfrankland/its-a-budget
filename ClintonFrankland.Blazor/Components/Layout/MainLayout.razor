@@ -1,0 +1,39 @@
+@inherits LayoutComponentBase
+<RadzenComponents @rendermode="InteractiveAuto" />
+<nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <i class="@GetIconClass()"></i>&nbsp;@SiteInfoService.SiteInfo.SiteName
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div id="navbar" class="navbar-collapse collapse">
+            @if (AuthService.IsAuthenticated)
+            {
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="checkbook">Checkbook</a></li>
+                    <li class="nav-item"><a class="nav-link" href="budget">Budget Forecast</a></li>
+                    <li class="nav-item"><a class="nav-link" href="budgetitems">Budget Items</a></li>
+                    <li class="nav-item"><a class="nav-link" href="accounts">Accounts</a></li>
+                </ul>
+            }
+            <ul class="nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="@GetLoginLink()" @onclick="HandleLoginClick" @onclick:preventDefault="@AuthService.IsAuthenticated">
+                        <i class="fa fa-sign-in-alt"></i>&nbsp;&nbsp;@GetLoginText()
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    @Body
+    <hr />
+    <footer>
+        <p>&copy; @DateTime.Now.Year - @SiteInfoService.SiteInfo.SiteName <small class="text-muted">(@SiteInfoService.SiteInfo.Version)</small></p>
+    </footer>
+</div>
+

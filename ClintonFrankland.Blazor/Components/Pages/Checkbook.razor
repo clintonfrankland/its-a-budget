@@ -1,0 +1,287 @@
+@page "/checkbook"
+@using System.Data
+@rendermode InteractiveServer
+
+<PageTitle>Checkbook</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (currentView == ViewMode.List)
+    {
+        @* Media queries for responsive column visibility - using Bootstrap breakpoints *@
+        <RadzenMediaQuery Query="(max-width: 575.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraSmall, matches))" />
+        <RadzenMediaQuery Query="(min-width: 576px) and (max-width: 767.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Small, matches))" />
+        <RadzenMediaQuery Query="(min-width: 768px) and (max-width: 991.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Medium, matches))" />
+        <RadzenMediaQuery Query="(min-width: 992px) and (max-width: 1199.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Large, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1200px) and (max-width: 1399.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraLarge, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1400px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraExtraLarge, matches))" />
+
+        <div class="alert alert-success">
+            Balance: <strong>@balance.ToString("C")</strong>&nbsp;&nbsp;
+            Cleared: @clearedBalance.ToString("C")
+        </div>
+
+        @if (showBillsDue)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" 
+                         AllowClose="false" Icon="warning" class="mb-3">
+                <strong>@billsDueCount bill@(billsDueCount == 1 ? "" : "s") due today or past due!</strong> 
+                Click the <RadzenIcon Icon="expand_more" Style="vertical-align: middle;" /> Budgets button to view and pay them.
+            </RadzenAlert>
+        }
+
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <h1>Checkbook</h1>
+                </div>
+                <div class="col text-end">
+                    <RadzenButton Icon="add" Text="Add Transaction" ButtonStyle="ButtonStyle.Primary" 
+                                  Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
+                    <RadzenButton Icon="@(showBudgetCollapse ? "expand_less" : "expand_more")" 
+                                  Text="@($"Budgets ({budgetItems.Count})")"
+                                  ButtonStyle="@(showBudgetCollapse ? ButtonStyle.Info : ButtonStyle.Secondary)" 
+                                  Size="ButtonSize.Medium" Click="ToggleBudgetItems" 
+                                  title="@(showBudgetCollapse ? "Hide Budget Items" : "Show Budget Items")" />
+                </div>
+            </div>
+        </div>
+
+        @if (showBudgetCollapse)
+        {
+            <div class="container mt-3">
+                <RadzenCard class="w-100">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-3">
+                        <RadzenText TextStyle="TextStyle.H6" class="mb-0">
+                            <RadzenIcon Icon="event_note" class="me-1" /> Upcoming Budget Items
+                        </RadzenText>
+                        <RadzenDropDown @bind-Value="budgetDays" TValue="int" 
+                                        Data="@budgetDaysOptions" TextProperty="Text" ValueProperty="Value"
+                                        Change="@(args => OnBudgetDaysChangedDropdown())"
+                                        Style="width: 120px;" />
+                    </RadzenStack>
+
+                @if (budgetItems.Count > 0)
+                {
+                    <RadzenDataGrid Data="@budgetItems" TItem="BudgetItemViewModel" 
+                                    Density="Density.Compact"
+                                    AllowSorting="true"
+                                    class="rz-datatable-striped">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
+                                <Template Context="item">
+                                    @if (IsAtLeast(ScreenSize.Small))
+                                    {
+                                        <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                      Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
+                                        <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
+                                                      Click="() => SkipBudget(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
+                                    }
+                                    else
+                                    {
+                                        <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefault(args, item))">
+                                            <ChildContent>
+                                                <RadzenSplitButtonItem Text="Record" Icon="add_task" Value="record" />
+                                                <RadzenSplitButtonItem Text="Skip" Icon="skip_next" Value="skip" />
+                                            </ChildContent>
+                                        </RadzenSplitButton>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")">
+                                <Template Context="item">
+                                    @(IsAtLeast(ScreenSize.Small) ? item.DueDate.ToString("MM/dd/yyyy") : item.DueDate.ToString("M/dd"))
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" />
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                        </Columns>
+                    </RadzenDataGrid>
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                        No budget items due in the selected timeframe.
+                    </RadzenText>
+                }
+                </RadzenCard>
+            </div>
+        }
+
+        <div class="container mt-3">
+            <RadzenDataGrid @ref="checkbookGrid" Data="@filteredTransactions" TItem="TransactionViewModel"
+                            Density="Density.Compact"
+                            AllowFiltering="true" AllowSorting="true" AllowPaging="true" 
+                            PageSize="25" PageSizeOptions="@(new int[] { 25, 50, 100, 200 })"
+                            ShowPagingSummary="true" PagingSummaryFormat="Showing {0} to {1} of {2} items"
+                            PagerHorizontalAlign="HorizontalAlign.Left"
+                            FilterMode="FilterMode.CheckBoxList"
+                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            class="rz-datatable-striped">
+                <HeaderTemplate>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2">
+                        <RadzenTextBox @bind-Value="@transactionSearchText" Placeholder="Search..." 
+                                       Style="width: 250px;" 
+                                       @oninput="@(args => OnTransactionSearch(args.Value?.ToString()))" />
+                        @if (!string.IsNullOrEmpty(transactionSearchText))
+                        {
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                          Click="@(() => OnTransactionSearch(string.Empty))" title="Clear search" />
+                        }
+                    </RadzenStack>
+                </HeaderTemplate>
+                <Columns>
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="txn">
+                            @if (IsAtLeast(ScreenSize.Small))
+                            {
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                              Click="() => ShowEditTransaction(txn.TransactionId)" title="Edit" />
+                                <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
+                                              ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
+                                              Size="ButtonSize.Small" 
+                                              Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
+                                              title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
+                            }
+                            else
+                            {
+                                <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                   Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
+                                    <ChildContent>
+                                        <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                        @if (txn.IsCleared)
+                                        {
+                                            <RadzenSplitButtonItem Text="Mark Uncleared" Icon="radio_button_unchecked" Value="uncleared" />
+                                        }
+                                        else
+                                        {
+                                            <RadzenSplitButtonItem Text="Mark Cleared" Icon="check_circle" Value="cleared" />
+                                        }
+                                    </ChildContent>
+                                </RadzenSplitButton>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="TransactionDate" Title="Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")" SortOrder="SortOrder.Descending">
+                        <Template Context="txn">
+                            @(IsAtLeast(ScreenSize.Small) ? txn.TransactionDate.ToString("MM/dd/yyyy") : txn.TransactionDate.ToString("M/dd"))
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="PayeeName" Title="Payee" />
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="CategoryName" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="IsCleared" Title="Clr" Width="60px" Sortable="true" TextAlign="TextAlign.Center" Filterable="true" Visible="@IsAtLeast(ScreenSize.Large)">
+                        <Template Context="txn">
+                            @(txn.IsCleared ? "Yes" : "No")
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                </Columns>
+            </RadzenDataGrid>
+        </div>
+    }
+    else if (currentView == ViewMode.Edit)
+    {
+        <div class="container" style="max-width: 500px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">@(editTransactionId == -1 ? "Add" : "Edit") Transaction</h4>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Date:" Component="editDatePicker" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenDatePicker @bind-Value="editDate" Name="editDatePicker" DateFormat="MM/dd/yyyy" Style="width: 150px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Payee:" Component="editPayeeAutoComplete" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete" 
+                                            Placeholder="Type to search..." Style="width: 100%;" 
+                                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Amount:" Component="editAmountNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editAmount" TValue="decimal" Name="editAmountNumeric"
+                                       Format="c2" Min="0" Step="0.01" Style="width: 120px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Type:" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenRadioButtonList @bind-Value="editIsDebit" TValue="bool" Orientation="Orientation.Vertical" Gap="5px">
+                            <Items>
+                                <RadzenRadioButtonListItem Text="Expense" Value="true" />
+                                <RadzenRadioButtonListItem Text="Income" Value="false" />
+                            </Items>
+                        </RadzenRadioButtonList>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Category:" Component="editCategoryAutoComplete" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete" 
+                                            Placeholder="Type to search..." Style="width: 100%;" 
+                                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-3" AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="4" class="text-end">
+                        <RadzenLabel Text="Cleared:" Component="editClearedCheckbox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenCheckBox @bind-Value="editCleared" TValue="bool" Name="editClearedCheckbox" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                @if (editTransactionId != -1)
+                {
+                    <RadzenRow class="mb-3">
+                        <RadzenColumn Size="12">
+                            <RadzenButton Text="Delete this Transaction" Icon="delete" 
+                                          ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                          Click="DeleteTransaction" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <RadzenRow>
+                    <RadzenColumn Size="12" class="text-center">
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransaction" class="me-2" />
+                        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
+        </div>
+    }
+}
+

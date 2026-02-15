@@ -1,0 +1,181 @@
+@page "/accounts"
+@using System.Data
+@rendermode InteractiveServer
+
+<PageTitle>Accounts</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (currentView == ViewMode.List)
+    {
+        @* Media queries for responsive column visibility - using Bootstrap breakpoints *@
+        <RadzenMediaQuery Query="(max-width: 575.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraSmall, matches))" />
+        <RadzenMediaQuery Query="(min-width: 576px) and (max-width: 767.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Small, matches))" />
+        <RadzenMediaQuery Query="(min-width: 768px) and (max-width: 991.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Medium, matches))" />
+        <RadzenMediaQuery Query="(min-width: 992px) and (max-width: 1199.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Large, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1200px) and (max-width: 1399.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraLarge, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1400px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraExtraLarge, matches))" />
+
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <h1>Accounts</h1>
+                </div>
+                <div class="col text-end">
+                    <RadzenButton Icon="add" Text="Add Account" ButtonStyle="ButtonStyle.Primary" 
+                                  Size="ButtonSize.Medium" Click="ShowAddAccount" />
+                </div>
+            </div>
+        </div>
+
+        <div class="container mt-4">
+            <RadzenDataGrid @ref="accountsGrid" Data="@filteredAccounts" TItem="AccountViewModel"
+                            Density="Density.Compact"
+                            AllowFiltering="true" AllowSorting="true"
+                            FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            class="rz-datatable-striped">
+                <HeaderTemplate>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2">
+                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..." 
+                                       Style="width: 250px;" 
+                                       @oninput="@(args => OnSearch(args.Value?.ToString()))" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                          Click="@(() => OnSearch(string.Empty))" title="Clear search" />
+                        }
+                    </RadzenStack>
+                </HeaderTemplate>
+                <Columns>
+                    <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="item">
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                          Click="() => ShowEditAccount(item.AccountId)" title="Edit" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountName" Title="Account Name" SortOrder="SortOrder.Ascending" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountType" Title="Type" Width="120px" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="LastUpdated" Title="Last Upd" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountNumber" Title="Acct#" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraLarge)" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="InterestRate" Title="Interest" Width="80px" FormatString="{0:0.##}%" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Large)" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="MinimumPayment" Title="Payment" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="Balance" Title="Balance" Width="110px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="Ratio" Title="Ratio" Width="70px" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Large)">
+                        <Template Context="item">
+                            @(item.Ratio.HasValue ? $"{item.Ratio:0.##}" : "")
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </div>
+    }
+    else if (currentView == ViewMode.Edit)
+    {
+        <div class="container">
+            <h2>@(editAccountId == -1 ? "Add" : "Edit") Account</h2>
+
+            <div class="row mb-3">
+                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                    <RadzenLabel Text="Account Name" Component="editAccountNameTextBox" />
+                    <RadzenTextBox @bind-Value="editAccountName" Name="editAccountNameTextBox" 
+                                   MaxLength="255" Style="width: 100%;" />
+                </RadzenStack>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Account Number" Component="editAccountNumberTextBox" />
+                        <RadzenTextBox @bind-Value="editAccountNumber" Name="editAccountNumberTextBox" 
+                                       MaxLength="16" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+                <div class="col-md-6">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Account Type" Component="editAccountTypeDropDown" />
+                        <RadzenDropDown @bind-Value="editAccountType" TValue="int" Name="editAccountTypeDropDown"
+                                        Data="@accountTypeOptions" TextProperty="Name" ValueProperty="Id"
+                                        Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Balance" Component="editBalanceNumeric" />
+                        <RadzenNumeric @bind-Value="editBalance" TValue="decimal" Name="editBalanceNumeric"
+                                       Format="c2" Step="0.01" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Credit Limit" Component="editCreditLimitNumeric" />
+                        <RadzenNumeric @bind-Value="editCreditLimit" TValue="decimal" Name="editCreditLimitNumeric"
+                                       Format="c2" Step="0.01" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Available Credit" Component="editAvailableCreditNumeric" />
+                        <RadzenNumeric @bind-Value="editAvailableCredit" TValue="decimal" Name="editAvailableCreditNumeric"
+                                       Format="c2" Step="0.01" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Due Date (Day of Month)" Component="editDueDateNumeric" />
+                        <RadzenNumeric @bind-Value="editDueDate" TValue="int" Name="editDueDateNumeric"
+                                       Min="1" Max="31" Step="1" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Minimum Payment" Component="editMinimumPaymentNumeric" />
+                        <RadzenNumeric @bind-Value="editMinimumPayment" TValue="decimal" Name="editMinimumPaymentNumeric"
+                                       Format="c2" Step="0.01" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+                <div class="col-md-4">
+                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                        <RadzenLabel Text="Interest Rate (%)" Component="editInterestRateNumeric" />
+                        <RadzenNumeric @bind-Value="editInterestRate" TValue="decimal" Name="editInterestRateNumeric"
+                                       Format="0.##" Step="0.01" Style="width: 100%;" />
+                    </RadzenStack>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
+                    <RadzenLabel Text="Web URL" Component="editWebUrlTextBox" />
+                    <RadzenTextBox @bind-Value="editWebUrl" Name="editWebUrlTextBox" 
+                                   MaxLength="1024" Style="width: 100%;" />
+                </RadzenStack>
+            </div>
+
+            <div class="row mt-4">
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="10px">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Secondary" Click="CancelEdit" />
+                    @if (editAccountId != -1)
+                    {
+                        <RadzenButton Text="Delete" ButtonStyle="ButtonStyle.Danger" Click="DeleteAccount" />
+                    }
+                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveAccount" />
+                </RadzenStack>
+            </div>
+        </div>
+    }
+}
+

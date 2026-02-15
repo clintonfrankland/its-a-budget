@@ -1,0 +1,63 @@
+/* Site-wide styles */
+html {
+    font-size: 14px;
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+/* Job row styles from original site */
+.cf-jobrow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cf-jobtitle {
+    margin: 0;
+}
+
+.cf-jobtime {
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Chart container */
+.chart-container {
+    width: 100%;
+    max-width: 1232px;
+    height: 330px;
+    overflow-x: auto;
+    padding: 10px 0;
+    scrollbar-width: thin;
+}
+
+.chart-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.chart-container::-webkit-scrollbar-thumb {
+    background-color: #aaa;
+    border-radius: 10px;
+}
+
+/* Error label */
+.NormalRed {
+    color: red;
+}
+
+/* Button link styling */
+.btn-link {
+    text-decoration: none;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
