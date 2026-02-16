@@ -1,5 +1,7 @@
+using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Services;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Register Entity Framework Core DbContext
+builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    options.UseSqlServer(connectionString);
+});
 
 // Register application services
 builder.Services.AddScoped<SqlProvider>(sp =>

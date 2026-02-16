@@ -31,7 +31,7 @@ else
                     <h1>Budget Forecast</h1>
                 </div>
                 <div class="col text-end">
-                    <RadzenButton Icon="add" Text="Add Budget" ButtonStyle="ButtonStyle.Primary" 
+                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary" 
                                   Size="ButtonSize.Medium" Click="ShowAddBudget" />
                 </div>
             </div>
@@ -44,11 +44,11 @@ else
                 <div class="container mt-4">
                     <RadzenCard class="w-100">
                         <RadzenChart Style="height: 350px; width: 100%;">
-                            <RadzenLineSeries Data="@chartData" CategoryProperty="Date" ValueProperty="Balance"
+                            <RadzenLineSeries Data="@filteredChartData" CategoryProperty="Date" ValueProperty="Balance"
                                               Title="Balance" Smooth="false" StrokeWidth="2" Stroke="#36A2EB">
                                 <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" Fill="#36A2EB" Stroke="#36A2EB" />
                             </RadzenLineSeries>
-                            <RadzenCategoryAxis Padding="20" FormatString="{0:MM/dd}" Step="@TimeSpan.FromDays(14)">
+                            <RadzenCategoryAxis Padding="20" FormatString="{0:MM/dd}" Step="@GetChartXAxisStep()">
                                 <RadzenGridLines Visible="true" Stroke="#e0e0e0" StrokeWidth="1" />
                                 <RadzenAxisTitle Text="Date" />
                             </RadzenCategoryAxis>
@@ -84,18 +84,36 @@ else
                         </RadzenStack>
                     </HeaderTemplate>
                     <Columns>
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="115px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditBudget(item.BudgetId)" title="Edit" />
-                                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
-                                              Click="() => MarkPaid(item.BudgetId)" title="Mark Paid" />
-                                <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditNext(item.BudgetId)" title="Edit Next" />
+                                @if (IsAtLeast(ScreenSize.Medium))
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                                  Click="() => ShowEditBudget(item.BudgetId)" title="Edit" />
+                                    <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                  Click="() => MarkPaid(item.BudgetId)" title="Mark Paid" />
+                                    <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
+                                                  Click="() => ShowEditNext(item.BudgetId)" title="Edit Next" />
+                                }
+                                else
+                                {
+                                    <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                       Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefault(args, item))">
+                                        <ChildContent>
+                                            <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                            <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
+                                            <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
+                                        </ChildContent>
+                                    </RadzenSplitButton>
+                                }
                             </Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="100px" FormatString="{0:MM/dd/yyyy}" SortOrder="SortOrder.Ascending" />
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="60px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left">
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")" SortOrder="SortOrder.Ascending">
+                            <Template Context="item">
+                                @(IsAtLeast(ScreenSize.Small) ? item.DueDate.ToString("MM/dd/yyyy") : item.DueDate.ToString("M/dd"))
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="60px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left" Visible="@IsAtLeast(ScreenSize.Large)">
                             <Template Context="item">
                                 @if (item.IsBill)
                                 {
@@ -108,7 +126,7 @@ else
                             </Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" />
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
@@ -119,173 +137,235 @@ else
     }
     else if (currentView == ViewMode.Edit)
     {
-        <div class="container">
-            <h2>@(editBudgetId == -1 ? "Add" : "Edit") Budget</h2>
+        <div class="container" style="max-width: 550px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">@(editBudgetId == -1 ? "Add" : "Edit") Budget</h4>
 
-            @if (!string.IsNullOrEmpty(editErrorMessage))
-            {
-                <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" 
-                             AllowClose="true" Close="@(() => editErrorMessage = string.Empty)" class="mb-3">
-                    @editErrorMessage
-                </RadzenAlert>
-            }
+                @if (!string.IsNullOrEmpty(editErrorMessage))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" 
+                                 AllowClose="true" Close="@(() => editErrorMessage = string.Empty)" class="mb-3">
+                        @editErrorMessage
+                    </RadzenAlert>
+                }
 
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Budget Name" Component="editBudgetNameTextBox" />
-                    <RadzenTextBox @bind-Value="editBudgetName" Name="editBudgetNameTextBox" Style="width: 100%;" />
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Type" />
-                    <RadzenRadioButtonList @bind-Value="editIsExpense" TValue="bool" Orientation="Orientation.Horizontal" Gap="15px">
-                        <Items>
-                            <RadzenRadioButtonListItem Text="Expense" Value="true" />
-                            <RadzenRadioButtonListItem Text="Income" Value="false" />
-                        </Items>
-                    </RadzenRadioButtonList>
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Amount" Component="editAmountNumeric" />
-                    <RadzenNumeric @bind-Value="editAmount" TValue="decimal" Name="editAmountNumeric"
-                                   Format="c2" Min="0" Step="0.01" 
-                                   Placeholder="0.00" Style="width: 150px;" />
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Next Due Date" Component="editNextDueDatePicker" />
-                        <RadzenDatePicker @bind-Value="editNextDueDate" Name="editNextDueDatePicker" ShowCalendarWeek DateFormat="MM/dd/yyyy" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Frequency" Component="editFrequencyDropDown" />
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Name:" Component="editBudgetNameTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextBox @bind-Value="editBudgetName" Name="editBudgetNameTextBox" Style="width: 100%;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Type:" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenRadioButtonList @bind-Value="editIsExpense" TValue="bool" Orientation="Orientation.Horizontal" Gap="10px">
+                            <Items>
+                                <RadzenRadioButtonListItem Text="Expense" Value="true" />
+                                <RadzenRadioButtonListItem Text="Income" Value="false" />
+                            </Items>
+                        </RadzenRadioButtonList>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Amount:" Component="editAmountNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editAmount" TValue="decimal" Name="editAmountNumeric"
+                                       Format="c2" Min="0" Step="0.01" Style="width: 120px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Due Date:" Component="editNextDueDatePicker" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenDatePicker @bind-Value="editNextDueDate" Name="editNextDueDatePicker" DateFormat="MM/dd/yyyy" Style="width: 150px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Frequency:" Component="editFrequencyDropDown" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
                         <RadzenDropDown @bind-Value="editFrequencyId" TValue="int" Name="editFrequencyDropDown"
                                         Data="@frequencyOptions" TextProperty="FrequencyName" ValueProperty="FrequencyId"
-                                        Style="width: 200px;" />
-                    </RadzenStack>
-                </div>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Category" Component="editCategoryAutoComplete" />
-                    <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete" 
-                                        Placeholder="Type to search categories..." Style="width: 100%;" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                    <RadzenCheckBox @bind-Value="editIsBill" TValue="bool" Name="editIsBillCheckbox" />
-                    <RadzenLabel Text="Is Bill/Paycheck" Component="editIsBillCheckbox" />
-                </RadzenStack>
-            </div>
-            @if (editIsBill)
-            {
-                <div class="row mb-3">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Payee" Component="editPayeeAutoComplete" />
-                        <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete" 
-                                            Placeholder="Type to search payees..." Style="width: 100%;" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
-                    </RadzenStack>
-                </div>
-                <div class="row mb-3">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="15px">
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                            <RadzenCheckBox @bind-Value="editIsAuto" TValue="bool" Name="editIsAutoCheckbox" />
-                            <RadzenLabel Text="Automatic" Component="editIsAutoCheckbox" />
-                        </RadzenStack>
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                            <RadzenCheckBox @bind-Value="editIsLate" TValue="bool" Name="editIsLateCheckbox" />
-                            <RadzenLabel Text="Late" Component="editIsLateCheckbox" />
-                        </RadzenStack>
-                    </RadzenStack>
-                </div>
-            }
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                    <RadzenCheckBox @bind-Value="editHasEndDate" TValue="bool" Name="editHasEndDateCheckbox" />
-                    <RadzenLabel Text="Has End Date" Component="editHasEndDateCheckbox" />
-                </RadzenStack>
-            </div>
-            @if (editHasEndDate)
-            {
-                <div class="row mb-3">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="End Date" Component="editEndDatePicker" />
-                        <RadzenDatePicker @bind-Value="editEndDate" Name="editEndDatePicker" ShowCalendarWeek DateFormat="MM/dd/yyyy" />
-                    </RadzenStack>
-                </div>
-            }
-            <div class="row mt-4">
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="10px">
-                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Secondary" Click="CancelEdit" />
-                    @if (editBudgetId != -1)
-                    {
-                        <RadzenButton Text="Delete" ButtonStyle="ButtonStyle.Danger" Click="DeleteBudget" />
-                    }
-                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudget" />
-                </RadzenStack>
-            </div>
+                                        Style="width: 180px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Category:" Component="editCategoryAutoComplete" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete" 
+                                            Placeholder="Type to search..." Style="width: 100%;" 
+                                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2" AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="4" class="text-end">
+                        <RadzenLabel Text="Is Bill:" Component="editIsBillCheckbox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenCheckBox @bind-Value="editIsBill" TValue="bool" Name="editIsBillCheckbox" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                @if (editIsBill)
+                {
+                    <RadzenRow Gap="0.5rem" class="mb-2">
+                        <RadzenColumn Size="4" class="text-end pt-2">
+                            <RadzenLabel Text="Payee:" Component="editPayeeAutoComplete" />
+                        </RadzenColumn>
+                        <RadzenColumn Size="8">
+                            <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete" 
+                                                Placeholder="Type to search..." Style="width: 100%;" 
+                                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    <RadzenRow Gap="0.5rem" class="mb-2" AlignItems="AlignItems.Center">
+                        <RadzenColumn Size="4" class="text-end">
+                            <RadzenLabel Text="Options:" />
+                        </RadzenColumn>
+                        <RadzenColumn Size="8">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="15px">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
+                                    <RadzenCheckBox @bind-Value="editIsAuto" TValue="bool" Name="editIsAutoCheckbox" />
+                                    <RadzenLabel Text="Auto" Component="editIsAutoCheckbox" Style="margin-bottom: 0;" />
+                                </RadzenStack>
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
+                                    <RadzenCheckBox @bind-Value="editIsLate" TValue="bool" Name="editIsLateCheckbox" />
+                                    <RadzenLabel Text="Late" Component="editIsLateCheckbox" Style="margin-bottom: 0;" />
+                                </RadzenStack>
+                            </RadzenStack>
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <RadzenRow Gap="0.5rem" class="mb-2" AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="4" class="text-end">
+                        <RadzenLabel Text="Has End Date:" Component="editHasEndDateCheckbox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenCheckBox @bind-Value="editHasEndDate" TValue="bool" Name="editHasEndDateCheckbox" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                @if (editHasEndDate)
+                {
+                    <RadzenRow Gap="0.5rem" class="mb-2">
+                        <RadzenColumn Size="4" class="text-end pt-2">
+                            <RadzenLabel Text="End Date:" Component="editEndDatePicker" />
+                        </RadzenColumn>
+                        <RadzenColumn Size="8">
+                            <RadzenDatePicker @bind-Value="editEndDate" Name="editEndDatePicker" DateFormat="MM/dd/yyyy" Style="width: 150px;" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                @if (editBudgetId != -1)
+                {
+                    <RadzenRow class="mb-3">
+                        <RadzenColumn Size="12">
+                            <RadzenButton Text="Delete this Budget" Icon="delete" 
+                                          ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                          Click="DeleteBudget" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <RadzenRow>
+                    <RadzenColumn Size="12" class="text-center">
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudget" class="me-2" />
+                        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
         </div>
     }
     else if (currentView == ViewMode.EditNext)
     {
-        <div class="container">
-            <h2>Edit Next Occurrence</h2>
-            <p class="text-muted">This will mark the current budget as paid and create a one-time budget with your changes.</p>
+        <div class="container" style="max-width: 550px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-2">Edit Next Occurrence</h4>
+                <p class="text-muted mb-3" style="font-size: 0.875rem;">This will mark the current budget as paid and create a one-time budget with your changes.</p>
 
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Budget Name" Component="editNextBudgetNameTextBox" />
-                    <RadzenTextBox @bind-Value="editBudgetName" Name="editNextBudgetNameTextBox" Style="width: 100%;" />
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Due Date" Component="editNextDueDatePicker" />
-                        <RadzenDatePicker @bind-Value="editNextDueDate" Name="editNextDueDatePicker" ShowCalendarWeek DateFormat="MM/dd/yyyy" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Amount" Component="editNextAmountNumeric" />
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Name:" Component="editNextBudgetNameTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextBox @bind-Value="editBudgetName" Name="editNextBudgetNameTextBox" Style="width: 100%;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Due Date:" Component="editNextDueDatePicker2" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenDatePicker @bind-Value="editNextDueDate" Name="editNextDueDatePicker2" DateFormat="MM/dd/yyyy" Style="width: 150px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Amount:" Component="editNextAmountNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
                         <RadzenNumeric @bind-Value="editAmount" TValue="decimal" Name="editNextAmountNumeric"
-                                       Format="c2" Min="0" Step="0.01" 
-                                       Placeholder="0.00" Style="width: 150px;" />
-                    </RadzenStack>
-                </div>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Category" Component="editNextCategoryAutoComplete" />
-                    <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editNextCategoryAutoComplete" 
-                                        Placeholder="Type to search categories..." Style="width: 100%;" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
-                </RadzenStack>
-            </div>
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="15px">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                        <RadzenCheckBox @bind-Value="editIsAuto" TValue="bool" Name="editNextIsAutoCheckbox" />
-                        <RadzenLabel Text="Automatic" Component="editNextIsAutoCheckbox" />
-                    </RadzenStack>
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
-                        <RadzenCheckBox @bind-Value="editIsLate" TValue="bool" Name="editNextIsLateCheckbox" />
-                        <RadzenLabel Text="Late" Component="editNextIsLateCheckbox" />
-                    </RadzenStack>
-                </RadzenStack>
-            </div>
-            <div class="row mt-4">
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="10px">
-                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Secondary" Click="CancelEdit" />
-                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveEditNext" Icon="check" />
-                </RadzenStack>
-            </div>
+                                       Format="c2" Min="0" Step="0.01" Style="width: 120px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Category:" Component="editNextCategoryAutoComplete" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editNextCategoryAutoComplete" 
+                                            Placeholder="Type to search..." Style="width: 100%;" 
+                                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-3" AlignItems="AlignItems.Center">
+                    <RadzenColumn Size="4" class="text-end">
+                        <RadzenLabel Text="Options:" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="15px">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
+                                <RadzenCheckBox @bind-Value="editIsAuto" TValue="bool" Name="editNextIsAutoCheckbox" />
+                                <RadzenLabel Text="Auto" Component="editNextIsAutoCheckbox" Style="margin-bottom: 0;" />
+                            </RadzenStack>
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="5px">
+                                <RadzenCheckBox @bind-Value="editIsLate" TValue="bool" Name="editNextIsLateCheckbox" />
+                                <RadzenLabel Text="Late" Component="editNextIsLateCheckbox" Style="margin-bottom: 0;" />
+                            </RadzenStack>
+                        </RadzenStack>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow>
+                    <RadzenColumn Size="12" class="text-center">
+                        <RadzenButton Text="Save" Icon="check" ButtonStyle="ButtonStyle.Primary" Click="SaveEditNext" class="me-2" />
+                        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
         </div>
     }
 }

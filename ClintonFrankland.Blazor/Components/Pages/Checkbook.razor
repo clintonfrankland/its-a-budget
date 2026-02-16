@@ -45,10 +45,10 @@ else
                     <h1>Checkbook</h1>
                 </div>
                 <div class="col text-end">
-                    <RadzenButton Icon="add" Text="Add Transaction" ButtonStyle="ButtonStyle.Primary" 
+                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Transaction" : "")" ButtonStyle="ButtonStyle.Primary" 
                                   Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
                     <RadzenButton Icon="@(showBudgetCollapse ? "expand_less" : "expand_more")" 
-                                  Text="@($"Budgets ({budgetItems.Count})")"
+                                  Text="@(IsAtLeast(ScreenSize.Medium) ? $"Budgets ({budgetItems.Count})" : "")"
                                   ButtonStyle="@(showBudgetCollapse ? ButtonStyle.Info : ButtonStyle.Secondary)" 
                                   Size="ButtonSize.Medium" Click="ToggleBudgetItems" 
                                   title="@(showBudgetCollapse ? "Hide Budget Items" : "Show Budget Items")" />

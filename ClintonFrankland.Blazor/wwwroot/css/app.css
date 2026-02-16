@@ -61,3 +61,19 @@ html {
 .btn-link:hover {
     text-decoration: underline;
 }
+
+/* Navbar overlay - captures clicks outside expanded navbar on mobile */
+.navbar-overlay {
+    position: fixed;
+    top: 56px; /* Height of navbar */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 1029; /* Just below navbar's z-index of 1030 */
+}
+
+/* Ensure navbar items have pointer cursor */
+.navbar-nav .nav-link {
+    cursor: pointer;
+}

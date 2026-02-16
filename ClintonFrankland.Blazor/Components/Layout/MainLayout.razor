@@ -1,21 +1,23 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+
 <RadzenComponents @rendermode="InteractiveAuto" />
 <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="/">
+        <a class="navbar-brand" href="/" @onclick="CollapseNavbar">
             <i class="@GetIconClass()"></i>&nbsp;@SiteInfoService.SiteInfo.SiteName
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar">
+        <button class="navbar-toggler" type="button" @onclick="ToggleNavbar" @onclick:stopPropagation="true">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div id="navbar" class="navbar-collapse collapse">
+        <div id="navbar" class="navbar-collapse @NavbarCollapseClass">
             @if (AuthService.IsAuthenticated)
             {
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="checkbook">Checkbook</a></li>
-                    <li class="nav-item"><a class="nav-link" href="budget">Budget Forecast</a></li>
-                    <li class="nav-item"><a class="nav-link" href="budgetitems">Budget Items</a></li>
-                    <li class="nav-item"><a class="nav-link" href="accounts">Accounts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="checkbook" @onclick="CollapseNavbar">Checkbook</a></li>
+                    <li class="nav-item"><a class="nav-link" href="budget" @onclick="CollapseNavbar">Budget Forecast</a></li>
+                    <li class="nav-item"><a class="nav-link" href="budgetitems" @onclick="CollapseNavbar">Budget Items</a></li>
+                    <li class="nav-item"><a class="nav-link" href="accounts" @onclick="CollapseNavbar">Accounts</a></li>
                 </ul>
             }
             <ul class="nav ms-auto">
@@ -29,11 +31,18 @@
     </div>
 </nav>
 
-<div class="container">
+@* Overlay to detect clicks outside navbar when expanded *@
+@if (_navbarExpanded)
+{
+    <div class="navbar-overlay" @onclick="CollapseNavbar"></div>
+}
+
+<div class="container" @onclick="CollapseNavbar">
     @Body
     <hr />
     <footer>
         <p>&copy; @DateTime.Now.Year - @SiteInfoService.SiteInfo.SiteName <small class="text-muted">(@SiteInfoService.SiteInfo.Version)</small></p>
     </footer>
 </div>
+
 

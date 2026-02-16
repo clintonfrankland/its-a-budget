@@ -31,7 +31,7 @@ else
                     <h1>Accounts</h1>
                 </div>
                 <div class="col text-end">
-                    <RadzenButton Icon="add" Text="Add Account" ButtonStyle="ButtonStyle.Primary" 
+                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Account" : "")" ButtonStyle="ButtonStyle.Primary"
                                   Size="ButtonSize.Medium" Click="ShowAddAccount" />
                 </div>
             </div>
@@ -80,101 +80,131 @@ else
     }
     else if (currentView == ViewMode.Edit)
     {
-        <div class="container">
-            <h2>@(editAccountId == -1 ? "Add" : "Edit") Account</h2>
+        <div class="container" style="max-width: 550px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">@(editAccountId == -1 ? "Add" : "Edit") Account</h4>
 
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Account Name" Component="editAccountNameTextBox" />
-                    <RadzenTextBox @bind-Value="editAccountName" Name="editAccountNameTextBox" 
-                                   MaxLength="255" Style="width: 100%;" />
-                </RadzenStack>
-            </div>
-            
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Account Number" Component="editAccountNumberTextBox" />
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Name:" Component="editAccountNameTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextBox @bind-Value="editAccountName" Name="editAccountNameTextBox" 
+                                       MaxLength="255" Style="width: 100%;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Account #:" Component="editAccountNumberTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
                         <RadzenTextBox @bind-Value="editAccountNumber" Name="editAccountNumberTextBox" 
-                                       MaxLength="16" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-6">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Account Type" Component="editAccountTypeDropDown" />
+                                       MaxLength="16" Style="width: 150px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Type:" Component="editAccountTypeDropDown" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
                         <RadzenDropDown @bind-Value="editAccountType" TValue="int" Name="editAccountTypeDropDown"
                                         Data="@accountTypeOptions" TextProperty="Name" ValueProperty="Id"
-                                        Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-            </div>
-            
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Balance" Component="editBalanceNumeric" />
-                        <RadzenNumeric @bind-Value="editBalance" TValue="decimal" Name="editBalanceNumeric"
-                                       Format="c2" Step="0.01" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Credit Limit" Component="editCreditLimitNumeric" />
-                        <RadzenNumeric @bind-Value="editCreditLimit" TValue="decimal" Name="editCreditLimitNumeric"
-                                       Format="c2" Step="0.01" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Available Credit" Component="editAvailableCreditNumeric" />
-                        <RadzenNumeric @bind-Value="editAvailableCredit" TValue="decimal" Name="editAvailableCreditNumeric"
-                                       Format="c2" Step="0.01" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-            </div>
-            
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Due Date (Day of Month)" Component="editDueDateNumeric" />
-                        <RadzenNumeric @bind-Value="editDueDate" TValue="int" Name="editDueDateNumeric"
-                                       Min="1" Max="31" Step="1" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Minimum Payment" Component="editMinimumPaymentNumeric" />
-                        <RadzenNumeric @bind-Value="editMinimumPayment" TValue="decimal" Name="editMinimumPaymentNumeric"
-                                       Format="c2" Step="0.01" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-                <div class="col-md-4">
-                    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                        <RadzenLabel Text="Interest Rate (%)" Component="editInterestRateNumeric" />
-                        <RadzenNumeric @bind-Value="editInterestRate" TValue="decimal" Name="editInterestRateNumeric"
-                                       Format="0.##" Step="0.01" Style="width: 100%;" />
-                    </RadzenStack>
-                </div>
-            </div>
-            
-            <div class="row mb-3">
-                <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="5px">
-                    <RadzenLabel Text="Web URL" Component="editWebUrlTextBox" />
-                    <RadzenTextBox @bind-Value="editWebUrl" Name="editWebUrlTextBox" 
-                                   MaxLength="1024" Style="width: 100%;" />
-                </RadzenStack>
-            </div>
+                                        Style="width: 180px;" />
+                    </RadzenColumn>
+                </RadzenRow>
 
-            <div class="row mt-4">
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="10px">
-                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Secondary" Click="CancelEdit" />
-                    @if (editAccountId != -1)
-                    {
-                        <RadzenButton Text="Delete" ButtonStyle="ButtonStyle.Danger" Click="DeleteAccount" />
-                    }
-                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveAccount" />
-                </RadzenStack>
-            </div>
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Balance:" Component="editBalanceNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editBalance" TValue="decimal" Name="editBalanceNumeric"
+                                       Format="c2" Step="0.01" Style="width: 130px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Credit Limit:" Component="editCreditLimitNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editCreditLimit" TValue="decimal" Name="editCreditLimitNumeric"
+                                       Format="c2" Step="0.01" Style="width: 130px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Available:" Component="editAvailableCreditNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editAvailableCredit" TValue="decimal" Name="editAvailableCreditNumeric"
+                                       Format="c2" Step="0.01" Style="width: 130px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Due Day:" Component="editDueDateNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editDueDate" TValue="int" Name="editDueDateNumeric"
+                                       Min="1" Max="31" Step="1" Style="width: 80px;" />
+                        <span class="text-muted ms-2" style="font-size: 0.875rem;">(day of month)</span>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Min Payment:" Component="editMinimumPaymentNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editMinimumPayment" TValue="decimal" Name="editMinimumPaymentNumeric"
+                                       Format="c2" Step="0.01" Style="width: 130px;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Interest:" Component="editInterestRateNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenNumeric @bind-Value="editInterestRate" TValue="decimal" Name="editInterestRateNumeric"
+                                       Format="0.##" Step="0.01" Style="width: 80px;" />
+                        <span class="text-muted ms-2" style="font-size: 0.875rem;">%</span>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-3">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Web URL:" Component="editWebUrlTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextBox @bind-Value="editWebUrl" Name="editWebUrlTextBox" 
+                                       MaxLength="1024" Style="width: 100%;" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                @if (editAccountId != -1)
+                {
+                    <RadzenRow class="mb-3">
+                        <RadzenColumn Size="12">
+                            <RadzenButton Text="Delete this Account" Icon="delete" 
+                                          ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                          Click="DeleteAccount" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <RadzenRow>
+                    <RadzenColumn Size="12" class="text-center">
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveAccount" class="me-2" />
+                        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
         </div>
     }
 }
