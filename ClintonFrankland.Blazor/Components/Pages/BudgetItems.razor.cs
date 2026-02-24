@@ -1,7 +1,10 @@
 using System.Data;
+using ClintonFrankland.Data;
 using ClintonFrankland.Models;
+using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -16,13 +19,13 @@ public partial class BudgetItems
     private SiteInfoService SiteInfoService { get; set; } = default!;
 
     [Inject]
-    private SqlProvider Sql { get; set; } = default!;
-
-    [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
     [Inject]
     private DialogService DialogService { get; set; } = default!;
+
+    [Inject]
+    private ClintonFranklandDbContext DbContext { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -72,36 +75,44 @@ public partial class BudgetItems
                 Navigation.NavigateTo($"/login?Return={Uri.EscapeDataString("/budgetitems")}");
                 return;
             }
-            LoadData();
+            await LoadDataAsync();
             StateHasChanged();
         }
     }
 
-    private void LoadData()
+    private async Task LoadDataAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            var data = Sql.GetDataTable(dbName, "dbo", "spcfGetBudgetItems_030000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
+            var userId = SiteInfoService.DefaultUserId;
+
+            // EF Core replacement for spcfGetBudgetItems_030000
+            var budgetsData = await DbContext.Budgets
+                .Include(b => b.Category)
+                .Include(b => b.Frequency)
+                .Where(b => b.UserId == userId)
+                .ToListAsync();
 
             // Convert to view models for RadzenDataGrid
-            budgetItems = data.AsEnumerable().Select(row => new BudgetItemViewModel
+            budgetItems = budgetsData.Select(b => new BudgetItemViewModel
             {
-                BudgetId = Convert.ToInt32(row["BudgetId"]),
-                BudgetName = row["BudgetName"]?.ToString() ?? string.Empty,
-                Category = row["Category"]?.ToString() ?? string.Empty,
-                DueDate = ParseDateTime(row["DueDate"]),
-                EndDateName = row["EndDateName"]?.ToString() ?? string.Empty,
-                FrequencyName = row["FrequencyName"]?.ToString() ?? string.Empty,
-                Amount = Convert.ToDecimal(row["Amount"]),
-                Monthly = ParseDecimal(row["Monthly"]),
-                IsBill = Convert.ToBoolean(row["IsBill"]),
-                IsAuto = Convert.ToBoolean(row["IsAuto"]),
-                IsLate = Convert.ToBoolean(row["IsLate"])
+                BudgetId = b.BudgetId,
+                BudgetName = b.BudgetName ?? string.Empty,
+                Category = b.Category?.CategoryName ?? string.Empty,
+                DueDate = b.NextDueDate ?? DateTime.Today,
+                EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01")) 
+                    ? string.Empty 
+                    : b.EndDate.Value.ToString("MM/dd/yyyy"),
+                FrequencyName = b.Frequency?.FrequencyName ?? string.Empty,
+                Amount = b.Amount ?? 0m,
+                Monthly = CalculateMonthlyAmount(b.Amount ?? 0m, b.FrequencyId ?? 0, b.BudgetTypeId),
+                IsBill = b.IsBill ?? false,
+                IsAuto = b.IsAutomatic ?? false,
+                IsLate = b.IsLate ?? false
             }).ToList();
 
-            // Load autocomplete data
-            LoadCategoriesAndPayees();
+            // Load autocomplete data (EF Core)
+            await LoadCategoriesAndPayeesAsync();
         }
         catch (Exception ex)
         {
@@ -109,28 +120,60 @@ public partial class BudgetItems
         }
     }
 
-    private void LoadCategoriesAndPayees()
+    private static decimal CalculateMonthlyAmount(decimal amount, int frequencyId, int budgetTypeId)
+    {
+        // BudgetTypeId: 0 = Income (positive), 1 = Expense (negative)
+        var multiplier = budgetTypeId == 0 ? 1m : -1m;
+
+        var monthly = frequencyId switch
+        {
+            1 => amount * 52m / 12m,      // Weekly
+            2 => amount * 26m / 12m,      // Bi-weekly
+            4 => amount,                   // Monthly
+            5 => amount / 2m,              // Bi-monthly
+            6 => amount / 3m,              // Quarterly
+            7 => amount * 52m / 5m / 12m,  // 5 weeks
+            8 => amount * 2m,              // Semi-monthly
+            9 => amount / 12m,             // Yearly
+            10 => amount * 73m / 12m,      // Every 5 days (365/5 = 73)
+            11 => amount * 52m / 6m / 12m, // 6 weeks
+            12 => amount * 52m / 3m / 12m, // 3 weeks
+            13 => amount * 52m / 4m / 12m, // 4 weeks
+            14 => amount / 6m,             // Semi-annually
+            _ => 0m                        // One-time or unknown
+        };
+
+        return Math.Round(monthly * multiplier, 2);
+    }
+
+    private async Task LoadCategoriesAndPayeesAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            
-            // Load categories
-            var categoriesData = Sql.GetDataTable(dbName, "dbo", "spcfGetCategories_020000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-            categoriesList = categoriesData.AsEnumerable()
-                .Select(row => row["CategoryName"]?.ToString() ?? string.Empty)
+            var userId = SiteInfoService.DefaultUserId;
+
+            // EF Core replacement for spcfGetCategories_020000
+            var categories = await DbContext.Categories
+                .Where(c => c.UserId == userId)
+                .OrderBy(c => c.CategoryName)
+                .ToListAsync();
+
+            categoriesList = categories
+                .Select(c => c.CategoryName ?? string.Empty)
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
-                .OrderBy(c => c)
                 .ToList();
-            
-            // Load payees
-            var payeesData = Sql.GetDataTable(dbName, "dbo", "spcfGetPayees_020000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-            payeesList = payeesData.AsEnumerable()
-                .Select(row => row["PayeeName"]?.ToString() ?? string.Empty)
+
+            // EF Core replacement for spcfGetPayees_020000
+            var payees = await DbContext.Payees
+                .Where(p => p.UserId == userId && !p.IsDeleted)
+                .OrderBy(p => p.PayeeName)
+                .ToListAsync();
+
+            payeesList = payees
+                .Select(p => p.PayeeName)
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct()
-                .OrderBy(p => p)
                 .ToList();
         }
         catch (Exception ex)
@@ -139,16 +182,17 @@ public partial class BudgetItems
         }
     }
 
-    private void LoadFrequencies()
+    private async Task LoadFrequenciesAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            var frequencies = Sql.GetDataTable(dbName, "dbo", "spcfGetFrequencies");
-            frequencyOptions = frequencies.AsEnumerable()
-                .Select(row => new FrequencyOption(
-                    Convert.ToInt32(row["FrequencyId"]),
-                    row["FrequencyName"]?.ToString() ?? string.Empty))
+            // EF Core replacement for spcfGetFrequencies
+            var frequencies = await DbContext.Frequencies
+                .OrderBy(f => f.Sort)
+                .ToListAsync();
+
+            frequencyOptions = frequencies
+                .Select(f => new FrequencyOption(f.FrequencyId, f.FrequencyName))
                 .ToList();
         }
         catch (Exception ex)
@@ -157,9 +201,9 @@ public partial class BudgetItems
         }
     }
 
-    private void ShowAddBudget()
+    private async Task ShowAddBudgetAsync()
     {
-        LoadFrequencies();
+        await LoadFrequenciesAsync();
         editBudgetId = -1;
         editBudgetName = string.Empty;
         editIsExpense = true;
@@ -176,29 +220,33 @@ public partial class BudgetItems
         currentView = ViewMode.Edit;
     }
 
-    private void ShowEditBudget(int budgetId)
+    private async Task ShowEditBudgetAsync(int budgetId)
     {
         try
         {
-            LoadFrequencies();
-            var dbName = SiteInfoService.DatabaseName;
-            var row = Sql.GetDataRow(dbName, "dbo", "spcfGetBudget", new NamedValue("BudgetId", budgetId));
-            if (row != null)
+            await LoadFrequenciesAsync();
+
+            // EF Core replacement for spcfGetBudget
+            var budget = await DbContext.Budgets
+                .Include(b => b.Category)
+                .Include(b => b.Payee)
+                .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+
+            if (budget != null)
             {
                 editBudgetId = budgetId;
-                editBudgetName = row["BudgetName"]?.ToString() ?? string.Empty;
-                var budgetTypeId = Convert.ToInt32(row["BudgetTypeId"]);
-                editIsExpense = budgetTypeId == 1;  // 1 = Expense, 0 = Income
-                editAmount = Convert.ToDecimal(row["Amount"]);
-                editNextDueDate = Convert.ToDateTime(row["NextDueDate"]);
-                editFrequencyId = Convert.ToInt32(row["FrequencyId"]);
-                editCategory = row["Category"]?.ToString() ?? string.Empty;
-                editPayee = row["Payee"]?.ToString() ?? string.Empty;
-                editIsBill = Convert.ToBoolean(row["IsBill"]);
-                editIsAuto = Convert.ToBoolean(row["IsAuto"]);
-                editIsLate = Convert.ToBoolean(row["IsLate"]);
+                editBudgetName = budget.BudgetName ?? string.Empty;
+                editIsExpense = budget.BudgetTypeId == 1;  // 1 = Expense, 0 = Income
+                editAmount = budget.Amount ?? 0m;
+                editNextDueDate = budget.NextDueDate ?? DateTime.Today;
+                editFrequencyId = budget.FrequencyId ?? 1;
+                editCategory = budget.Category?.CategoryName ?? string.Empty;
+                editPayee = budget.Payee?.PayeeName ?? string.Empty;
+                editIsBill = budget.IsBill ?? false;
+                editIsAuto = budget.IsAutomatic ?? false;
+                editIsLate = budget.IsLate ?? false;
 
-                var endDate = Convert.ToDateTime(row["EndDate"]);
+                var endDate = budget.EndDate ?? DateTime.Parse("1970-01-01");
                 editHasEndDate = endDate != DateTime.Parse("1970-01-01");
                 editEndDate = editHasEndDate ? endDate : DateTime.Today;
 
@@ -217,7 +265,7 @@ public partial class BudgetItems
         currentView = ViewMode.List;
     }
 
-    private void SaveBudget()
+    private async Task SaveBudgetAsync()
     {
         editErrorMessage = string.Empty;
 
@@ -230,30 +278,64 @@ public partial class BudgetItems
 
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
+            var userId = SiteInfoService.DefaultUserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
-            var payee = editIsBill ? editPayee : string.Empty;
+            var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
 
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfSaveBudget_030000",
-                new NamedValue("BudgetId", editBudgetId),
-                new NamedValue("BudgetName", editBudgetName),
-                new NamedValue("FrequencyId", editFrequencyId),
-                new NamedValue("NextDueDate", editNextDueDate),
-                new NamedValue("EndDate", endDate),
-                new NamedValue("Amount", editAmount),
-                new NamedValue("BudgetTypeId", budgetTypeId),
-                new NamedValue("Category", editCategory),
-                new NamedValue("UserId", SiteInfoService.DefaultUserId),
-                new NamedValue("IsAuto", isAuto),
-                new NamedValue("IsBill", editIsBill),
-                new NamedValue("IsLate", editIsLate),
-                new NamedValue("Payee", payee));
+            // EF Core replacement for spcfSaveBudget_030000
+            // Get or create Category
+            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
 
+            // Get or create Payee
+            var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
+
+            if (editBudgetId == -1)
+            {
+                // Insert new budget
+                var newBudget = new Models.Entities.Budget
+                {
+                    BudgetName = editBudgetName,
+                    BudgetTypeId = budgetTypeId,
+                    FrequencyId = editFrequencyId,
+                    NextDueDate = editNextDueDate,
+                    EndDate = endDate,
+                    Amount = editAmount,
+                    CategoryId = categoryId,
+                    UserId = userId,
+                    IsAutomatic = isAuto,
+                    IsBill = editIsBill,
+                    IsLate = editIsLate,
+                    PayeeId = payeeId > 0 ? payeeId : null
+                };
+                DbContext.Budgets.Add(newBudget);
+            }
+            else
+            {
+                // Update existing budget
+                var budget = await DbContext.Budgets.FindAsync(editBudgetId);
+                if (budget != null)
+                {
+                    budget.BudgetName = editBudgetName;
+                    budget.BudgetTypeId = budgetTypeId;
+                    budget.FrequencyId = editFrequencyId;
+                    budget.NextDueDate = editNextDueDate;
+                    budget.EndDate = endDate;
+                    budget.Amount = editAmount;
+                    budget.CategoryId = categoryId;
+                    budget.UserId = userId;
+                    budget.IsAutomatic = isAuto;
+                    budget.IsBill = editIsBill;
+                    budget.IsLate = editIsLate;
+                    budget.PayeeId = payeeId > 0 ? payeeId : null;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -261,7 +343,43 @@ public partial class BudgetItems
         }
     }
 
-    private async Task DeleteBudget()
+    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+    {
+        if (string.IsNullOrWhiteSpace(categoryName))
+            return -1;
+
+        var category = await DbContext.Categories
+            .FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
+
+        if (category != null)
+            return category.CategoryId;
+
+        // Create new category
+        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
+        DbContext.Categories.Add(newCategory);
+        await DbContext.SaveChangesAsync();
+        return newCategory.CategoryId;
+    }
+
+    private async Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
+    {
+        if (string.IsNullOrWhiteSpace(payeeName))
+            return -1;
+
+        var payee = await DbContext.Payees
+            .FirstOrDefaultAsync(p => p.PayeeName == payeeName && p.UserId == userId);
+
+        if (payee != null)
+            return payee.PayeeId;
+
+        // Create new payee
+        var newPayee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
+        DbContext.Payees.Add(newPayee);
+        await DbContext.SaveChangesAsync();
+        return newPayee.PayeeId;
+    }
+
+    private async Task DeleteBudgetAsync()
     {
         var confirmed = await DialogService.Confirm(
             "Are you sure you want to delete this budget item?",
@@ -278,10 +396,16 @@ public partial class BudgetItems
 
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfDeleteBudget", new NamedValue("BudgetId", editBudgetId));
+            // EF Core replacement for spcfDeleteBudget
+            var budget = await DbContext.Budgets.FindAsync(editBudgetId);
+            if (budget != null)
+            {
+                DbContext.Budgets.Remove(budget);
+                await DbContext.SaveChangesAsync();
+            }
+
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -289,7 +413,7 @@ public partial class BudgetItems
         }
     }
 
-    // Screen size enum matching Bootstrap breakpoints
+    // Screen size enum
     public enum ScreenSize
     {
         ExtraSmall,  // < 576px

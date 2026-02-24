@@ -32,7 +32,7 @@ else
                 </div>
                 <div class="col text-end">
                     <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary"
-                                  Size="ButtonSize.Medium" Click="ShowAddBudget" />
+                                  Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
                 </div>
             </div>
         </div>
@@ -59,7 +59,7 @@ else
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                         <Template Context="item">
                             <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                          Click="() => ShowEditBudget(item.BudgetId)" title="Edit" />
+                                          Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left" Visible="@IsAtLeast(ScreenSize.Medium)">
@@ -235,14 +235,14 @@ else
                         <RadzenColumn Size="12">
                             <RadzenButton Text="Delete this Budget" Icon="delete" 
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                          Click="DeleteBudget" />
+                                          Click="DeleteBudgetAsync" />
                         </RadzenColumn>
                     </RadzenRow>
                 }
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudget" class="me-2" />
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudgetAsync" class="me-2" />
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>

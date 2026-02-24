@@ -1,7 +1,10 @@
 using System.Data;
+using ClintonFrankland.Data;
 using ClintonFrankland.Models;
+using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -16,13 +19,13 @@ public partial class Accounts
     private SiteInfoService SiteInfoService { get; set; } = default!;
 
     [Inject]
-    private SqlProvider Sql { get; set; } = default!;
-
-    [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
     [Inject]
     private DialogService DialogService { get; set; } = default!;
+
+    [Inject]
+    private ClintonFranklandDbContext DbContext { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -72,31 +75,35 @@ public partial class Accounts
                 Navigation.NavigateTo($"/login?Return={Uri.EscapeDataString("/accounts")}");
                 return;
             }
-            LoadData();
+            await LoadDataAsync();
             StateHasChanged();
         }
     }
 
-    private void LoadData()
+    private async Task LoadDataAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            var data = Sql.GetDataTable(dbName, "dbo", "spcfGetAccounts",
-                new NamedValue("userid", SiteInfoService.DefaultUserId),
-                new NamedValue("accounttype", -1));
+            var userId = SiteInfoService.DefaultUserId;
 
-            accounts = data.AsEnumerable().Select(row => new AccountViewModel
+            // EF Core replacement for spcfGetAccounts
+            var accountsData = await DbContext.Accounts
+                .Include(a => a.AccountType)
+                .Where(a => a.UserId == userId && (a.IsDeleted == null || a.IsDeleted == false))
+                .OrderBy(a => a.AccountName)
+                .ToListAsync();
+
+            accounts = accountsData.Select(a => new AccountViewModel
             {
-                AccountId = Convert.ToInt32(row["AccountId"]),
-                AccountName = row["AccountName"]?.ToString() ?? string.Empty,
-                AccountType = row["AccountType"]?.ToString() ?? string.Empty,
-                LastUpdated = row["LastUpdated"]?.ToString() ?? string.Empty,
-                AccountNumber = row["AccountNumber"]?.ToString() ?? string.Empty,
-                InterestRate = row["InterestRate"] != DBNull.Value ? Convert.ToDecimal(row["InterestRate"]) : 0m,
-                MinimumPayment = row["MinimumPayment"] != DBNull.Value ? Convert.ToDecimal(row["MinimumPayment"]) : 0m,
-                Balance = row["Balance"] != DBNull.Value ? Convert.ToDecimal(row["Balance"]) : 0m,
-                Ratio = row["Ratio"] != DBNull.Value ? Convert.ToDecimal(row["Ratio"]) : null
+                AccountId = a.AccountId,
+                AccountName = a.AccountName,
+                AccountType = a.AccountType?.AccountTypeName ?? string.Empty,
+                LastUpdated = a.LastUpdated?.ToString("yyyy-MM-dd") ?? string.Empty,
+                AccountNumber = a.AccountNumber ?? string.Empty,
+                InterestRate = a.InterestRate ?? 0m,
+                MinimumPayment = a.MinimumPayment ?? 0m,
+                Balance = a.Balance,
+                Ratio = a.Balance == 0 ? null : Math.Round((a.MinimumPayment ?? 0) / a.Balance * 100, 2)
             }).ToList();
         }
         catch (Exception ex)
@@ -121,25 +128,28 @@ public partial class Accounts
         currentView = ViewMode.Edit;
     }
 
-    private void ShowEditAccount(int accountId)
+    private async Task ShowEditAccountAsync(int accountId)
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            var row = Sql.GetDataRow(dbName, "dbo", "spcfGetAccount", new NamedValue("accountid", accountId));
-            if (row != null)
+            // EF Core replacement for spcfGetAccount
+            var account = await DbContext.Accounts
+                .Include(a => a.AccountType)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId);
+
+            if (account != null)
             {
                 editAccountId = accountId;
-                editAccountName = row["AccountName"]?.ToString() ?? string.Empty;
-                editAccountNumber = row["AccountNumber"]?.ToString() ?? string.Empty;
-                editAccountType = row["AccountType"] != DBNull.Value ? Convert.ToInt32(row["AccountType"]) : 1;
-                editBalance = Convert.ToDecimal(row["Balance"]);
-                editCreditLimit = row["CreditLimit"] != DBNull.Value ? Convert.ToDecimal(row["CreditLimit"]) : 0m;
-                editAvailableCredit = row["AvailableCredit"] != DBNull.Value ? Convert.ToDecimal(row["AvailableCredit"]) : 0m;
-                editDueDate = row["DueDate"] != DBNull.Value ? Convert.ToInt32(row["DueDate"]) : 1;
-                editMinimumPayment = row["MinimumPayment"] != DBNull.Value ? Convert.ToDecimal(row["MinimumPayment"]) : 0m;
-                editInterestRate = row["InterestRate"] != DBNull.Value ? Convert.ToDecimal(row["InterestRate"]) : 0m;
-                editWebUrl = row["WebUrl"]?.ToString() ?? string.Empty;
+                editAccountName = account.AccountName;
+                editAccountNumber = account.AccountNumber ?? string.Empty;
+                editAccountType = account.AccountTypeId;
+                editBalance = account.Balance;
+                editCreditLimit = account.CreditLimit ?? 0m;
+                editAvailableCredit = account.AvailableCredit ?? 0m;
+                editDueDate = account.DueDate ?? 1;
+                editMinimumPayment = account.MinimumPayment ?? 0m;
+                editInterestRate = account.InterestRate ?? 0m;
+                editWebUrl = account.WebUrl ?? string.Empty;
                 currentView = ViewMode.Edit;
             }
         }
@@ -154,27 +164,60 @@ public partial class Accounts
         currentView = ViewMode.List;
     }
 
-    private void SaveAccount()
+    private async Task SaveAccountAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfSaveAccount",
-                new NamedValue("accountid", editAccountId),
-                new NamedValue("userid", SiteInfoService.DefaultUserId),
-                new NamedValue("accountname", editAccountName),
-                new NamedValue("accountnumber", editAccountNumber),
-                new NamedValue("accounttypeid", editAccountType),
-                new NamedValue("balance", editBalance),
-                new NamedValue("creditlimit", editCreditLimit),
-                new NamedValue("availablecredit", editAvailableCredit),
-                new NamedValue("duedate", editDueDate),
-                new NamedValue("minimumpayment", editMinimumPayment),
-                new NamedValue("interestrate", editInterestRate),
-                new NamedValue("weburl", editWebUrl));
+            var userId = SiteInfoService.DefaultUserId;
+            var now = DateTime.UtcNow;
 
+            // EF Core replacement for spcfSaveAccount
+            if (editAccountId == -1)
+            {
+                // Insert new account
+                var newAccount = new Account
+                {
+                    AccountName = editAccountName,
+                    AccountNumber = editAccountNumber,
+                    AccountTypeId = editAccountType,
+                    Balance = editBalance,
+                    CreditLimit = editCreditLimit,
+                    AvailableCredit = editAvailableCredit,
+                    DueDate = editDueDate,
+                    MinimumPayment = editMinimumPayment,
+                    InterestRate = editInterestRate,
+                    WebUrl = editWebUrl,
+                    BeginningBalance = 0m,
+                    ClearedBalance = 0m,
+                    IsDefault = false,
+                    UserId = userId,
+                    LastUpdated = now
+                };
+                DbContext.Accounts.Add(newAccount);
+            }
+            else
+            {
+                // Update existing account
+                var account = await DbContext.Accounts.FindAsync(editAccountId);
+                if (account != null)
+                {
+                    account.AccountName = editAccountName;
+                    account.AccountNumber = editAccountNumber;
+                    account.AccountTypeId = editAccountType;
+                    account.Balance = editBalance;
+                    account.CreditLimit = editCreditLimit;
+                    account.AvailableCredit = editAvailableCredit;
+                    account.DueDate = editDueDate;
+                    account.MinimumPayment = editMinimumPayment;
+                    account.InterestRate = editInterestRate;
+                    account.WebUrl = editWebUrl;
+                    account.LastUpdated = now;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -182,7 +225,7 @@ public partial class Accounts
         }
     }
 
-    private async Task DeleteAccount()
+    private async Task DeleteAccountAsync()
     {
         var confirmed = await DialogService.Confirm(
             "Are you sure you want to delete this account?",
@@ -199,10 +242,16 @@ public partial class Accounts
 
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfDeleteAccount", new NamedValue("accountid", editAccountId));
+            // EF Core replacement for spcfDeleteAccount
+            var account = await DbContext.Accounts.FindAsync(editAccountId);
+            if (account != null)
+            {
+                DbContext.Accounts.Remove(account);
+                await DbContext.SaveChangesAsync();
+            }
+
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {

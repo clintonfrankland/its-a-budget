@@ -1,6 +1,9 @@
+using ClintonFrankland.Data;
 using ClintonFrankland.Models;
+using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 using System;
@@ -17,13 +20,13 @@ public partial class Checkbook
     private SiteInfoService SiteInfoService { get; set; } = default!;
 
     [Inject]
-    private SqlProvider Sql { get; set; } = default!;
-
-    [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
     [Inject]
     private DialogService DialogService { get; set; } = default!;
+
+    [Inject]
+    private ClintonFranklandDbContext DbContext { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -105,7 +108,7 @@ public partial class Checkbook
                 return;
             }
 
-            LoadData();
+            await LoadDataAsync();
             StateHasChanged();
         }
 
@@ -134,40 +137,54 @@ public partial class Checkbook
         Console.WriteLine($"Filter applied on column {args.Column.Property} with value {args.FilterValue}");
     }
 
-    private void LoadData()
+    private async Task LoadDataAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
+            var userId = SiteInfoService.DefaultUserId;
 
-            // Get balance
-            var balanceData = Sql.GetDataTable(dbName, "dbo", "spcfGetCheckbookBalance_020000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-            if (balanceData.Rows.Count > 0)
+            // EF Core replacement for spcfGetCheckbookBalance_020000
+            var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+            var startingBalance = account?.BeginningBalance ?? 0m;
+
+            var transactionsData = await DbContext.Transactions
+                .Include(t => t.Payee)
+                .Include(t => t.Category)
+                .Where(t => t.UserId == userId)
+                .OrderByDescending(t => t.Cleared)
+                .ThenBy(t => t.TransactionDate)
+                .ThenByDescending(t => t.Amount)
+                .ToListAsync();
+
+            // Calculate totals for balance display
+            var totalAmount = transactionsData.Sum(t => t.Amount);
+            var clearedAmount = transactionsData.Where(t => t.Cleared).Sum(t => t.Amount);
+            balance = startingBalance + totalAmount;
+            clearedBalance = startingBalance + clearedAmount;
+
+            // EF Core replacement for spcfGetMyCheckbook_040100
+            // Calculate running balance
+            var runningBalance = startingBalance;
+            transactions = transactionsData.Select(t =>
             {
-                balance = Convert.ToDecimal(balanceData.Rows[0]["Balance"]);
-                clearedBalance = Convert.ToDecimal(balanceData.Rows[0]["Cleared"]);
-            }
-
-            // Get transactions
-            transactionData = Sql.GetDataTable(dbName, "dbo", "spcfGetMyCheckbook_040100", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-
-            // Convert to view models for RadzenDataGrid
-            transactions = transactionData.AsEnumerable().Select(row => new TransactionViewModel
-            {
-                TransactionId = Convert.ToInt32(row["TransactionId"]),
-                TransactionDate = DateTime.Parse(row["TransactionDate"].ToString()!),
-                PayeeName = row["PayeeName"]?.ToString() ?? string.Empty,
-                CategoryName = row["CategoryName"]?.ToString() ?? string.Empty,
-                IsCleared = Convert.ToBoolean(row["ShowCleared"]),
-                Amount = Convert.ToDecimal(row["Amount"]),
-                Balance = Convert.ToDecimal(row["Balance"])
+                runningBalance += t.Amount;
+                return new TransactionViewModel
+                {
+                    TransactionId = t.TransactionId,
+                    TransactionDate = t.TransactionDate.ToDateTime(TimeOnly.MinValue),
+                    PayeeName = t.Payee?.PayeeName ?? string.Empty,
+                    CategoryName = t.Category?.CategoryName ?? string.Empty,
+                    IsCleared = t.Cleared,
+                    Amount = t.Amount,
+                    Balance = runningBalance
+                };
             }).ToList();
 
-            // Load payees and categories for autocomplete
-            LoadPayeesAndCategories();
+            // Load payees and categories for autocomplete (EF Core)
+            await LoadPayeesAndCategoriesAsync();
 
             // Get forecast if needed
-            LoadForecast();
+            await LoadForecastAsync();
         }
         catch (Exception ex)
         {
@@ -175,28 +192,34 @@ public partial class Checkbook
         }
     }
 
-    private void LoadPayeesAndCategories()
+    private async Task LoadPayeesAndCategoriesAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
+            var userId = SiteInfoService.DefaultUserId;
 
-            // Load payees
-            var payeesData = Sql.GetDataTable(dbName, "dbo", "spcfGetPayees_020000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-            payeesList = payeesData.AsEnumerable()
-                .Select(row => row["PayeeName"]?.ToString() ?? string.Empty)
+            // EF Core replacement for spcfGetPayees_020000
+            var payees = await DbContext.Payees
+                .Where(p => p.UserId == userId && !p.IsDeleted)
+                .OrderBy(p => p.PayeeName)
+                .ToListAsync();
+
+            payeesList = payees
+                .Select(p => p.PayeeName)
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct()
-                .OrderBy(p => p)
                 .ToList();
 
-            // Load categories
-            var categoriesData = Sql.GetDataTable(dbName, "dbo", "spcfGetCategories_020000", new NamedValue("UserId", SiteInfoService.DefaultUserId));
-            categoriesList = categoriesData.AsEnumerable()
-                .Select(row => row["CategoryName"]?.ToString() ?? string.Empty)
+            // EF Core replacement for spcfGetCategories_020000
+            var categories = await DbContext.Categories
+                .Where(c => c.UserId == userId)
+                .OrderBy(c => c.CategoryName)
+                .ToListAsync();
+
+            categoriesList = categories
+                .Select(c => c.CategoryName ?? string.Empty)
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
-                .OrderBy(c => c)
                 .ToList();
         }
         catch (Exception ex)
@@ -206,20 +229,18 @@ public partial class Checkbook
         }
     }
 
-    private void LoadForecast()
+    private async Task LoadForecastAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
+            var userId = SiteInfoService.DefaultUserId;
 
+            // EF Core replacement for spcfGetMyBudget_020000
             // Always check for bills due today (independent of budget panel settings)
-            var billsDueData = Sql.GetDataTable(dbName, "dbo", "spcfGetMyBudget_020000",
-                new NamedValue("EndDate", DateTime.Today.AddDays(1)),
-                new NamedValue("UserId", SiteInfoService.DefaultUserId));
+            var allForecast = await GenerateBudgetForecastAsync(userId, DateTime.Today.AddDays(Math.Max(budgetDays + 1, 1)));
 
-            var billsDueToday = billsDueData.AsEnumerable()
-                .Where(row => DateTime.Parse(row["DueDate"].ToString()!) <= DateTime.Today 
-                              && Convert.ToBoolean(row["IsBill"]))
+            var billsDueToday = allForecast
+                .Where(b => b.DueDate <= DateTime.Today && b.IsBill)
                 .ToList();
 
             showBillsDue = billsDueToday.Count > 0;
@@ -232,25 +253,7 @@ public partial class Checkbook
                 return;
             }
 
-            var forecastData = Sql.GetDataTable(dbName, "dbo", "spcfGetMyBudget_020000",
-                new NamedValue("EndDate", DateTime.Today.AddDays(budgetDays + 1)),
-                new NamedValue("UserId", SiteInfoService.DefaultUserId));
-
-            // Convert to view models for RadzenDataGrid
-            budgetItems = forecastData.AsEnumerable().Select(row => new BudgetItemViewModel
-            {
-                BudgetId = Convert.ToInt32(row["BudgetId"]),
-                DueDate = DateTime.Parse(row["DueDate"].ToString()!),
-                BudgetName = row["BudgetName"]?.ToString() ?? string.Empty,
-                Payee = row.Table.Columns.Contains("Payee") ? row["Payee"]?.ToString() ?? string.Empty : string.Empty,
-                Category = row["Category"]?.ToString() ?? string.Empty,
-                FrequencyName = row["FrequencyName"]?.ToString() ?? string.Empty,
-                Amount = Convert.ToDecimal(row["Amount"]),
-                Balance = Convert.ToDecimal(row["Balance"]),
-                IsBill = Convert.ToBoolean(row["IsBill"]),
-                IsAuto = Convert.ToBoolean(row["IsAuto"]),
-                IsLate = Convert.ToBoolean(row["IsLate"])
-            }).ToList();
+            budgetItems = allForecast;
         }
         catch (Exception ex)
         {
@@ -258,15 +261,107 @@ public partial class Checkbook
         }
     }
 
-    private void OnBudgetDaysChanged(ChangeEventArgs e)
+    private async Task<List<BudgetItemViewModel>> GenerateBudgetForecastAsync(int userId, DateTime endDate)
     {
-        budgetDays = int.Parse(e.Value?.ToString() ?? "3");
-        LoadForecast();
+        // Get starting balance from account
+        var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+        var startingBalance = account?.BeginningBalance ?? 0m;
+
+        // Add sum of all transactions to starting balance
+        var transactionSum = await DbContext.Transactions
+            .Where(t => t.UserId == userId)
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+        startingBalance += transactionSum;
+
+        // Get all budgets for the user
+        var budgets = await DbContext.Budgets
+            .Include(b => b.Category)
+            .Include(b => b.Frequency)
+            .Include(b => b.Payee)
+            .Where(b => b.UserId == userId)
+            .ToListAsync();
+
+        // Extend end date if there's income scheduled after it
+        var incomeBudget = budgets
+            .Where(b => b.BudgetTypeId == 0)
+            .OrderBy(b => b.NextDueDate)
+            .FirstOrDefault();
+        if (incomeBudget?.NextDueDate > endDate)
+            endDate = incomeBudget.NextDueDate.Value;
+
+        // Project all budget items forward through time
+        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int BudgetTypeId, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee)>();
+
+        foreach (var budget in budgets)
+        {
+            var nextDue = budget.NextDueDate ?? DateTime.Today;
+            var budgetEndDate = (budget.EndDate == null || budget.EndDate == DateTime.Parse("1970-01-01")) 
+                ? endDate 
+                : budget.EndDate.Value;
+            var frequencyId = budget.FrequencyId ?? 0;
+
+            // Project this budget forward until end date
+            while (nextDue < endDate && nextDue < budgetEndDate)
+            {
+                var amount = budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
+                projectedItems.Add((
+                    budget.BudgetId,
+                    budget.BudgetName ?? string.Empty,
+                    budget.Category?.CategoryName ?? string.Empty,
+                    nextDue,
+                    amount,
+                    budget.BudgetTypeId,
+                    frequencyId,
+                    budget.Frequency?.FrequencyName ?? string.Empty,
+                    budget.IsAutomatic ?? false,
+                    budget.IsBill ?? false,
+                    budget.IsLate ?? false,
+                    budget.Payee?.PayeeName ?? string.Empty
+                ));
+
+                // Calculate next due date
+                if (frequencyId == 0) break; // One-time
+                nextDue = CalculateNextDueDate(nextDue, frequencyId);
+            }
+        }
+
+        // Sort by date, then by amount (descending for income first)
+        var sortedItems = projectedItems.OrderBy(i => i.DueDate).ThenByDescending(i => i.Amount).ToList();
+
+        // Calculate running balance
+        var runningBalance = startingBalance;
+        var result = new List<BudgetItemViewModel>();
+        foreach (var item in sortedItems)
+        {
+            runningBalance += item.Amount;
+            result.Add(new BudgetItemViewModel
+            {
+                BudgetId = item.BudgetId,
+                BudgetName = item.BudgetName,
+                Category = item.Category,
+                DueDate = item.DueDate,
+                Amount = item.Amount,
+                Balance = runningBalance,
+                FrequencyName = item.FrequencyName,
+                IsAuto = item.IsAuto,
+                IsBill = item.IsBill,
+                IsLate = item.IsLate,
+                Payee = item.Payee
+            });
+        }
+
+        return result;
     }
 
-    private void OnBudgetDaysChangedDropdown()
+    private async Task OnBudgetDaysChangedAsync(ChangeEventArgs e)
     {
-        LoadForecast();
+        budgetDays = int.Parse(e.Value?.ToString() ?? "3");
+        await LoadForecastAsync();
+    }
+
+    private async Task OnBudgetDaysChangedDropdownAsync()
+    {
+        await LoadForecastAsync();
     }
 
     private void ToggleBudgetItems()
@@ -276,7 +371,7 @@ public partial class Checkbook
 
     // Handle budget action dropdown selection (for small screens)
     // When main button is clicked, args is null - default to "record" action
-    private void OnBudgetActionSelectedOrDefault(RadzenSplitButtonItem? args, BudgetItemViewModel item)
+    private async Task OnBudgetActionSelectedOrDefaultAsync(RadzenSplitButtonItem? args, BudgetItemViewModel item)
     {
         var action = args?.Value?.ToString() ?? "record";  // Default to record when main button clicked
 
@@ -286,7 +381,7 @@ public partial class Checkbook
                 ShowAddFromBudget(item);
                 break;
             case "skip":
-                SkipBudget(item.BudgetId);
+                await SkipBudgetAsync(item.BudgetId);
                 break;
         }
     }
@@ -300,7 +395,7 @@ public partial class Checkbook
         switch (action)
         {
             case "edit":
-                ShowEditTransaction(txn.TransactionId);
+                await ShowEditTransactionAsync(txn.TransactionId);
                 break;
             case "cleared":
                 await OnClearedChanged(txn.TransactionId, true);
@@ -312,18 +407,73 @@ public partial class Checkbook
     }
 
     // Skip a budget item (mark as paid without creating a transaction)
-    private void SkipBudget(int budgetId)
+    private async Task SkipBudgetAsync(int budgetId)
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfMarkPaid", new NamedValue("BudgetId", budgetId));
-            LoadData();  // Refresh both transactions and budget items
+            await MarkBudgetPaidAsync(budgetId);
+            await LoadDataAsync();  // Refresh both transactions and budget items
         }
         catch (Exception ex)
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
+    }
+
+    // EF Core replacement for spcfMarkPaid
+    private async Task MarkBudgetPaidAsync(int budgetId)
+    {
+        var budget = await DbContext.Budgets.FindAsync(budgetId);
+        if (budget == null) return;
+
+        // Calculate new NextDueDate based on frequency
+        var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
+        budget.NextDueDate = newNextDueDate;
+        await DbContext.SaveChangesAsync();
+
+        // Delete if one-time (FrequencyId = 0)
+        if (budget.FrequencyId == 0)
+        {
+            DbContext.Budgets.Remove(budget);
+            await DbContext.SaveChangesAsync();
+        }
+        // Delete if past end date
+        else if (budget.EndDate.HasValue && budget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > budget.EndDate)
+        {
+            DbContext.Budgets.Remove(budget);
+            await DbContext.SaveChangesAsync();
+        }
+    }
+
+    private static DateTime CalculateNextDueDate(DateTime currentDate, int frequencyId)
+    {
+        return frequencyId switch
+        {
+            0 => currentDate, // One-time - no change
+            1 => currentDate.AddDays(7), // Weekly
+            2 => currentDate.AddDays(14), // Bi-weekly
+            4 => currentDate.AddMonths(1), // Monthly
+            5 => currentDate.AddMonths(2), // Bi-monthly
+            6 => currentDate.AddMonths(3), // Quarterly
+            7 => currentDate.AddDays(35), // 5 weeks
+            8 => CalculateSemiMonthly(currentDate), // Semi-monthly (1st and 15th)
+            9 => currentDate.AddYears(1), // Yearly
+            10 => currentDate.AddDays(5), // Every 5 days
+            11 => currentDate.AddDays(42), // 6 weeks
+            12 => currentDate.AddDays(21), // 3 weeks
+            13 => currentDate.AddDays(28), // 4 weeks
+            14 => currentDate.AddMonths(6), // Semi-annually
+            _ => currentDate
+        };
+    }
+
+    private static DateTime CalculateSemiMonthly(DateTime currentDate)
+    {
+        // If on 1st, go to 15th; otherwise go to 1st of next month
+        if (currentDate.Day == 1)
+            return currentDate.AddDays(14);
+        else
+            return new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1);
     }
 
     // Save the current grid state (filters, sorts, page)
@@ -407,24 +557,29 @@ public partial class Checkbook
         currentView = ViewMode.Edit;
     }
 
-    private void ShowEditTransaction(int transactionId)
+    private async Task ShowEditTransactionAsync(int transactionId)
     {
         try
         {
             SaveGridState();
-            var dbName = SiteInfoService.DatabaseName;
-            var row = Sql.GetDataRow(dbName, "dbo", "spcfGetTransaction", new NamedValue("TransactionId", transactionId));
-            if (row != null)
+
+            // EF Core replacement for spcfGetTransaction
+            var transaction = await DbContext.Transactions
+                .Include(t => t.Payee)
+                .Include(t => t.Category)
+                .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+
+            if (transaction != null)
             {
                 editTransactionId = transactionId;
                 editBudgetId = -1;  // Not from a budget item
-                editDate = Convert.ToDateTime(row["TransactionDate"]);
-                editPayee = row["Payee"]?.ToString() ?? string.Empty;
-                editCategory = row["Category"]?.ToString() ?? string.Empty;
-                var amount = Convert.ToDecimal(row["Amount"]);
+                editDate = transaction.TransactionDate.ToDateTime(TimeOnly.MinValue);
+                editPayee = transaction.Payee?.PayeeName ?? string.Empty;
+                editCategory = transaction.Category?.CategoryName ?? string.Empty;
+                var amount = transaction.Amount;
                 editIsDebit = amount < 0;
                 editAmount = Math.Abs(amount);
-                editCleared = Convert.ToBoolean(row["Cleared"]);
+                editCleared = transaction.Cleared;
                 currentView = ViewMode.Edit;
             }
         }
@@ -441,31 +596,66 @@ public partial class Checkbook
         shouldRestoreGridState = true;
     }
 
-    private void SaveTransaction()
+    private async Task SaveTransactionAsync()
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
+            var userId = SiteInfoService.DefaultUserId;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
 
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfSaveTransaction_030000",
-                new NamedValue("TransactionId", editTransactionId),
-                new NamedValue("UserId", SiteInfoService.DefaultUserId),
-                new NamedValue("TransactionDate", editDate),
-                new NamedValue("Payee", editPayee),
-                new NamedValue("Category", editCategory),
-                new NamedValue("Amount", finalAmount),
-                new NamedValue("Cleared", editCleared));
+            // EF Core replacement for spcfSaveTransaction_030000
+            // Get or create Category and Payee (ensure they exist for required FK)
+            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
+            var payeeId = await GetOrCreatePayeeAsync(editPayee, userId);
 
-            // If this transaction was from a budget item, mark it as paid
+            // Default to -1 if not found (matching the stored procedure behavior)
+            if (categoryId <= 0) categoryId = await GetOrCreateCategoryAsync("Uncategorized", userId);
+            if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
+
+            // Get default account
+            var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+            var accountId = account?.AccountId ?? 1;
+
+            if (editTransactionId == -1)
+            {
+                // Insert new transaction
+                var newTransaction = new Transaction
+                {
+                    UserId = userId,
+                    TransactionDate = DateOnly.FromDateTime(editDate),
+                    PayeeId = payeeId,
+                    CategoryId = categoryId,
+                    AccountId = accountId,
+                    Amount = finalAmount,
+                    Cleared = editCleared
+                };
+                DbContext.Transactions.Add(newTransaction);
+            }
+            else
+            {
+                // Update existing transaction
+                var transaction = await DbContext.Transactions.FindAsync(editTransactionId);
+                if (transaction != null)
+                {
+                    transaction.TransactionDate = DateOnly.FromDateTime(editDate);
+                    transaction.PayeeId = payeeId;
+                    transaction.CategoryId = categoryId;
+                    transaction.Amount = finalAmount;
+                    transaction.Cleared = editCleared;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // If this transaction was from a budget item, mark it as paid (EF Core)
             if (editBudgetId != -1)
             {
-                Sql.ExecuteNonQuery(dbName, "dbo", "spcfMarkPaid", new NamedValue("BudgetId", editBudgetId));
+                await MarkBudgetPaidAsync(editBudgetId);
                 editBudgetId = -1;  // Reset
             }
 
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
             shouldRestoreGridState = true;
         }
         catch (Exception ex)
@@ -474,7 +664,43 @@ public partial class Checkbook
         }
     }
 
-    private async Task DeleteTransaction()
+    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+    {
+        if (string.IsNullOrWhiteSpace(categoryName))
+            return -1;
+
+        var category = await DbContext.Categories
+            .FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
+
+        if (category != null)
+            return category.CategoryId;
+
+        // Create new category
+        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
+        DbContext.Categories.Add(newCategory);
+        await DbContext.SaveChangesAsync();
+        return newCategory.CategoryId;
+    }
+
+    private async Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
+    {
+        if (string.IsNullOrWhiteSpace(payeeName))
+            return -1;
+
+        var payee = await DbContext.Payees
+            .FirstOrDefaultAsync(p => p.PayeeName == payeeName && p.UserId == userId);
+
+        if (payee != null)
+            return payee.PayeeId;
+
+        // Create new payee
+        var newPayee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
+        DbContext.Payees.Add(newPayee);
+        await DbContext.SaveChangesAsync();
+        return newPayee.PayeeId;
+    }
+
+    private async Task DeleteTransactionAsync()
     {
         var confirmed = await DialogService.Confirm(
             "Are you sure you want to delete this transaction?", 
@@ -491,10 +717,16 @@ public partial class Checkbook
 
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfMyCheckbookDeleteTransaction", new NamedValue("TransactionId", editTransactionId));
+            // EF Core replacement for spcfMyCheckbookDeleteTransaction
+            var transaction = await DbContext.Transactions.FindAsync(editTransactionId);
+            if (transaction != null)
+            {
+                DbContext.Transactions.Remove(transaction);
+                await DbContext.SaveChangesAsync();
+            }
+
             currentView = ViewMode.List;
-            LoadData();
+            await LoadDataAsync();
             shouldRestoreGridState = true;
         }
         catch (Exception ex)
@@ -507,14 +739,19 @@ public partial class Checkbook
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfMyCheckboxMarkTransactionCleared", new NamedValue("TransactionId", transactionId));
-
-            // Update the item in place to preserve grid filter state
-            var transaction = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
+            // EF Core replacement for spcfMyCheckboxMarkTransactionCleared
+            var transaction = await DbContext.Transactions.FindAsync(transactionId);
             if (transaction != null)
             {
-                transaction.IsCleared = true;
+                transaction.Cleared = true;
+                await DbContext.SaveChangesAsync();
+            }
+
+            // Update the item in place to preserve grid filter state
+            var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
+            if (viewModel != null)
+            {
+                viewModel.IsCleared = true;
             }
             await checkbookGrid.Reload();
         }
@@ -528,14 +765,19 @@ public partial class Checkbook
     {
         try
         {
-            var dbName = SiteInfoService.DatabaseName;
-            Sql.ExecuteNonQuery(dbName, "dbo", "spcfMyCheckboxMarkTransactionUncleared", new NamedValue("TransactionId", transactionId));
-
-            // Update the item in place to preserve grid filter state
-            var transaction = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
+            // EF Core replacement for spcfMyCheckboxMarkTransactionUncleared
+            var transaction = await DbContext.Transactions.FindAsync(transactionId);
             if (transaction != null)
             {
-                transaction.IsCleared = false;
+                transaction.Cleared = false;
+                await DbContext.SaveChangesAsync();
+            }
+
+            // Update the item in place to preserve grid filter state
+            var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
+            if (viewModel != null)
+            {
+                viewModel.IsCleared = false;
             }
             await checkbookGrid.Reload();
         }

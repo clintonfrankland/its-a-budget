@@ -1,5 +1,4 @@
 using ClintonFrankland.Data;
-using ClintonFrankland.Models;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
@@ -19,14 +18,6 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 });
 
 // Register application services
-builder.Services.AddScoped<SqlProvider>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    var connectionString = config.GetConnectionString("DefaultConnection") 
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    return new SqlProvider(connectionString);
-});
-
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddRadzenComponents();

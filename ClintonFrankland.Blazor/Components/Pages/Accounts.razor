@@ -59,7 +59,7 @@ else
                     <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                         <Template Context="item">
                             <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                          Click="() => ShowEditAccount(item.AccountId)" title="Edit" />
+                                          Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountName" Title="Account Name" SortOrder="SortOrder.Ascending" />
@@ -193,14 +193,14 @@ else
                         <RadzenColumn Size="12">
                             <RadzenButton Text="Delete this Account" Icon="delete" 
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                          Click="DeleteAccount" />
+                                          Click="DeleteAccountAsync" />
                         </RadzenColumn>
                     </RadzenRow>
                 }
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveAccount" class="me-2" />
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveAccountAsync" class="me-2" />
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>

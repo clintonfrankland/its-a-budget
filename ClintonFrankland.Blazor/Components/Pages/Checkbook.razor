@@ -66,7 +66,7 @@ else
                         </RadzenText>
                         <RadzenDropDown @bind-Value="budgetDays" TValue="int" 
                                         Data="@budgetDaysOptions" TextProperty="Text" ValueProperty="Value"
-                                        Change="@(args => OnBudgetDaysChangedDropdown())"
+                                        Change="@(args => OnBudgetDaysChangedDropdownAsync())"
                                         Style="width: 120px;" />
                     </RadzenStack>
 
@@ -84,12 +84,12 @@ else
                                         <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
                                                       Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
                                         <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
-                                                      Click="() => SkipBudget(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
+                                                      Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
                                     }
                                     else
                                     {
                                         <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
-                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefault(args, item))">
+                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
                                             <ChildContent>
                                                 <RadzenSplitButtonItem Text="Record" Icon="add_task" Value="record" />
                                                 <RadzenSplitButtonItem Text="Skip" Icon="skip_next" Value="skip" />
@@ -149,7 +149,7 @@ else
                             @if (IsAtLeast(ScreenSize.Small))
                             {
                                 <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditTransaction(txn.TransactionId)" title="Edit" />
+                                              Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
                                 <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
                                               ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
                                               Size="ButtonSize.Small" 
@@ -269,14 +269,14 @@ else
                         <RadzenColumn Size="12">
                             <RadzenButton Text="Delete this Transaction" Icon="delete" 
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                          Click="DeleteTransaction" />
+                                          Click="DeleteTransactionAsync" />
                         </RadzenColumn>
                     </RadzenRow>
                 }
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransaction" class="me-2" />
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransactionAsync" class="me-2" />
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>
