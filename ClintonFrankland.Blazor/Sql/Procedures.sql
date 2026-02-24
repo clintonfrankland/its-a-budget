@@ -39,42 +39,7 @@ BEGIN
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfDeleteChore]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfDeleteChore]
-	@choreid INT
-AS
-BEGIN
-	SET NOCOUNT ON;
-	UPDATE dbo.cfChores
-	SET IsDeleted = 1
-	WHERE ChoreId = @choreid
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfEmailRulesGetEmailRules]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfEmailRulesGetEmailRules]
-	
-AS
-BEGIN
-	SET NOCOUNT ON;
-	SELECT
-		[EmailAddress]
-		,[Retention]
-		,[RuleId]
-	FROM [dbo].[cfEmailRules]
-	WHERE [IsDeleted] = 0
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfGetAccount]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfGetAccount]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -166,21 +131,7 @@ BEGIN
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfGetBalance]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfGetBalance] 
-AS
-BEGIN
-	SET NOCOUNT ON;
-	SELECT TOP 1 Balance
-	FROM dbo.cfAccounts
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfGetBudget]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfGetBudget]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -525,36 +476,7 @@ BEGIN
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfGetChore]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfGetChore]
-	@choreid INT
-AS
-BEGIN
-	SET NOCOUNT ON;
-	SELECT
-		ChoreId
-		,ChoreName
-		,UserId
-		,IIF(1 & DaysOfWeek = 1,1,0) AS [IsSunday]
-		,IIF(2 & DaysOfWeek = 2,1,0) AS [IsMonday]
-		,IIF(4 & DaysOfWeek = 4,1,0) AS [IsTuesday]
-		,IIF(8 & DaysOfWeek = 8,1,0) AS [IsWednesday]
-		,IIF(16 & DaysOfWeek = 16,1,0) AS [IsThursday]
-		,IIF(32 & DaysOfWeek = 32,1,0) AS [IsFriday]
-		,IIF(64 & DaysOfWeek = 64,1,0) AS [IsSaturday]
-		,IsDeleted
-		,Sort
-	FROM dbo.cfChores
-	WHERE ChoreId = @choreid
-
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfGetFrequencies]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfGetFrequencies]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -745,102 +667,7 @@ BEGIN
     ORDER BY bgt.DueDate ASC, Amount DESC
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfGetMyCheckbook_020000]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
--- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
--- =============================================
-CREATE PROCEDURE [dbo].[spcfGetMyCheckbook_020000] 
-	-- Add the parameters for the stored procedure here
-	@PageSize INT
-	,@Page INT
-	,@ClearedFilter INT = 1
-	,@UserId INT
-AS
-BEGIN
-	-- SET NOCOUNT ON added to prevent extra result sets from
-	-- interfering with SELECT statements.
-	SET NOCOUNT ON;
-
-    -- Insert statements for procedure here
-	IF NOT EXISTS(SELECT 1 FROM dbo.cfAccounts WHERE UserId = @UserId)
-		INSERT INTO dbo.cfAccounts(AccountName, BeginningBalance, Balance, ClearedBalance, AccountTypeID, IsDefault, UserId)
-		VALUES('', 0.00, 0.00, 0.00, 1, 1, @UserId)
-
-	DECLARE @StartingBalance DECIMAL(18,2) = (SELECT TOP 1 BeginningBalance FROM dbo.cfAccounts WHERE UserId = @UserId)
-	DECLARE @MaxRow INT = (@Page * @PageSize)
-	DECLARE @MinRow INT = (@MaxRow - @PageSize)
-	DECLARE @TransactionCount INT = (SELECT COUNT(*) FROM dbo.cfTransactions WHERE UserId = @UserId)
-	SELECT
-		*
-	FROM (
-		SELECT
-			TransactionId
-			,CONVERT(VARCHAR,TransactionDate,111) AS TransactionDate
-			,Amount
-			,Cleared
-			,CASE WHEN Cleared = 0 THEN 'true' ELSE 'false' END AS [ShowNotCleared]
-			,CASE WHEN Cleared = 0 THEN 'false' ELSE 'true' END AS [ShowCleared]
-			,tra.PayeeId
-			,pay.PayeeName
-			,tra.CategoryId
-			,cat.CategoryName
-			,Balance
-			,ROW_NUMBER() OVER (ORDER BY Cleared ASC, TransactionDate DESC, Amount ASC) AS RowNum
-			,@MinRow + 1 AS [MinRow]
-			,@MaxRow AS [MaxRow]
-			,@TransactionCount AS [TransactionCount]
-			,CEILING(CONVERT(FLOAT,@TransactionCount) / 50) AS [PageCount]
-		FROM 
-			(
-				SELECT
-					TransactionId
-					,TransactionDate
-					,Amount
-					,Cleared
-					,PayeeId
-					,CategoryId
-					,SUM(Amount) OVER (ORDER BY Cleared DESC, TransactionDate ASC, Amount DESC ROWS UNBOUNDED PRECEDING) AS [Balance]
-				FROM (
-					SELECT 
-						-1 AS [TransactionId]
-						,'1/1/1970' AS [TransactionDate]
-						,@StartingBalance AS [Amount]
-						,1 AS [Cleared]
-						,-1 AS [PayeeId]
-						,-1 AS [CategoryId]
-					UNION ALL SELECT
-						TransactionId
-						,TransactionDate
-						,Amount
-						,Cleared
-						,PayeeId
-						,CategoryId
-					FROM dbo.cfTransactions WITH(READPAST)
-					WHERE UserId = @UserId
-				) AS [tra]
-			) AS [tra]
-		LEFT OUTER JOIN dbo.cfPayees as [pay] WITH(READPAST) ON tra.PayeeId = pay.PayeeId
-		LEFT OUTER JOIN dbo.cfCategories AS [cat] WITH(READPAST) ON tra.CategoryId = cat.CategoryId
-		WHERE 
-			TransactionDate > '1/1/1970'
-			AND (
-				(@ClearedFilter = 1)
-				OR (@ClearedFilter = 2 AND Cleared = 1)
-				OR (@ClearedFilter = 3 AND Cleared = 0)
-			)
-	) AS [tra]
-	WHERE RowNum > @MinRow AND RowNum <= @MaxRow
-	ORDER BY Cleared ASC, TransactionDate DESC, Amount ASC
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfGetMyCheckbook_040100]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfGetMyCheckbook_040100]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -915,24 +742,7 @@ BEGIN
 	ORDER BY TransactionDate DESC
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfGetNotifications]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfGetNotifications]
-AS
-BEGIN
-	SET NOCOUNT ON;
-	SELECT
-		NotificationType
-		,MAX(NotificationAt) AS [NotificationAt]
-	FROM dbo.cfNotifications
-	GROUP BY NotificationType
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfGetPayees_020000]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfGetPayees_020000]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1419,47 +1229,7 @@ BEGIN
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spcfSaveChore]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfSaveChore]
-	@choreid INT
-	,@chorename VARCHAR(64)
-	,@userid INT
-	,@ismonday BIT
-	,@istuesday BIT
-	,@iswednesday BIT
-	,@isthursday BIT
-	,@isfriday BIT
-	,@issaturday BIT
-	,@issunday BIT
-AS
-BEGIN
-	SET NOCOUNT ON;
-	DECLARE @daysofweek INT = 0
-	IF @issunday = 1 SET @daysofweek = @daysofweek + 1
-	IF @ismonday = 1 SET @daysofweek = @daysofweek + 2
-	IF @istuesday = 1 SET @daysofweek = @daysofweek + 4
-	IF @iswednesday = 1 SET @daysofweek = @daysofweek + 8
-	IF @isthursday = 1 SET @daysofweek = @daysofweek + 16
-	IF @isfriday = 1 SET @daysofweek = @daysofweek + 32
-	IF @issaturday = 1 SET @daysofweek = @daysofweek + 64
-	IF @choreid = -1
-		INSERT INTO dbo.cfChores(ChoreName,UserId,DaysOfWeek,IsDeleted)
-		VALUES(@chorename,@userid,@daysofweek,0)
-	ELSE
-		UPDATE dbo.cfChores
-		SET
-			ChoreName = @chorename
-			,UserId = @userid
-			,DaysOfWeek = @daysofweek
-		WHERE ChoreId = @choreid
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfSaveTransaction_030000]    Script Date: 2/24/2026 8:48:27 AM ******/
+/****** Object:  StoredProcedure [dbo].[spcfSaveTransaction_030000]
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1521,76 +1291,5 @@ BEGIN
 			,UserId = @UserId
 		WHERE
 			TransactionId = @TransactionId
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfSetBalance]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
--- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
--- =============================================
-CREATE PROCEDURE [dbo].[spcfSetBalance] 
-	-- Add the parameters for the stored procedure here
-	@Balance DECIMAL(18,2)
-AS
-BEGIN
-	-- SET NOCOUNT ON added to prevent extra result sets from
-	-- interfering with SELECT statements.
-	SET NOCOUNT ON;
-
-    -- Insert statements for procedure here
-	UPDATE dbo.cfAccounts
-	SET Balance = @Balance
-	
-
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spcfSetNotificationSent]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spcfSetNotificationSent]
-	@notificationtype INT
-AS
-BEGIN
-	SET NOCOUNT ON;
-	DECLARE @now DATETIME = DATEADD(HOUR,2,GETDATE())
-	IF EXISTS(SELECT 1 FROM dbo.cfNotifications WHERE NotificationType = @notificationtype)
-		UPDATE dbo.cfNotifications
-		SET NotificationAt = @now
-		WHERE NotificationType = @notificationtype
-	ELSE
-		INSERT INTO dbo.cfNotifications(NotificationType, NotificationAt)
-		VALUES(@notificationtype,@now)
-END
-GO
-/****** Object:  StoredProcedure [dbo].[spCfUpdateAccount]    Script Date: 2/24/2026 8:48:27 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE PROCEDURE [dbo].[spCfUpdateAccount]
-	@accountid INT
-	,@balance DEC(18,2) = -9999999999.99
-	,@creditlimit DEC(18,2) = -9999999999.99
-	,@availablecredit DEC(18,2) = -9999999999.99
-	,@accountnumber VARCHAR(32) = ''
-AS
-BEGIN
-	SET NOCOUNT ON;
-	DECLARE @now DATETIME = DATEADD(HOUR,2,GETDATE())
-	IF (@balance > -9999999999.99) UPDATE dbo.cfAccounts SET Balance = @balance, LastUpdated = @now WHERE AccountId = @accountid
-	IF (@creditlimit > -9999999999.99) UPDATE dbo.cfAccounts SET CreditLimit = @creditlimit, LastUpdated = @now WHERE AccountId = @accountid
-	IF (@availablecredit > -9999999999.99) UPDATE dbo.cfAccounts SET AvailableCredit = @availablecredit, LastUpdated = @now WHERE AccountId = @accountid
-	IF (@accountnumber != '') UPDATE dbo.cfAccounts SET AccountNumber = @accountnumber, LastUpdated = @now WHERE AccountId = @accountid
-
 END
 GO
