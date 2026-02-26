@@ -1,4 +1,3 @@
-using System.Data;
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
@@ -85,8 +84,6 @@ public partial class BudgetItems
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetBudgetItems_030000
             var budgetsData = await DbContext.Budgets
                 .Include(b => b.Category)
                 .Include(b => b.Frequency)
@@ -151,8 +148,6 @@ public partial class BudgetItems
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetCategories_020000
             var categories = await DbContext.Categories
                 .Where(c => c.UserId == userId)
                 .OrderBy(c => c.CategoryName)
@@ -163,8 +158,6 @@ public partial class BudgetItems
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
                 .ToList();
-
-            // EF Core replacement for spcfGetPayees_020000
             var payees = await DbContext.Payees
                 .Where(p => p.UserId == userId && !p.IsDeleted)
                 .OrderBy(p => p.PayeeName)
@@ -186,7 +179,6 @@ public partial class BudgetItems
     {
         try
         {
-            // EF Core replacement for spcfGetFrequencies
             var frequencies = await DbContext.Frequencies
                 .OrderBy(f => f.Sort)
                 .ToListAsync();
@@ -225,8 +217,6 @@ public partial class BudgetItems
         try
         {
             await LoadFrequenciesAsync();
-
-            // EF Core replacement for spcfGetBudget
             var budget = await DbContext.Budgets
                 .Include(b => b.Category)
                 .Include(b => b.Payee)
@@ -283,8 +273,6 @@ public partial class BudgetItems
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
             var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
-
-            // EF Core replacement for spcfSaveBudget_030000
             // Get or create Category
             var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
 
@@ -396,7 +384,6 @@ public partial class BudgetItems
 
         try
         {
-            // EF Core replacement for spcfDeleteBudget
             var budget = await DbContext.Budgets.FindAsync(editBudgetId);
             if (budget != null)
             {
@@ -458,34 +445,5 @@ public partial class BudgetItems
     {
         searchText = value ?? string.Empty;
         budgetItemsGrid?.GoToPage(0);
-    }
-
-    // Helper to safely parse DateTime from database values (handles null, DBNull, and empty strings)
-    private static DateTime ParseDateTime(object? value)
-    {
-        if (value == null || value == DBNull.Value)
-            return DateTime.MinValue;
-
-        var strValue = value.ToString();
-        if (string.IsNullOrWhiteSpace(strValue))
-            return DateTime.MinValue;
-
-        return DateTime.TryParse(strValue, out var result) ? result : DateTime.MinValue;
-    }
-
-    // Helper to safely parse decimal from database values (handles null, DBNull, empty strings, and currency symbols)
-    private static decimal ParseDecimal(object? value)
-    {
-        if (value == null || value == DBNull.Value)
-            return 0m;
-
-        var strValue = value.ToString();
-        if (string.IsNullOrWhiteSpace(strValue))
-            return 0m;
-
-        // Remove currency symbols and commas
-        strValue = strValue.Replace("$", "").Replace(",", "").Trim();
-
-        return decimal.TryParse(strValue, out var result) ? result : 0m;
     }
 }

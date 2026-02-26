@@ -1,4 +1,3 @@
-using System.Data;
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
@@ -85,8 +84,6 @@ public partial class Accounts
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetAccounts
             var accountsData = await DbContext.Accounts
                 .Include(a => a.AccountType)
                 .Where(a => a.UserId == userId && (a.IsDeleted == null || a.IsDeleted == false))
@@ -132,7 +129,6 @@ public partial class Accounts
     {
         try
         {
-            // EF Core replacement for spcfGetAccount
             var account = await DbContext.Accounts
                 .Include(a => a.AccountType)
                 .FirstOrDefaultAsync(a => a.AccountId == accountId);
@@ -170,8 +166,6 @@ public partial class Accounts
         {
             var userId = SiteInfoService.DefaultUserId;
             var now = DateTime.UtcNow;
-
-            // EF Core replacement for spcfSaveAccount
             if (editAccountId == -1)
             {
                 // Insert new account
@@ -242,7 +236,6 @@ public partial class Accounts
 
         try
         {
-            // EF Core replacement for spcfDeleteAccount
             var account = await DbContext.Accounts.FindAsync(editAccountId);
             if (account != null)
             {

@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
-using System;
-using System.Data;
 
 namespace ClintonFrankland.Components.Pages;
 
@@ -60,7 +58,6 @@ public partial class Checkbook
     };
     private record TransactionTypeOption(bool Value, string Text);
 
-    private DataTable? transactionData;
     private List<TransactionViewModel> transactions = new();
     private List<BudgetItemViewModel> budgetItems = new();
     RadzenDataGrid<TransactionViewModel> checkbookGrid = null!;
@@ -142,8 +139,6 @@ public partial class Checkbook
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetCheckbookBalance_020000
             var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
             var startingBalance = account?.BeginningBalance ?? 0m;
 
@@ -161,8 +156,6 @@ public partial class Checkbook
             var clearedAmount = transactionsData.Where(t => t.Cleared).Sum(t => t.Amount);
             balance = startingBalance + totalAmount;
             clearedBalance = startingBalance + clearedAmount;
-
-            // EF Core replacement for spcfGetMyCheckbook_040100
             // Calculate running balance
             var runningBalance = startingBalance;
             transactions = transactionsData.Select(t =>
@@ -197,8 +190,6 @@ public partial class Checkbook
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetPayees_020000
             var payees = await DbContext.Payees
                 .Where(p => p.UserId == userId && !p.IsDeleted)
                 .OrderBy(p => p.PayeeName)
@@ -209,8 +200,6 @@ public partial class Checkbook
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct()
                 .ToList();
-
-            // EF Core replacement for spcfGetCategories_020000
             var categories = await DbContext.Categories
                 .Where(c => c.UserId == userId)
                 .OrderBy(c => c.CategoryName)
@@ -234,8 +223,6 @@ public partial class Checkbook
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetMyBudget_020000
             // Always check for bills due today (independent of budget panel settings)
             var allForecast = await GenerateBudgetForecastAsync(userId, DateTime.Today.AddDays(Math.Max(budgetDays + 1, 1)));
 
@@ -419,8 +406,6 @@ public partial class Checkbook
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
     }
-
-    // EF Core replacement for spcfMarkPaid
     private async Task MarkBudgetPaidAsync(int budgetId)
     {
         var budget = await DbContext.Budgets.FindAsync(budgetId);
@@ -562,8 +547,6 @@ public partial class Checkbook
         try
         {
             SaveGridState();
-
-            // EF Core replacement for spcfGetTransaction
             var transaction = await DbContext.Transactions
                 .Include(t => t.Payee)
                 .Include(t => t.Category)
@@ -602,8 +585,6 @@ public partial class Checkbook
         {
             var userId = SiteInfoService.DefaultUserId;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
-
-            // EF Core replacement for spcfSaveTransaction_030000
             // Get or create Category and Payee (ensure they exist for required FK)
             var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
             var payeeId = await GetOrCreatePayeeAsync(editPayee, userId);
@@ -717,7 +698,6 @@ public partial class Checkbook
 
         try
         {
-            // EF Core replacement for spcfMyCheckbookDeleteTransaction
             var transaction = await DbContext.Transactions.FindAsync(editTransactionId);
             if (transaction != null)
             {
@@ -739,7 +719,6 @@ public partial class Checkbook
     {
         try
         {
-            // EF Core replacement for spcfMyCheckboxMarkTransactionCleared
             var transaction = await DbContext.Transactions.FindAsync(transactionId);
             if (transaction != null)
             {
@@ -765,7 +744,6 @@ public partial class Checkbook
     {
         try
         {
-            // EF Core replacement for spcfMyCheckboxMarkTransactionUncleared
             var transaction = await DbContext.Transactions.FindAsync(transactionId);
             if (transaction != null)
             {

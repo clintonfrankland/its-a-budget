@@ -1,4 +1,3 @@
-using System.Data;
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
@@ -101,12 +100,8 @@ public partial class Budget
         {
             var userId = SiteInfoService.DefaultUserId;
             var endDate = DateTime.Today.AddMonths(6);
-
-            // EF Core replacement for spcfGetMyBudget_020000
             var forecastItems = await GenerateBudgetForecastAsync(userId, endDate);
             budgetItems = forecastItems;
-
-            // EF Core replacement for spcfMyBudgetGetChart
             chartData = GenerateChartData(forecastItems);
 
             // Load autocomplete data (EF Core)
@@ -225,8 +220,6 @@ public partial class Budget
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-
-            // EF Core replacement for spcfGetCategories_020000
             var categories = await DbContext.Categories
                 .Where(c => c.UserId == userId)
                 .OrderBy(c => c.CategoryName)
@@ -237,8 +230,6 @@ public partial class Budget
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
                 .ToList();
-
-            // EF Core replacement for spcfGetPayees_020000
             var payees = await DbContext.Payees
                 .Where(p => p.UserId == userId && !p.IsDeleted)
                 .OrderBy(p => p.PayeeName)
@@ -280,8 +271,6 @@ public partial class Budget
         try
         {
             await LoadFrequenciesAsync();
-
-            // EF Core replacement for spcfGetBudget
             var budget = await DbContext.Budgets
                 .Include(b => b.Category)
                 .Include(b => b.Payee)
@@ -318,7 +307,6 @@ public partial class Budget
     {
         try
         {
-            // EF Core replacement for spcfGetFrequencies
             var frequencies = await DbContext.Frequencies
                 .OrderBy(f => f.Sort)
                 .ToListAsync();
@@ -357,8 +345,6 @@ public partial class Budget
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
             var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
-
-            // EF Core replacement for spcfSaveBudget_030000
             // Get or create Category
             var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
 
@@ -470,7 +456,6 @@ public partial class Budget
 
         try
         {
-            // EF Core replacement for spcfDeleteBudget
             var budget = await DbContext.Budgets.FindAsync(editBudgetId);
             if (budget != null)
             {
@@ -491,7 +476,6 @@ public partial class Budget
     {
         try
         {
-            // EF Core replacement for spcfMarkPaid
             var budget = await DbContext.Budgets.FindAsync(budgetId);
             if (budget == null) return;
 
@@ -556,7 +540,6 @@ public partial class Budget
     {
         try
         {
-            // EF Core replacement for spcfGetBudget
             var budget = await DbContext.Budgets
                 .Include(b => b.Category)
                 .Include(b => b.Payee)
