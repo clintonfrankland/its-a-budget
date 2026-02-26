@@ -17,9 +17,4 @@
     <PackageReference Include="Radzen.Blazor" Version="9.0.6" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="ClintonFrankland.Blazor\Components\Layout\" />
-    <Folder Include="ClintonFrankland.Blazor\Components\Pages\" />
-  </ItemGroup>
-
 </Project>
