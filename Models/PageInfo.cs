@@ -1,11 +1,8 @@
-﻿
+namespace ClintonFrankland.Models;
 
-namespace ClintonFrankland
+public class PageInfo
 {
-    public class PageInfo
-    {
-        public int PageId { get; set; } = -1;
-        public string PageName { get; set; } = "";
-        public string Title { get; set; } = "";
-    }
+    public int PageId { get; set; } = -1;
+    public string PageName { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 }
