@@ -1,9 +1,7 @@
-using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -24,7 +22,7 @@ public partial class Budget
     private DialogService DialogService { get; set; } = default!;
 
     [Inject]
-    private ClintonFranklandDbContext DbContext { get; set; } = default!;
+    private BudgetDataService BudgetData { get; set; } = default!;
 
     private enum ViewMode { List, Edit, EditNext }
     private ViewMode currentView = ViewMode.List;
@@ -116,22 +114,15 @@ public partial class Budget
     private async Task<List<BudgetItemViewModel>> GenerateBudgetForecastAsync(int userId, DateTime endDate)
     {
         // Get starting balance from account
-        var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+        var account = await BudgetData.GetAccountForUserAsync(userId);
         var startingBalance = account?.BeginningBalance ?? 0m;
 
         // Add sum of all transactions to starting balance
-        var transactionSum = await DbContext.Transactions
-            .Where(t => t.UserId == userId)
-            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+        var transactionSum = await BudgetData.GetTransactionSumAsync(userId);
         startingBalance += transactionSum;
 
         // Get all budgets for the user
-        var budgets = await DbContext.Budgets
-            .Include(b => b.Category)
-            .Include(b => b.Frequency)
-            .Include(b => b.Payee)
-            .Where(b => b.UserId == userId)
-            .ToListAsync();
+        var budgets = await BudgetData.GetBudgetsForUserAsync(userId);
 
         // Extend end date if there's income scheduled after it
         var incomeBudget = budgets
@@ -220,20 +211,14 @@ public partial class Budget
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var categories = await DbContext.Categories
-                .Where(c => c.UserId == userId)
-                .OrderBy(c => c.CategoryName)
-                .ToListAsync();
+            var categories = await BudgetData.GetCategoriesForUserAsync(userId);
 
             categoriesList = categories
                 .Select(c => c.CategoryName ?? string.Empty)
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
                 .ToList();
-            var payees = await DbContext.Payees
-                .Where(p => p.UserId == userId && !p.IsDeleted)
-                .OrderBy(p => p.PayeeName)
-                .ToListAsync();
+            var payees = await BudgetData.GetPayeesForUserAsync(userId);
 
             payeesList = payees
                 .Select(p => p.PayeeName)
@@ -271,10 +256,7 @@ public partial class Budget
         try
         {
             await LoadFrequenciesAsync();
-            var budget = await DbContext.Budgets
-                .Include(b => b.Category)
-                .Include(b => b.Payee)
-                .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+            var budget = await BudgetData.GetBudgetByIdAsync(budgetId);
 
             if (budget != null)
             {
@@ -307,9 +289,7 @@ public partial class Budget
     {
         try
         {
-            var frequencies = await DbContext.Frequencies
-                .OrderBy(f => f.Sort)
-                .ToListAsync();
+            var frequencies = await BudgetData.GetFrequenciesAsync();
 
             frequencyOptions = frequencies
                 .Select(f => new FrequencyOption(f.FrequencyId, f.FrequencyName))
@@ -369,12 +349,12 @@ public partial class Budget
                     IsLate = editIsLate,
                     PayeeId = payeeId > 0 ? payeeId : null
                 };
-                DbContext.Budgets.Add(newBudget);
+                await BudgetData.SaveBudgetAsync(newBudget, isNew: true);
             }
             else
             {
                 // Update existing budget
-                var budget = await DbContext.Budgets.FindAsync(editBudgetId);
+                var budget = await BudgetData.FindBudgetAsync(editBudgetId);
                 if (budget != null)
                 {
                     budget.BudgetName = editBudgetName;
@@ -389,10 +369,9 @@ public partial class Budget
                     budget.IsBill = editIsBill;
                     budget.IsLate = editIsLate;
                     budget.PayeeId = payeeId > 0 ? payeeId : null;
+                    await BudgetData.SaveBudgetAsync(budget, isNew: false);
                 }
             }
-
-            await DbContext.SaveChangesAsync();
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -403,41 +382,11 @@ public partial class Budget
         }
     }
 
-    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(categoryName))
-            return -1;
+    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+        => BudgetData.GetOrCreateCategoryAsync(categoryName, userId);
 
-        var category = await DbContext.Categories
-            .FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
-
-        if (category != null)
-            return category.CategoryId;
-
-        // Create new category
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
-        DbContext.Categories.Add(newCategory);
-        await DbContext.SaveChangesAsync();
-        return newCategory.CategoryId;
-    }
-
-    private async Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(payeeName))
-            return -1;
-
-        var payee = await DbContext.Payees
-            .FirstOrDefaultAsync(p => p.PayeeName == payeeName && p.UserId == userId);
-
-        if (payee != null)
-            return payee.PayeeId;
-
-        // Create new payee
-        var newPayee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
-        DbContext.Payees.Add(newPayee);
-        await DbContext.SaveChangesAsync();
-        return newPayee.PayeeId;
-    }
+    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
+        => BudgetData.GetOrCreatePayeeAsync(payeeName, userId);
 
     private async Task DeleteBudgetAsync()
     {
@@ -456,11 +405,10 @@ public partial class Budget
 
         try
         {
-            var budget = await DbContext.Budgets.FindAsync(editBudgetId);
+            var budget = await BudgetData.FindBudgetAsync(editBudgetId);
             if (budget != null)
             {
-                DbContext.Budgets.Remove(budget);
-                await DbContext.SaveChangesAsync();
+                await BudgetData.DeleteBudgetAsync(budget);
             }
 
             currentView = ViewMode.List;
@@ -476,25 +424,23 @@ public partial class Budget
     {
         try
         {
-            var budget = await DbContext.Budgets.FindAsync(budgetId);
+            var budget = await BudgetData.FindBudgetAsync(budgetId);
             if (budget == null) return;
 
             // Calculate new NextDueDate based on frequency
             var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
             budget.NextDueDate = newNextDueDate;
-            await DbContext.SaveChangesAsync();
+            await BudgetData.SaveBudgetAsync(budget, isNew: false);
 
             // Delete if one-time (FrequencyId = 0)
             if (budget.FrequencyId == 0)
             {
-                DbContext.Budgets.Remove(budget);
-                await DbContext.SaveChangesAsync();
+                await BudgetData.DeleteBudgetAsync(budget);
             }
             // Delete if past end date
             else if (budget.EndDate.HasValue && budget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > budget.EndDate)
             {
-                DbContext.Budgets.Remove(budget);
-                await DbContext.SaveChangesAsync();
+                await BudgetData.DeleteBudgetAsync(budget);
             }
 
             await LoadDataAsync();
@@ -540,10 +486,7 @@ public partial class Budget
     {
         try
         {
-            var budget = await DbContext.Budgets
-                .Include(b => b.Category)
-                .Include(b => b.Payee)
-                .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+            var budget = await BudgetData.GetBudgetByIdAsync(budgetId);
 
             if (budget != null)
             {
@@ -576,19 +519,18 @@ public partial class Budget
             var userId = SiteInfoService.DefaultUserId;
 
             // 1. Mark the original budget as paid (EF Core)
-            var originalBudget = await DbContext.Budgets.FindAsync(editBudgetId);
+            var originalBudget = await BudgetData.FindBudgetAsync(editBudgetId);
             if (originalBudget != null)
             {
                 var newNextDueDate = CalculateNextDueDate(originalBudget.NextDueDate ?? DateTime.Today, originalBudget.FrequencyId ?? 0);
                 originalBudget.NextDueDate = newNextDueDate;
-                await DbContext.SaveChangesAsync();
+                await BudgetData.SaveBudgetAsync(originalBudget, isNew: false);
 
                 // Delete if one-time or past end date
                 if (originalBudget.FrequencyId == 0 ||
                     (originalBudget.EndDate.HasValue && originalBudget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > originalBudget.EndDate))
                 {
-                    DbContext.Budgets.Remove(originalBudget);
-                    await DbContext.SaveChangesAsync();
+                    await BudgetData.DeleteBudgetAsync(originalBudget);
                 }
             }
 
@@ -611,8 +553,7 @@ public partial class Budget
                 IsLate = editIsLate,
                 PayeeId = payeeId > 0 ? payeeId : null
             };
-            DbContext.Budgets.Add(newBudget);
-            await DbContext.SaveChangesAsync();
+            await BudgetData.SaveBudgetAsync(newBudget, isNew: true);
 
             currentView = ViewMode.List;
             await LoadDataAsync();

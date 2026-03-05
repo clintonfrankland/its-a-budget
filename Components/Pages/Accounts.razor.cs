@@ -1,9 +1,7 @@
-using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -24,7 +22,7 @@ public partial class Accounts
     private DialogService DialogService { get; set; } = default!;
 
     [Inject]
-    private ClintonFranklandDbContext DbContext { get; set; } = default!;
+    private AccountsDataService AccountsData { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -84,11 +82,7 @@ public partial class Accounts
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var accountsData = await DbContext.Accounts
-                .Include(a => a.AccountType)
-                .Where(a => a.UserId == userId && (a.IsDeleted == null || a.IsDeleted == false))
-                .OrderBy(a => a.AccountName)
-                .ToListAsync();
+            var accountsData = await AccountsData.GetAccountsForUserAsync(userId);
 
             accounts = accountsData.Select(a => new AccountViewModel
             {
@@ -129,9 +123,7 @@ public partial class Accounts
     {
         try
         {
-            var account = await DbContext.Accounts
-                .Include(a => a.AccountType)
-                .FirstOrDefaultAsync(a => a.AccountId == accountId);
+            var account = await AccountsData.GetAccountByIdAsync(accountId);
 
             if (account != null)
             {
@@ -187,12 +179,12 @@ public partial class Accounts
                     UserId = userId,
                     LastUpdated = now
                 };
-                DbContext.Accounts.Add(newAccount);
+                await AccountsData.SaveAccountAsync(newAccount, isNew: true);
             }
             else
             {
                 // Update existing account
-                var account = await DbContext.Accounts.FindAsync(editAccountId);
+                var account = await AccountsData.GetAccountByIdAsync(editAccountId);
                 if (account != null)
                 {
                     account.AccountName = editAccountName;
@@ -206,10 +198,9 @@ public partial class Accounts
                     account.InterestRate = editInterestRate;
                     account.WebUrl = editWebUrl;
                     account.LastUpdated = now;
+                    await AccountsData.SaveAccountAsync(account, isNew: false);
                 }
             }
-
-            await DbContext.SaveChangesAsync();
             currentView = ViewMode.List;
             await LoadDataAsync();
         }
@@ -236,13 +227,7 @@ public partial class Accounts
 
         try
         {
-            var account = await DbContext.Accounts.FindAsync(editAccountId);
-            if (account != null)
-            {
-                DbContext.Accounts.Remove(account);
-                await DbContext.SaveChangesAsync();
-            }
-
+            await AccountsData.DeleteAccountAsync(editAccountId);
             currentView = ViewMode.List;
             await LoadDataAsync();
         }

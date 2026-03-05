@@ -30,6 +30,10 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 // Register application services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
+builder.Services.AddScoped<AccountsDataService>();
+builder.Services.AddScoped<BudgetItemsDataService>();
+builder.Services.AddScoped<BudgetDataService>();
+builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddRadzenComponents();
 
 var app = builder.Build();

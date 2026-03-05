@@ -1,9 +1,7 @@
-using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -24,7 +22,7 @@ public partial class BudgetItems
     private DialogService DialogService { get; set; } = default!;
 
     [Inject]
-    private ClintonFranklandDbContext DbContext { get; set; } = default!;
+    private BudgetItemsDataService BudgetItemsData { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -84,11 +82,7 @@ public partial class BudgetItems
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var budgetsData = await DbContext.Budgets
-                .Include(b => b.Category)
-                .Include(b => b.Frequency)
-                .Where(b => b.UserId == userId)
-                .ToListAsync();
+            var budgetsData = await BudgetItemsData.GetBudgetsForUserAsync(userId);
 
             // Convert to view models for RadzenDataGrid
             budgetItems = budgetsData.Select(b => new BudgetItemViewModel
@@ -148,20 +142,14 @@ public partial class BudgetItems
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var categories = await DbContext.Categories
-                .Where(c => c.UserId == userId)
-                .OrderBy(c => c.CategoryName)
-                .ToListAsync();
+            var categories = await BudgetItemsData.GetCategoriesForUserAsync(userId);
 
             categoriesList = categories
                 .Select(c => c.CategoryName ?? string.Empty)
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
                 .ToList();
-            var payees = await DbContext.Payees
-                .Where(p => p.UserId == userId && !p.IsDeleted)
-                .OrderBy(p => p.PayeeName)
-                .ToListAsync();
+            var payees = await BudgetItemsData.GetPayeesForUserAsync(userId);
 
             payeesList = payees
                 .Select(p => p.PayeeName)
@@ -179,9 +167,7 @@ public partial class BudgetItems
     {
         try
         {
-            var frequencies = await DbContext.Frequencies
-                .OrderBy(f => f.Sort)
-                .ToListAsync();
+            var frequencies = await BudgetItemsData.GetFrequenciesAsync();
 
             frequencyOptions = frequencies
                 .Select(f => new FrequencyOption(f.FrequencyId, f.FrequencyName))
@@ -217,10 +203,7 @@ public partial class BudgetItems
         try
         {
             await LoadFrequenciesAsync();
-            var budget = await DbContext.Budgets
-                .Include(b => b.Category)
-                .Include(b => b.Payee)
-                .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+            var budget = await BudgetItemsData.GetBudgetByIdAsync(budgetId);
 
             if (budget != null)
             {
@@ -297,12 +280,12 @@ public partial class BudgetItems
                     IsLate = editIsLate,
                     PayeeId = payeeId > 0 ? payeeId : null
                 };
-                DbContext.Budgets.Add(newBudget);
+                await BudgetItemsData.SaveBudgetAsync(newBudget, isNew: true);
             }
             else
             {
                 // Update existing budget
-                var budget = await DbContext.Budgets.FindAsync(editBudgetId);
+                var budget = await BudgetItemsData.FindBudgetAsync(editBudgetId);
                 if (budget != null)
                 {
                     budget.BudgetName = editBudgetName;
@@ -317,10 +300,9 @@ public partial class BudgetItems
                     budget.IsBill = editIsBill;
                     budget.IsLate = editIsLate;
                     budget.PayeeId = payeeId > 0 ? payeeId : null;
+                    await BudgetItemsData.SaveBudgetAsync(budget, isNew: false);
                 }
             }
-
-            await DbContext.SaveChangesAsync();
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -331,41 +313,11 @@ public partial class BudgetItems
         }
     }
 
-    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(categoryName))
-            return -1;
+    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+        => BudgetItemsData.GetOrCreateCategoryAsync(categoryName, userId);
 
-        var category = await DbContext.Categories
-            .FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
-
-        if (category != null)
-            return category.CategoryId;
-
-        // Create new category
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
-        DbContext.Categories.Add(newCategory);
-        await DbContext.SaveChangesAsync();
-        return newCategory.CategoryId;
-    }
-
-    private async Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(payeeName))
-            return -1;
-
-        var payee = await DbContext.Payees
-            .FirstOrDefaultAsync(p => p.PayeeName == payeeName && p.UserId == userId);
-
-        if (payee != null)
-            return payee.PayeeId;
-
-        // Create new payee
-        var newPayee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
-        DbContext.Payees.Add(newPayee);
-        await DbContext.SaveChangesAsync();
-        return newPayee.PayeeId;
-    }
+    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
+        => BudgetItemsData.GetOrCreatePayeeAsync(payeeName, userId);
 
     private async Task DeleteBudgetAsync()
     {
@@ -384,13 +336,7 @@ public partial class BudgetItems
 
         try
         {
-            var budget = await DbContext.Budgets.FindAsync(editBudgetId);
-            if (budget != null)
-            {
-                DbContext.Budgets.Remove(budget);
-                await DbContext.SaveChangesAsync();
-            }
-
+            await BudgetItemsData.DeleteBudgetAsync(editBudgetId);
             currentView = ViewMode.List;
             await LoadDataAsync();
         }

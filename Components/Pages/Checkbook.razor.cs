@@ -1,9 +1,7 @@
-using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 
@@ -24,7 +22,7 @@ public partial class Checkbook
     private DialogService DialogService { get; set; } = default!;
 
     [Inject]
-    private ClintonFranklandDbContext DbContext { get; set; } = default!;
+    private CheckbookDataService CheckbookData { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -139,17 +137,10 @@ public partial class Checkbook
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+            var account = await CheckbookData.GetAccountForUserAsync(userId);
             var startingBalance = account?.BeginningBalance ?? 0m;
 
-            var transactionsData = await DbContext.Transactions
-                .Include(t => t.Payee)
-                .Include(t => t.Category)
-                .Where(t => t.UserId == userId)
-                .OrderByDescending(t => t.Cleared)
-                .ThenBy(t => t.TransactionDate)
-                .ThenByDescending(t => t.Amount)
-                .ToListAsync();
+            var transactionsData = await CheckbookData.GetTransactionsForUserAsync(userId);
 
             // Calculate totals for balance display
             var totalAmount = transactionsData.Sum(t => t.Amount);
@@ -190,20 +181,14 @@ public partial class Checkbook
         try
         {
             var userId = SiteInfoService.DefaultUserId;
-            var payees = await DbContext.Payees
-                .Where(p => p.UserId == userId && !p.IsDeleted)
-                .OrderBy(p => p.PayeeName)
-                .ToListAsync();
+            var payees = await CheckbookData.GetPayeesForUserAsync(userId);
 
             payeesList = payees
                 .Select(p => p.PayeeName)
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct()
                 .ToList();
-            var categories = await DbContext.Categories
-                .Where(c => c.UserId == userId)
-                .OrderBy(c => c.CategoryName)
-                .ToListAsync();
+            var categories = await CheckbookData.GetCategoriesForUserAsync(userId);
 
             categoriesList = categories
                 .Select(c => c.CategoryName ?? string.Empty)
@@ -251,22 +236,15 @@ public partial class Checkbook
     private async Task<List<BudgetItemViewModel>> GenerateBudgetForecastAsync(int userId, DateTime endDate)
     {
         // Get starting balance from account
-        var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+        var account = await CheckbookData.GetAccountForUserAsync(userId);
         var startingBalance = account?.BeginningBalance ?? 0m;
 
         // Add sum of all transactions to starting balance
-        var transactionSum = await DbContext.Transactions
-            .Where(t => t.UserId == userId)
-            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+        var transactionSum = await CheckbookData.GetTransactionSumAsync(userId);
         startingBalance += transactionSum;
 
         // Get all budgets for the user
-        var budgets = await DbContext.Budgets
-            .Include(b => b.Category)
-            .Include(b => b.Frequency)
-            .Include(b => b.Payee)
-            .Where(b => b.UserId == userId)
-            .ToListAsync();
+        var budgets = await CheckbookData.GetBudgetsForUserAsync(userId);
 
         // Extend end date if there's income scheduled after it
         var incomeBudget = budgets
@@ -408,25 +386,23 @@ public partial class Checkbook
     }
     private async Task MarkBudgetPaidAsync(int budgetId)
     {
-        var budget = await DbContext.Budgets.FindAsync(budgetId);
+        var budget = await CheckbookData.FindBudgetAsync(budgetId);
         if (budget == null) return;
 
         // Calculate new NextDueDate based on frequency
         var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
         budget.NextDueDate = newNextDueDate;
-        await DbContext.SaveChangesAsync();
+        await CheckbookData.SaveBudgetAsync(budget);
 
         // Delete if one-time (FrequencyId = 0)
         if (budget.FrequencyId == 0)
         {
-            DbContext.Budgets.Remove(budget);
-            await DbContext.SaveChangesAsync();
+            await CheckbookData.DeleteBudgetAsync(budget);
         }
         // Delete if past end date
         else if (budget.EndDate.HasValue && budget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > budget.EndDate)
         {
-            DbContext.Budgets.Remove(budget);
-            await DbContext.SaveChangesAsync();
+            await CheckbookData.DeleteBudgetAsync(budget);
         }
     }
 
@@ -547,10 +523,7 @@ public partial class Checkbook
         try
         {
             SaveGridState();
-            var transaction = await DbContext.Transactions
-                .Include(t => t.Payee)
-                .Include(t => t.Category)
-                .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+            var transaction = await CheckbookData.GetTransactionByIdAsync(transactionId);
 
             if (transaction != null)
             {
@@ -594,7 +567,7 @@ public partial class Checkbook
             if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
 
             // Get default account
-            var account = await DbContext.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+            var account = await CheckbookData.GetAccountForUserAsync(userId);
             var accountId = account?.AccountId ?? 1;
 
             if (editTransactionId == -1)
@@ -610,12 +583,12 @@ public partial class Checkbook
                     Amount = finalAmount,
                     Cleared = editCleared
                 };
-                DbContext.Transactions.Add(newTransaction);
+                await CheckbookData.SaveTransactionAsync(newTransaction, isNew: true);
             }
             else
             {
                 // Update existing transaction
-                var transaction = await DbContext.Transactions.FindAsync(editTransactionId);
+                var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
                 if (transaction != null)
                 {
                     transaction.TransactionDate = DateOnly.FromDateTime(editDate);
@@ -623,10 +596,9 @@ public partial class Checkbook
                     transaction.CategoryId = categoryId;
                     transaction.Amount = finalAmount;
                     transaction.Cleared = editCleared;
+                    await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
                 }
             }
-
-            await DbContext.SaveChangesAsync();
 
             // If this transaction was from a budget item, mark it as paid (EF Core)
             if (editBudgetId != -1)
@@ -645,41 +617,11 @@ public partial class Checkbook
         }
     }
 
-    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(categoryName))
-            return -1;
+    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+        => CheckbookData.GetOrCreateCategoryAsync(categoryName, userId);
 
-        var category = await DbContext.Categories
-            .FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
-
-        if (category != null)
-            return category.CategoryId;
-
-        // Create new category
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
-        DbContext.Categories.Add(newCategory);
-        await DbContext.SaveChangesAsync();
-        return newCategory.CategoryId;
-    }
-
-    private async Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-    {
-        if (string.IsNullOrWhiteSpace(payeeName))
-            return -1;
-
-        var payee = await DbContext.Payees
-            .FirstOrDefaultAsync(p => p.PayeeName == payeeName && p.UserId == userId);
-
-        if (payee != null)
-            return payee.PayeeId;
-
-        // Create new payee
-        var newPayee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
-        DbContext.Payees.Add(newPayee);
-        await DbContext.SaveChangesAsync();
-        return newPayee.PayeeId;
-    }
+    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
+        => CheckbookData.GetOrCreatePayeeAsync(payeeName, userId);
 
     private async Task DeleteTransactionAsync()
     {
@@ -698,11 +640,10 @@ public partial class Checkbook
 
         try
         {
-            var transaction = await DbContext.Transactions.FindAsync(editTransactionId);
+            var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
             if (transaction != null)
             {
-                DbContext.Transactions.Remove(transaction);
-                await DbContext.SaveChangesAsync();
+                await CheckbookData.DeleteTransactionAsync(editTransactionId);
             }
 
             currentView = ViewMode.List;
@@ -719,11 +660,11 @@ public partial class Checkbook
     {
         try
         {
-            var transaction = await DbContext.Transactions.FindAsync(transactionId);
+            var transaction = await CheckbookData.FindTransactionAsync(transactionId);
             if (transaction != null)
             {
                 transaction.Cleared = true;
-                await DbContext.SaveChangesAsync();
+                await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
             }
 
             // Update the item in place to preserve grid filter state
@@ -744,11 +685,11 @@ public partial class Checkbook
     {
         try
         {
-            var transaction = await DbContext.Transactions.FindAsync(transactionId);
+            var transaction = await CheckbookData.FindTransactionAsync(transactionId);
             if (transaction != null)
             {
                 transaction.Cleared = false;
-                await DbContext.SaveChangesAsync();
+                await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
             }
 
             // Update the item in place to preserve grid filter state
