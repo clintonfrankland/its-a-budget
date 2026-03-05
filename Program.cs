@@ -2,6 +2,7 @@ using ClintonFrankland.Data;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,11 @@ builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
+
+// Ensure currency formatting uses US dollars across server-rendered UI ("$" vs generic "¤").
+var usCulture = CultureInfo.GetCultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = usCulture;
+CultureInfo.DefaultThreadCurrentUICulture = usCulture;
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
