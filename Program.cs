@@ -1,8 +1,17 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Services;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using System.Globalization;
+
+// Pin the default culture early (before the app builds) so server-side currency formatting
+// uses "$" instead of the generic currency symbol "¤".
+var usCulture = CultureInfo.GetCultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = usCulture;
+CultureInfo.DefaultThreadCurrentUICulture = usCulture;
+CultureInfo.CurrentCulture = usCulture;
+CultureInfo.CurrentUICulture = usCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,10 +34,12 @@ builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 
-// Ensure currency formatting uses US dollars across server-rendered UI ("$" vs generic "¤").
-var usCulture = CultureInfo.GetCultureInfo("en-US");
-CultureInfo.DefaultThreadCurrentCulture = usCulture;
-CultureInfo.DefaultThreadCurrentUICulture = usCulture;
+// Force request/circuit culture to en-US for consistent formatting in Blazor Server.
+var localizationOptions = new RequestLocalizationOptions()
+    .SetDefaultCulture("en-US")
+    .AddSupportedCultures("en-US")
+    .AddSupportedUICultures("en-US");
+app.UseRequestLocalization(localizationOptions);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
