@@ -669,11 +669,14 @@ public partial class Checkbook
 
             // Update the item in place to preserve grid filter state
             var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
-            if (viewModel != null)
+            if (viewModel != null && !viewModel.IsCleared)
             {
                 viewModel.IsCleared = true;
+                clearedBalance += viewModel.Amount;
             }
+
             await checkbookGrid.Reload();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -694,11 +697,14 @@ public partial class Checkbook
 
             // Update the item in place to preserve grid filter state
             var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
-            if (viewModel != null)
+            if (viewModel != null && viewModel.IsCleared)
             {
                 viewModel.IsCleared = false;
+                clearedBalance -= viewModel.Amount;
             }
+
             await checkbookGrid.Reload();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
