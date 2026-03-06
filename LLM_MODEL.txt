@@ -1,0 +1,1 @@
+ollama/glm-4.7-flash:q4_K_M
