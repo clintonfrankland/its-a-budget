@@ -1,4 +1,5 @@
 @page "/users"
+@using ClintonFrankland.Models.Entities
 @attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 
@@ -30,35 +31,32 @@ else
         }
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-striped align-middle">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Full Name</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Admin</th>
-                    <th style="width:220px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var u in UsersList)
-                {
-                    <tr>
-                        <td>@u.UserId</td>
-                        <td>@u.DisplayName</td>
-                        <td>@u.UserName</td>
-                        <td>@u.EmailAddress</td>
-                        <td>@(u.IsAdmin ? "Yes" : "No")</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => EditUser(u)">Edit</button>
-                            <button class="btn btn-sm btn-outline-warning" @onclick="() => OpenPasswordUtility(u)">Password</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="container mt-2">
+        <RadzenDataGrid Data="@UsersList" TItem="User"
+                        Density="Density.Compact"
+                        AllowFiltering="true" AllowSorting="true"
+                        FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                        class="rz-datatable-striped">
+            <Columns>
+                <RadzenDataGridColumn TItem="User" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                    <Template Context="u">
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                      Click="() => EditUser(u)" title="Edit user" class="me-1" />
+                        <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
+                                      Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="User" Property="UserId" Title="ID" Width="80px" />
+                <RadzenDataGridColumn TItem="User" Property="DisplayName" Title="Full Name" />
+                <RadzenDataGridColumn TItem="User" Property="UserName" Title="Username" />
+                <RadzenDataGridColumn TItem="User" Property="EmailAddress" Title="Email" />
+                <RadzenDataGridColumn TItem="User" Property="IsAdmin" Title="Admin" Width="100px">
+                    <Template Context="u">
+                        @(u.IsAdmin ? "Yes" : "No")
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
     </div>
 }
 
