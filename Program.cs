@@ -18,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddHttpContextAccessor();
 
 // Register Entity Framework Core DbContext
 builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
@@ -45,6 +46,19 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await db.Database.ExecuteSqlRawAsync("IF COL_LENGTH('cfUsers', 'ListButtonsRight') IS NULL ALTER TABLE cfUsers ADD ListButtonsRight BIT NOT NULL CONSTRAINT DF_cfUsers_ListButtonsRight DEFAULT(1)");
+        await db.Database.ExecuteSqlRawAsync(@"IF OBJECT_ID('cfAuthLoginAudit', 'U') IS NULL
+BEGIN
+    CREATE TABLE cfAuthLoginAudit (
+        Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        AttemptedAtUtc DATETIME2 NOT NULL,
+        UserName NVARCHAR(128) NULL,
+        ClientIp NVARCHAR(64) NULL,
+        Succeeded BIT NOT NULL,
+        Reason NVARCHAR(256) NULL
+    );
+    CREATE INDEX IX_cfAuthLoginAudit_AttemptedAtUtc ON cfAuthLoginAudit(AttemptedAtUtc);
+    CREATE INDEX IX_cfAuthLoginAudit_UserName ON cfAuthLoginAudit(UserName);
+END");
     }
     catch
     {

@@ -22,6 +22,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<AuthLoginAudit> AuthLoginAudits => Set<AuthLoginAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -111,6 +112,15 @@ public class ClintonFranklandDbContext : DbContext
         modelBuilder.Entity<Frequency>(entity =>
         {
             entity.Property(f => f.Sort).HasDefaultValue(0);
+        });
+
+        modelBuilder.Entity<AuthLoginAudit>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.AttemptedAtUtc).IsRequired();
+            entity.Property(a => a.Succeeded).IsRequired();
+            entity.HasIndex(a => a.AttemptedAtUtc);
+            entity.HasIndex(a => a.UserName);
         });
     }
 }
