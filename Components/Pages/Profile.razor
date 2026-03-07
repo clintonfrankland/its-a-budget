@@ -1,0 +1,55 @@
+@page "/profile"
+@rendermode InteractiveServer
+
+<PageTitle>User Profile</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <h1 class="mb-3">My Profile</h1>
+
+    @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+    {
+        <div class="alert alert-success">@SuccessMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-danger">@ErrorMessage</div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-header">Profile Details</div>
+        <div class="card-body">
+            <div class="mb-2">
+                <label class="form-label">Full Name</label>
+                <input class="form-control" @bind="DisplayName" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Username</label>
+                <input class="form-control" @bind="UserName" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Email Address</label>
+                <input class="form-control" @bind="EmailAddress" />
+            </div>
+            <button class="btn btn-primary" @onclick="SaveProfileAsync">Save Profile</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Reset Password</div>
+        <div class="card-body">
+            <div class="mb-2">
+                <label class="form-label">New Password</label>
+                <div class="input-group">
+                    <input class="form-control" @bind="NewPassword" />
+                    <button class="btn btn-outline-secondary" @onclick="GeneratePassword">Generate</button>
+                </div>
+            </div>
+            <button class="btn btn-warning" @onclick="ResetPasswordAsync">Reset Password</button>
+        </div>
+    </div>
+}

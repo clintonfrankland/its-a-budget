@@ -22,11 +22,27 @@
                 </ul>
             }
             <ul class="nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="@GetLoginLink()" @onclick="HandleLoginClick" @onclick:preventDefault="@AuthService.IsAuthenticated">
-                        <i class="fa fa-sign-in-alt"></i>&nbsp;&nbsp;@GetLoginText()
-                    </a>
-                </li>
+                @if (AuthService.IsAuthenticated)
+                {
+                    <li class="nav-item">
+                        <a class="nav-link" href="/profile" @onclick="CollapseNavbar">
+                            <i class="fa fa-user"></i>&nbsp;&nbsp;@AuthService.CurrentUser.DisplayName
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" @onclick="HandleLogoutClick" @onclick:preventDefault="true">
+                            <i class="fa fa-sign-out-alt"></i>&nbsp;&nbsp;Logout
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login" @onclick="CollapseNavbar">
+                            <i class="fa fa-sign-in-alt"></i>&nbsp;&nbsp;Login
+                        </a>
+                    </li>
+                }
             </ul>
         </div>
     </div>

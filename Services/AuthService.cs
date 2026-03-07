@@ -109,6 +109,20 @@ public class AuthService
         await _sessionStorage.SetAsync(AuthStorageKey, _currentUser);
     }
 
+    public async Task RefreshCurrentUserAsync(User user)
+    {
+        if (_currentUser is null || !_currentUser.IsLoggedIn) return;
+
+        _currentUser.UserId = user.UserId;
+        _currentUser.SiteId = user.SiteId;
+        _currentUser.UserName = user.UserName;
+        _currentUser.DisplayName = user.DisplayName;
+        _currentUser.EmailAddress = user.EmailAddress;
+        _currentUser.IsAdmin = user.IsAdmin;
+
+        await _sessionStorage.SetAsync(AuthStorageKey, _currentUser);
+    }
+
     public async Task LogoutAsync()
     {
         _currentUser = null;

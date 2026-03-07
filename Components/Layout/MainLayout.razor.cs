@@ -72,17 +72,7 @@ public partial class MainLayout : IDisposable
         return "fa fa-address-card";
     }
 
-    private string GetLoginText()
-    {
-        return AuthService.IsAuthenticated ? AuthService.CurrentUser.DisplayName : "Login";
-    }
-
-    private string GetLoginLink()
-    {
-        return AuthService.IsAuthenticated ? "/" : "/login";
-    }
-
-    private async Task HandleLoginClick()
+    private async Task HandleLogoutClick()
     {
         CollapseNavbar();
         if (AuthService.IsAuthenticated)
