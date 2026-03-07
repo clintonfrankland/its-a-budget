@@ -18,7 +18,10 @@
                     <li class="nav-item"><a class="nav-link" href="budget" @onclick="CollapseNavbar">Budget Forecast</a></li>
                     <li class="nav-item"><a class="nav-link" href="budgetitems" @onclick="CollapseNavbar">Budget Items</a></li>
                     <li class="nav-item"><a class="nav-link" href="accounts" @onclick="CollapseNavbar">Accounts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="users" @onclick="CollapseNavbar">Users</a></li>
+                    @if (AuthService.CurrentUser.IsAdmin)
+                    {
+                        <li class="nav-item"><a class="nav-link" href="users" @onclick="CollapseNavbar">Users</a></li>
+                    }
                 </ul>
             }
             <ul class="nav ms-auto">

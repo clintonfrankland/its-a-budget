@@ -1,4 +1,5 @@
 @page "/users"
+@attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 
 <PageTitle>Users</PageTitle>
@@ -6,6 +7,13 @@
 @if (!AuthService.IsAuthenticated)
 {
     <p>Redirecting to login...</p>
+}
+else if (!AuthService.CurrentUser.IsAdmin)
+{
+    <div class="alert alert-warning">
+        <h4>Access Denied</h4>
+        <p class="mb-0">Only administrators can access the Users page.</p>
+    </div>
 }
 else
 {
