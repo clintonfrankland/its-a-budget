@@ -33,6 +33,10 @@ public class User
     public string DisplayName { get; set; } = string.Empty;
 
     [Required]
+    [Column("IsAdmin")]
+    public bool IsAdmin { get; set; }
+
+    [Required]
     [Column("Salt")]
     [StringLength(32)]
     public string Salt { get; set; } = string.Empty;

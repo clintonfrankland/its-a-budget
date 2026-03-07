@@ -32,9 +32,8 @@ public partial class Login
 
     private async Task HandleLogin()
     {
-        if (AuthService.ValidateCredentials(loginModel.Username, loginModel.Password))
+        if (await AuthService.ValidateCredentialsAsync(loginModel.Username, loginModel.Password))
         {
-            await AuthService.LoginAsync(loginModel.Username);
             Navigation.NavigateTo(Return ?? "/");
         }
         else
