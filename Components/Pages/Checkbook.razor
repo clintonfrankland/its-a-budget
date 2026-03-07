@@ -44,7 +44,7 @@ else
                 <div class="col-auto">
                     <h1>Checkbook</h1>
                 </div>
-                <div class="col text-end">
+                <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
                     <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Transaction" : "")" ButtonStyle="ButtonStyle.Primary" 
                                   Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
                     <RadzenButton Icon="@(showBudgetCollapse ? "expand_less" : "expand_more")" 

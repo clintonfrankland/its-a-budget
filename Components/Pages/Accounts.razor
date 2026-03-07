@@ -30,7 +30,7 @@ else
                 <div class="col-auto">
                     <h1>Accounts</h1>
                 </div>
-                <div class="col text-end">
+                <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
                     <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Account" : "")" ButtonStyle="ButtonStyle.Primary"
                                   Size="ButtonSize.Medium" Click="ShowAddAccount" />
                 </div>

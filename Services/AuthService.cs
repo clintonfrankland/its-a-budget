@@ -87,6 +87,7 @@ public class AuthService
             DisplayName = user.DisplayName,
             EmailAddress = user.EmailAddress,
             IsAdmin = user.IsAdmin,
+            ListButtonsRight = user.ListButtonsRight,
             IsLoggedIn = true
         };
 
@@ -103,6 +104,7 @@ public class AuthService
             DisplayName = username,
             EmailAddress = null,
             IsAdmin = true,
+            ListButtonsRight = true,
             IsLoggedIn = true
         };
 
@@ -119,6 +121,7 @@ public class AuthService
         _currentUser.DisplayName = user.DisplayName;
         _currentUser.EmailAddress = user.EmailAddress;
         _currentUser.IsAdmin = user.IsAdmin;
+        _currentUser.ListButtonsRight = user.ListButtonsRight;
 
         await _sessionStorage.SetAsync(AuthStorageKey, _currentUser);
     }

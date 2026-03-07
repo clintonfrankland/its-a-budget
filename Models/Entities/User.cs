@@ -37,6 +37,10 @@ public class User
     public bool IsAdmin { get; set; }
 
     [Required]
+    [Column("ListButtonsRight")]
+    public bool ListButtonsRight { get; set; } = true;
+
+    [Required]
     [Column("Salt")]
     [StringLength(32)]
     public string Salt { get; set; } = string.Empty;

@@ -15,6 +15,7 @@ public partial class Profile
     private string DisplayName { get; set; } = string.Empty;
     private string UserName { get; set; } = string.Empty;
     private string? EmailAddress { get; set; }
+    private bool ListButtonsRight { get; set; } = true;
     private string NewPassword { get; set; } = string.Empty;
 
     private string? ErrorMessage { get; set; }
@@ -49,6 +50,7 @@ public partial class Profile
         DisplayName = CurrentDbUser.DisplayName;
         UserName = CurrentDbUser.UserName;
         EmailAddress = CurrentDbUser.EmailAddress;
+        ListButtonsRight = CurrentDbUser.ListButtonsRight;
     }
 
     private async Task SaveProfileAsync()
@@ -82,6 +84,7 @@ public partial class Profile
         CurrentDbUser.DisplayName = DisplayName.Trim();
         CurrentDbUser.UserName = UserName.Trim();
         CurrentDbUser.EmailAddress = string.IsNullOrWhiteSpace(EmailAddress) ? null : EmailAddress.Trim();
+        CurrentDbUser.ListButtonsRight = ListButtonsRight;
 
         await DbContext.SaveChangesAsync();
         await AuthService.RefreshCurrentUserAsync(CurrentDbUser);

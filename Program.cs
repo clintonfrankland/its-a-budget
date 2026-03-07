@@ -38,6 +38,20 @@ builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 
+// Ensure required user preference columns exist for legacy databases.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("IF COL_LENGTH('cfUsers', 'ListButtonsRight') IS NULL ALTER TABLE cfUsers ADD ListButtonsRight BIT NOT NULL CONSTRAINT DF_cfUsers_ListButtonsRight DEFAULT(1)");
+    }
+    catch
+    {
+        // Best effort; ignore if already exists or DB lacks permissions for metadata check.
+    }
+}
+
 // Force request/circuit culture to en-US for consistent formatting in Blazor Server.
 var localizationOptions = new RequestLocalizationOptions()
     .SetDefaultCulture("en-US")

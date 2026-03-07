@@ -7,6 +7,7 @@ public class UserInfo
     public string DisplayName { get; set; } = string.Empty;
     public string? EmailAddress { get; set; }
     public bool IsAdmin { get; set; }
+    public bool ListButtonsRight { get; set; } = true;
     public bool IsLoggedIn { get; set; } = false;
     public int SiteId { get; set; }
 
