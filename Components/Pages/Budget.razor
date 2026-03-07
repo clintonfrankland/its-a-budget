@@ -84,30 +84,34 @@ else
                         </RadzenStack>
                     </HeaderTemplate>
                     <Columns>
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                            <Template Context="item">
-                                @if (IsAtLeast(ScreenSize.Medium))
-                                {
-                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                                  Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                                    <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
-                                                  Click="() => MarkPaidAsync(item.BudgetId)" title="Mark Paid" />
-                                    <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
-                                                  Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
-                                }
-                                else
-                                {
-                                    <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                       Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
-                                        <ChildContent>
-                                            <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
-                                            <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
-                                            <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
-                                        </ChildContent>
-                                    </RadzenSplitButton>
-                                }
-                            </Template>
-                        </RadzenDataGridColumn>
+                        @if (!AuthService.CurrentUser.ListButtonsRight)
+                        {
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                                <Template Context="item">
+                                    @if (IsAtLeast(ScreenSize.Medium))
+                                    {
+                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                                      Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                      Click="() => MarkPaidAsync(item.BudgetId)" title="Mark Paid" />
+                                        <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
+                                                      Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
+                                    }
+                                    else
+                                    {
+                                        <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
+                                            <ChildContent>
+                                                <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                                <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
+                                                <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
+                                            </ChildContent>
+                                        </RadzenSplitButton>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        }
+
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")" SortOrder="SortOrder.Ascending">
                             <Template Context="item">
                                 @(IsAtLeast(ScreenSize.Small) ? item.DueDate.ToString("MM/dd/yyyy") : item.DueDate.ToString("M/dd"))
@@ -130,6 +134,34 @@ else
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+
+                        @if (AuthService.CurrentUser.ListButtonsRight)
+                        {
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                                <Template Context="item">
+                                    @if (IsAtLeast(ScreenSize.Medium))
+                                    {
+                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                                      Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                      Click="() => MarkPaidAsync(item.BudgetId)" title="Mark Paid" />
+                                        <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
+                                                      Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
+                                    }
+                                    else
+                                    {
+                                        <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
+                                            <ChildContent>
+                                                <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                                <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
+                                                <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
+                                            </ChildContent>
+                                        </RadzenSplitButton>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        }
                     </Columns>
                 </RadzenDataGrid>
             </div>

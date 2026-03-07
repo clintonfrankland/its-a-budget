@@ -77,27 +77,30 @@ else
                                     AllowSorting="true"
                                     class="rz-datatable-striped">
                         <Columns>
-                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
-                                <Template Context="item">
-                                    @if (IsAtLeast(ScreenSize.Small))
-                                    {
-                                        <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
-                                                      Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
-                                        <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
-                                                      Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
-                                    }
-                                    else
-                                    {
-                                        <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
-                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
-                                            <ChildContent>
-                                                <RadzenSplitButtonItem Text="Record" Icon="add_task" Value="record" />
-                                                <RadzenSplitButtonItem Text="Skip" Icon="skip_next" Value="skip" />
-                                            </ChildContent>
-                                        </RadzenSplitButton>
-                                    }
-                                </Template>
-                            </RadzenDataGridColumn>
+                            @if (!AuthService.CurrentUser.ListButtonsRight)
+                            {
+                                <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
+                                    <Template Context="item">
+                                        @if (IsAtLeast(ScreenSize.Small))
+                                        {
+                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                          Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
+                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
+                                                          Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
+                                        }
+                                        else
+                                        {
+                                            <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+                                                               Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
+                                                <ChildContent>
+                                                    <RadzenSplitButtonItem Text="Record" Icon="add_task" Value="record" />
+                                                    <RadzenSplitButtonItem Text="Skip" Icon="skip_next" Value="skip" />
+                                                </ChildContent>
+                                            </RadzenSplitButton>
+                                        }
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            }
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")">
                                 <Template Context="item">
                                     @(IsAtLeast(ScreenSize.Small) ? item.DueDate.ToString("MM/dd/yyyy") : item.DueDate.ToString("M/dd"))
@@ -108,6 +111,31 @@ else
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+
+                            @if (AuthService.CurrentUser.ListButtonsRight)
+                            {
+                                <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
+                                    <Template Context="item">
+                                        @if (IsAtLeast(ScreenSize.Small))
+                                        {
+                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                                          Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
+                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
+                                                          Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
+                                        }
+                                        else
+                                        {
+                                            <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+                                                               Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
+                                                <ChildContent>
+                                                    <RadzenSplitButtonItem Text="Record" Icon="add_task" Value="record" />
+                                                    <RadzenSplitButtonItem Text="Skip" Icon="skip_next" Value="skip" />
+                                                </ChildContent>
+                                            </RadzenSplitButton>
+                                        }
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            }
                         </Columns>
                     </RadzenDataGrid>
                 }
@@ -144,37 +172,40 @@ else
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
-                    <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                        <Template Context="txn">
-                            @if (IsAtLeast(ScreenSize.Small))
-                            {
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
-                                <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
-                                              ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
-                                              Size="ButtonSize.Small" 
-                                              Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
-                                              title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
-                            }
-                            else
-                            {
-                                <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                   Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
-                                    <ChildContent>
-                                        <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
-                                        @if (txn.IsCleared)
-                                        {
-                                            <RadzenSplitButtonItem Text="Mark Uncleared" Icon="radio_button_unchecked" Value="uncleared" />
-                                        }
-                                        else
-                                        {
-                                            <RadzenSplitButtonItem Text="Mark Cleared" Icon="check_circle" Value="cleared" />
-                                        }
-                                    </ChildContent>
-                                </RadzenSplitButton>
-                            }
-                        </Template>
-                    </RadzenDataGridColumn>
+                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="txn">
+                                @if (IsAtLeast(ScreenSize.Small))
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
+                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
+                                                  ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
+                                                  Size="ButtonSize.Small" 
+                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
+                                                  title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
+                                }
+                                else
+                                {
+                                    <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                       Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
+                                        <ChildContent>
+                                            <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                            @if (txn.IsCleared)
+                                            {
+                                                <RadzenSplitButtonItem Text="Mark Uncleared" Icon="radio_button_unchecked" Value="uncleared" />
+                                            }
+                                            else
+                                            {
+                                                <RadzenSplitButtonItem Text="Mark Cleared" Icon="check_circle" Value="cleared" />
+                                            }
+                                        </ChildContent>
+                                    </RadzenSplitButton>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="TransactionDate" Title="Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")" SortOrder="SortOrder.Descending">
                         <Template Context="txn">
                             @(IsAtLeast(ScreenSize.Small) ? txn.TransactionDate.ToString("MM/dd/yyyy") : txn.TransactionDate.ToString("M/dd"))
@@ -189,6 +220,41 @@ else
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
+
+                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="txn">
+                                @if (IsAtLeast(ScreenSize.Small))
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
+                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
+                                                  ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
+                                                  Size="ButtonSize.Small" 
+                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
+                                                  title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
+                                }
+                                else
+                                {
+                                    <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                       Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
+                                        <ChildContent>
+                                            <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
+                                            @if (txn.IsCleared)
+                                            {
+                                                <RadzenSplitButtonItem Text="Mark Uncleared" Icon="radio_button_unchecked" Value="uncleared" />
+                                            }
+                                            else
+                                            {
+                                                <RadzenSplitButtonItem Text="Mark Cleared" Icon="check_circle" Value="cleared" />
+                                            }
+                                        </ChildContent>
+                                    </RadzenSplitButton>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
                 </Columns>
             </RadzenDataGrid>
         </div>

@@ -56,12 +56,16 @@ else
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
-                    <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                        <Template Context="item">
-                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                          Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
-                        </Template>
-                    </RadzenDataGridColumn>
+                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                              Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
+
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountName" Title="Account Name" SortOrder="SortOrder.Ascending" />
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountType" Title="Type" Width="120px" Visible="@IsAtLeast(ScreenSize.Medium)" />
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="LastUpdated" Title="Last Upd" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
@@ -74,6 +78,16 @@ else
                             @(item.Ratio.HasValue ? $"{item.Ratio:0.##}" : "")
                         </Template>
                     </RadzenDataGridColumn>
+
+                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                              Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
                 </Columns>
             </RadzenDataGrid>
         </div>

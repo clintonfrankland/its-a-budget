@@ -56,12 +56,17 @@ else
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                        <Template Context="item">
-                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                          Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                        </Template>
-                    </RadzenDataGridColumn>
+                    @* Actions column (moveable left/right based on profile setting) *@
+                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                              Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
+
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left" Visible="@IsAtLeast(ScreenSize.Medium)">
                         <Template Context="item">
                             @if (item.IsBill)
@@ -85,6 +90,16 @@ else
                             <strong>@filteredBudgetItems.Sum(i => i.Monthly).ToString("C")</strong>
                         </FooterTemplate>
                     </RadzenDataGridColumn>
+
+                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                              Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
                 </Columns>
             </RadzenDataGrid>
         </div>

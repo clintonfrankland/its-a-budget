@@ -37,10 +37,10 @@ else
             </div>
             <div class="mb-2">
                 <label class="form-label">List Buttons Location</label>
-                <select class="form-select" @bind="ListButtonsRight">
+                <InputSelect class="form-select" @bind-Value="ListButtonsRight">
                     <option value="false">Left</option>
                     <option value="true">Right</option>
-                </select>
+                </InputSelect>
                 <div class="form-text">Controls placement on Checkbook, Budget Forecast, Budget Items, and Accounts list views.</div>
             </div>
             <button class="btn btn-primary" @onclick="SaveProfileAsync">Save Profile</button>
