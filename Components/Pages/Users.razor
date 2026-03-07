@@ -23,12 +23,18 @@ else
         <div class="alert alert-danger">@ErrorMessage</div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Users</h1>
-        @if (AuthService.CurrentUser.IsAdmin)
-        {
-            <button class="btn btn-primary" @onclick="ShowNewUser">+ New User</button>
-        }
+    <div class="container mb-3">
+        <div class="row align-items-center g-2">
+            <div class="col-auto">
+                <h1 class="mb-0">Users</h1>
+            </div>
+            <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
+                @if (AuthService.CurrentUser.IsAdmin)
+                {
+                    <button class="btn btn-primary" @onclick="ShowNewUser">+ New User</button>
+                }
+            </div>
+        </div>
     </div>
 
     <div class="container mt-2">
@@ -38,12 +44,14 @@ else
                         FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                         class="rz-datatable-striped">
             <Columns>
-                <RadzenDataGridColumn TItem="User" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                <RadzenDataGridColumn TItem="User" Title="" Width="120px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                     <Template Context="u">
-                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                      Click="() => EditUser(u)" title="Edit user" class="me-1" />
-                        <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
-                                      Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                        <div class="d-flex @(AuthService.CurrentUser.ListButtonsRight ? "justify-content-end" : "justify-content-start") gap-2 flex-column flex-sm-row">
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium"
+                                          Click="() => EditUser(u)" title="Edit user" />
+                            <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Medium"
+                                          Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                        </div>
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="User" Property="UserId" Title="ID" Width="80px" />
