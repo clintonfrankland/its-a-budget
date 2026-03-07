@@ -18,6 +18,14 @@ else if (!AuthService.CurrentUser.IsAdmin)
 }
 else
 {
+    @* Media queries for responsive column visibility - using Bootstrap breakpoints *@
+    <RadzenMediaQuery Query="(max-width: 575.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraSmall, matches))" />
+    <RadzenMediaQuery Query="(min-width: 576px) and (max-width: 767.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Small, matches))" />
+    <RadzenMediaQuery Query="(min-width: 768px) and (max-width: 991.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Medium, matches))" />
+    <RadzenMediaQuery Query="(min-width: 992px) and (max-width: 1199.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Large, matches))" />
+    <RadzenMediaQuery Query="(min-width: 1200px) and (max-width: 1399.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraLarge, matches))" />
+    <RadzenMediaQuery Query="(min-width: 1400px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraExtraLarge, matches))" />
+
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
         <div class="alert alert-danger">@ErrorMessage</div>
@@ -44,16 +52,19 @@ else
                         FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                         class="rz-datatable-striped">
             <Columns>
-                <RadzenDataGridColumn TItem="User" Title="" Width="120px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                    <Template Context="u">
-                        <div class="d-flex @(AuthService.CurrentUser.ListButtonsRight ? "justify-content-end" : "justify-content-start") gap-2 flex-column flex-sm-row">
-                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium"
-                                          Click="() => EditUser(u)" title="Edit user" />
-                            <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Medium"
-                                          Click="() => OpenPasswordUtility(u)" title="Password utility" />
-                        </div>
-                    </Template>
-                </RadzenDataGridColumn>
+                @if (!AuthService.CurrentUser.ListButtonsRight)
+                {
+                    <RadzenDataGridColumn TItem="User" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="u">
+                            <div class="d-flex justify-content-start gap-2 flex-column flex-sm-row">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                              Click="() => EditUser(u)" title="Edit user" />
+                                <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
+                                              Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                            </div>
+                        </Template>
+                    </RadzenDataGridColumn>
+                }
                 <RadzenDataGridColumn TItem="User" Property="UserId" Title="ID" Width="80px" />
                 <RadzenDataGridColumn TItem="User" Property="DisplayName" Title="Full Name" />
                 <RadzenDataGridColumn TItem="User" Property="UserName" Title="Username" />
@@ -63,6 +74,19 @@ else
                         @(u.IsAdmin ? "Yes" : "No")
                     </Template>
                 </RadzenDataGridColumn>
+                @if (AuthService.CurrentUser.ListButtonsRight)
+                {
+                    <RadzenDataGridColumn TItem="User" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="u">
+                            <div class="d-flex justify-content-end gap-2 flex-column flex-sm-row">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                              Click="() => EditUser(u)" title="Edit user" />
+                                <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
+                                              Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                            </div>
+                        </Template>
+                    </RadzenDataGridColumn>
+                }
             </Columns>
         </RadzenDataGrid>
     </div>

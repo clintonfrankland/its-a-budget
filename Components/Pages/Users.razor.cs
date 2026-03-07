@@ -24,6 +24,20 @@ public partial class Users
     private User? PasswordUser { get; set; }
     private string PasswordValue { get; set; } = "";
 
+    // Screen size tracking for responsive column visibility
+    private ScreenSize currentScreenSize = ScreenSize.Large;
+
+    // Screen size enum matching Bootstrap breakpoints
+    public enum ScreenSize
+    {
+        ExtraSmall,  // < 576px
+        Small,       // >= 576px
+        Medium,      // >= 768px
+        Large,       // >= 992px
+        ExtraLarge,  // >= 1200px
+        ExtraExtraLarge // >= 1400px
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -199,4 +213,20 @@ public partial class Users
         PasswordUser = null;
         PasswordValue = "";
     }
+
+    // Called by RadzenMediaQuery components when breakpoints change
+    void OnScreenSizeChange(ScreenSize size, bool matches)
+    {
+        if (matches)
+        {
+            currentScreenSize = size;
+            StateHasChanged();
+        }
+    }
+
+    // Helper methods to check screen size for column visibility
+    bool IsAtLeast(ScreenSize minimumSize) => currentScreenSize >= minimumSize;
+    bool IsAtMost(ScreenSize maximumSize) => currentScreenSize <= maximumSize;
+    bool IsBetween(ScreenSize minSize, ScreenSize maxSize) => currentScreenSize >= minSize && currentScreenSize <= maxSize;
+    bool IsExactly(ScreenSize size) => currentScreenSize == size;
 }
