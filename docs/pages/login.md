@@ -1,0 +1,37 @@
+# Sign In (Login)
+
+## What this page is
+
+The **Sign In** page is where you enter your username and password to access your budget data.
+
+It’s intentionally simple: no clutter, no distractions, just a quick “let me in” so you can get back to tracking real life.
+
+## What you’ll see
+
+- **Username** field
+- **Password** field
+- **Sign In** button
+
+If you enter the wrong username or password, you’ll see a clear warning message: **“Invalid username or password.”**
+
+## How to sign in
+
+1. Tap/click **Username** and type your username.
+2. Tap/click **Password** and type your password.
+3. Select **Sign In**.
+
+If everything matches, you’ll be taken into the app and you’ll be able to use the navigation bar to reach:
+
+- Checkbook
+- Budget Forecast
+- Budget Items
+- Accounts
+
+## Tips
+
+- If you’re on your own device, your browser may remember your username for faster sign-ins.
+- If you keep getting the invalid login message, double-check spelling and capitalization.
+
+## Why it matters
+
+Budgeting apps live or die on trust. This login step keeps your financial info private, which means you can confidently use the app anywhere, even on shared networks.
