@@ -47,6 +47,37 @@ else
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-header">Notification Preferences</div>
+        <div class="card-body">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="receiveBillDue" @bind="ReceiveBillDueNotices" />
+                <label class="form-check-label" for="receiveBillDue">Receive bill-due notices</label>
+                <div class="form-text">Get email notifications when bills are due. Requires a valid email address above.</div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Timezone</label>
+                    <InputSelect class="form-select" @bind-Value="NotificationTimezone">
+                        @foreach (var tz in AvailableTimezones)
+                        {
+                            <option value="@tz.Id">@tz.DisplayName</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">Your local timezone for scheduling notifications.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Preferred Delivery Time</label>
+                    <input type="time" class="form-control" @bind="NotificationDeliveryTime" />
+                    <div class="form-text">When you'd like to receive bill-due notices (in your local time).</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary mt-3" @onclick="SaveNotificationPreferencesAsync">Save Notification Preferences</button>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">Reset Password</div>
         <div class="card-body">

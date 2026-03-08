@@ -129,5 +129,13 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasKey(s => s.Id);
             entity.Property(s => s.UpdatedAtUtc).IsRequired();
         });
+
+        // Configure User notification preferences with defaults
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(u => u.ReceiveBillDueNotices).HasDefaultValue(false);
+            entity.Property(u => u.NotificationTimezone).HasDefaultValue("America/New_York");
+            entity.Property(u => u.NotificationDeliveryTime).HasDefaultValue(new TimeOnly(8, 0));
+        });
     }
 }

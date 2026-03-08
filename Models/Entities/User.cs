@@ -72,6 +72,17 @@ public class User
     [Column("PasswordResetRequestOn")]
     public DateTime? PasswordResetRequestOn { get; set; }
 
+    // Notification Preferences
+    [Column("ReceiveBillDueNotices")]
+    public bool ReceiveBillDueNotices { get; set; } = false;
+
+    [Column("NotificationTimezone")]
+    [StringLength(64)]
+    public string NotificationTimezone { get; set; } = "America/New_York";
+
+    [Column("NotificationDeliveryTime")]
+    public TimeOnly NotificationDeliveryTime { get; set; } = new TimeOnly(8, 0);
+
     // Navigation properties
     public virtual ICollection<Account> Accounts { get; set; } = [];
     public virtual ICollection<Budget> Budgets { get; set; } = [];

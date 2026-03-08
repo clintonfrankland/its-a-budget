@@ -18,8 +18,38 @@ public partial class Profile
     private bool ListButtonsRight { get; set; } = true;
     private string NewPassword { get; set; } = string.Empty;
 
+    // Notification preferences
+    private bool ReceiveBillDueNotices { get; set; }
+    private string NotificationTimezone { get; set; } = "America/New_York";
+    private TimeOnly NotificationDeliveryTime { get; set; } = new TimeOnly(8, 0);
+
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+
+    // Available timezones for dropdown
+    private static readonly List<TimezoneOption> AvailableTimezones = GetAvailableTimezones();
+
+    private record TimezoneOption(string Id, string DisplayName);
+
+    private static List<TimezoneOption> GetAvailableTimezones()
+    {
+        var timezones = new List<TimezoneOption>();
+
+        foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
+        {
+            // Try to get IANA ID, fall back to Windows ID
+            if (TimeZoneInfo.TryConvertWindowsIdToIanaId(tz.Id, out var ianaId))
+            {
+                timezones.Add(new TimezoneOption(ianaId, $"{tz.DisplayName}"));
+            }
+            else
+            {
+                timezones.Add(new TimezoneOption(tz.Id, $"{tz.DisplayName}"));
+            }
+        }
+
+        return timezones.DistinctBy(t => t.Id).OrderBy(t => t.DisplayName).ToList();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -51,6 +81,11 @@ public partial class Profile
         UserName = CurrentDbUser.UserName;
         EmailAddress = CurrentDbUser.EmailAddress;
         ListButtonsRight = CurrentDbUser.ListButtonsRight;
+
+        // Load notification preferences
+        ReceiveBillDueNotices = CurrentDbUser.ReceiveBillDueNotices;
+        NotificationTimezone = CurrentDbUser.NotificationTimezone;
+        NotificationDeliveryTime = CurrentDbUser.NotificationDeliveryTime;
     }
 
     private async Task SaveProfileAsync()
@@ -90,6 +125,63 @@ public partial class Profile
         await AuthService.RefreshCurrentUserAsync(CurrentDbUser);
 
         SuccessMessage = "Profile updated.";
+    }
+
+    private async Task SaveNotificationPreferencesAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        if (CurrentDbUser is null)
+        {
+            ErrorMessage = "Profile not loaded.";
+            return;
+        }
+
+        // Validate timezone
+        if (!IsValidTimezone(NotificationTimezone))
+        {
+            ErrorMessage = "Invalid timezone selected.";
+            return;
+        }
+
+        // Warn if enabling notifications without email
+        if (ReceiveBillDueNotices && string.IsNullOrWhiteSpace(CurrentDbUser.EmailAddress))
+        {
+            ErrorMessage = "Please set an email address before enabling bill-due notices.";
+            return;
+        }
+
+        CurrentDbUser.ReceiveBillDueNotices = ReceiveBillDueNotices;
+        CurrentDbUser.NotificationTimezone = NotificationTimezone;
+        CurrentDbUser.NotificationDeliveryTime = NotificationDeliveryTime;
+
+        await DbContext.SaveChangesAsync();
+        await AuthService.RefreshCurrentUserAsync(CurrentDbUser);
+
+        SuccessMessage = "Notification preferences updated.";
+    }
+
+    private static bool IsValidTimezone(string timezoneId)
+    {
+        // Check if it's a valid IANA or Windows timezone
+        try
+        {
+            // Try IANA first
+            if (TimeZoneInfo.TryConvertIanaIdToWindowsId(timezoneId, out var windowsId))
+            {
+                TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+                return true;
+            }
+
+            // Try as Windows ID directly
+            TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+            return true;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return false;
+        }
     }
 
     private void GeneratePassword()
