@@ -42,28 +42,28 @@ IF COL_LENGTH('dbo.cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE db
             migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'TlsMode') IS NULL
 BEGIN
-    ALTER TABLE dbo.cfSmtpSettings ADD TlsMode INT NULL;
+    ALTER TABLE dbo.cfSmtpSettings
+        ADD TlsMode INT NOT NULL
+            CONSTRAINT DF_cfSmtpSettings_TlsMode DEFAULT(1);
 END
-UPDATE dbo.cfSmtpSettings SET TlsMode = 1 WHERE TlsMode IS NULL;
-ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN TlsMode INT NOT NULL;
 ");
 
             migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'AllowInvalidCerts') IS NULL
 BEGIN
-    ALTER TABLE dbo.cfSmtpSettings ADD AllowInvalidCerts BIT NULL;
+    ALTER TABLE dbo.cfSmtpSettings
+        ADD AllowInvalidCerts BIT NOT NULL
+            CONSTRAINT DF_cfSmtpSettings_AllowInvalidCerts DEFAULT(0);
 END
-UPDATE dbo.cfSmtpSettings SET AllowInvalidCerts = 0 WHERE AllowInvalidCerts IS NULL;
-ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN AllowInvalidCerts BIT NOT NULL;
 ");
 
             migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'UpdatedAtUtc') IS NULL
 BEGIN
-    ALTER TABLE dbo.cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NULL;
+    ALTER TABLE dbo.cfSmtpSettings
+        ADD UpdatedAtUtc DATETIME2 NOT NULL
+            CONSTRAINT DF_cfSmtpSettings_UpdatedAtUtc DEFAULT(SYSUTCDATETIME());
 END
-UPDATE dbo.cfSmtpSettings SET UpdatedAtUtc = SYSUTCDATETIME() WHERE UpdatedAtUtc IS NULL;
-ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN UpdatedAtUtc DATETIME2 NOT NULL;
 ");
 
             // 3) Seed the single server-wide row (use dynamic SQL to avoid compile-time column validation)
