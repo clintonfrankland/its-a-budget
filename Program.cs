@@ -77,20 +77,29 @@ BEGIN
         -- Host/Port/UserName/Password should be supplied via environment variables.
         SenderEmail NVARCHAR(256) NULL,
         FromName NVARCHAR(128) NULL,
-        TlsMode INT NOT NULL DEFAULT(1),
-        AllowInvalidCerts BIT NOT NULL DEFAULT(0),
+        TlsMode INT NULL,
+        AllowInvalidCerts BIT NULL,
         TestRecipientEmail NVARCHAR(256) NULL,
-        UpdatedAtUtc DATETIME2 NOT NULL
+        UpdatedAtUtc DATETIME2 NULL
     );
 END
 
 -- Backward-compatible schema updates (older DBs may have had extra columns like Host/Port/UserName/Password)
-IF COL_LENGTH('cfSmtpSettings', 'FromName') IS NULL ALTER TABLE cfSmtpSettings ADD FromName NVARCHAR(128) NULL;
-IF COL_LENGTH('cfSmtpSettings', 'TlsMode') IS NULL ALTER TABLE cfSmtpSettings ADD TlsMode INT NOT NULL CONSTRAINT DF_cfSmtpSettings_TlsMode DEFAULT(1);
-IF COL_LENGTH('cfSmtpSettings', 'AllowInvalidCerts') IS NULL ALTER TABLE cfSmtpSettings ADD AllowInvalidCerts BIT NOT NULL CONSTRAINT DF_cfSmtpSettings_AllowInvalidCerts DEFAULT(0);
-IF COL_LENGTH('cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE cfSmtpSettings ADD TestRecipientEmail NVARCHAR(256) NULL;
 IF COL_LENGTH('cfSmtpSettings', 'SenderEmail') IS NULL ALTER TABLE cfSmtpSettings ADD SenderEmail NVARCHAR(256) NULL;
-IF COL_LENGTH('cfSmtpSettings', 'UpdatedAtUtc') IS NULL ALTER TABLE cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NOT NULL CONSTRAINT DF_cfSmtpSettings_UpdatedAtUtc DEFAULT(SYSUTCDATETIME());
+IF COL_LENGTH('cfSmtpSettings', 'FromName') IS NULL ALTER TABLE cfSmtpSettings ADD FromName NVARCHAR(128) NULL;
+IF COL_LENGTH('cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE cfSmtpSettings ADD TestRecipientEmail NVARCHAR(256) NULL;
+
+IF COL_LENGTH('cfSmtpSettings', 'TlsMode') IS NULL ALTER TABLE cfSmtpSettings ADD TlsMode INT NULL;
+UPDATE cfSmtpSettings SET TlsMode = 1 WHERE TlsMode IS NULL;
+ALTER TABLE cfSmtpSettings ALTER COLUMN TlsMode INT NOT NULL;
+
+IF COL_LENGTH('cfSmtpSettings', 'AllowInvalidCerts') IS NULL ALTER TABLE cfSmtpSettings ADD AllowInvalidCerts BIT NULL;
+UPDATE cfSmtpSettings SET AllowInvalidCerts = 0 WHERE AllowInvalidCerts IS NULL;
+ALTER TABLE cfSmtpSettings ALTER COLUMN AllowInvalidCerts BIT NOT NULL;
+
+IF COL_LENGTH('cfSmtpSettings', 'UpdatedAtUtc') IS NULL ALTER TABLE cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NULL;
+UPDATE cfSmtpSettings SET UpdatedAtUtc = SYSUTCDATETIME() WHERE UpdatedAtUtc IS NULL;
+ALTER TABLE cfSmtpSettings ALTER COLUMN UpdatedAtUtc DATETIME2 NOT NULL;
 
 IF NOT EXISTS (SELECT 1 FROM cfSmtpSettings WHERE Id = 1)
 BEGIN

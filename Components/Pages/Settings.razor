@@ -1,5 +1,4 @@
 @page "/settings"
-@attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 
 <PageTitle>Server Settings</PageTitle>
@@ -20,7 +19,6 @@ else
     <h1 class="mb-3">Server Settings</h1>
 
     <div class="mb-3 d-flex gap-2 flex-wrap">
-        <a href="/profile" class="btn btn-outline-secondary btn-sm">Go to My Profile</a>
         <a href="/users" class="btn btn-outline-primary btn-sm">Manage Users</a>
     </div>
 
