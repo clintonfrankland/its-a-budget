@@ -211,7 +211,24 @@ else
                             @(IsAtLeast(ScreenSize.Small) ? txn.TransactionDate.ToString("MM/dd/yyyy") : txn.TransactionDate.ToString("M/dd"))
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="PayeeName" Title="Payee" />
+                    <RadzenDataGridColumn TItem="TransactionViewModel" Property="PayeeName" Title="Payee">
+                        <Template Context="txn">
+                            @txn.PayeeName
+                            @if (!string.IsNullOrEmpty(txn.Notes) || txn.HasAttachment)
+                            {
+                                <span class="ms-1">
+                                    @if (!string.IsNullOrEmpty(txn.Notes))
+                                    {
+                                        <RadzenIcon Icon="sticky_note_2" title="@txn.Notes" Style="font-size: 0.9rem; color: var(--rz-info);" />
+                                    }
+                                    @if (txn.HasAttachment)
+                                    {
+                                        <RadzenIcon Icon="attach_file" title="Has attachment" Style="font-size: 0.9rem; color: var(--rz-success);" />
+                                    }
+                                </span>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="CategoryName" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="IsCleared" Title="Clr" Width="60px" Sortable="true" TextAlign="TextAlign.Center" Filterable="true" Visible="@IsAtLeast(ScreenSize.Large)">
                         <Template Context="txn">
@@ -326,6 +343,40 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="8">
                         <RadzenCheckBox @bind-Value="editCleared" TValue="bool" Name="editClearedCheckbox" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Notes:" Component="editNotesTextArea" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextArea @bind-Value="editNotes" Name="editNotesTextArea" 
+                                        Placeholder="Optional notes..." Style="width: 100%;" Rows="3" MaxLength="500" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-3">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Receipt:" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        @if (!string.IsNullOrEmpty(editAttachmentPath) && !removeAttachment)
+                        {
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <RadzenLink Path="@editAttachmentPath" Target="_blank" Text="View current attachment" />
+                                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall" 
+                                              Variant="Variant.Text" Click="RemoveAttachment" title="Remove attachment" />
+                            </div>
+                        }
+                        @if (editAttachmentFile != null)
+                        {
+                            <div class="text-muted small mb-2">
+                                <RadzenIcon Icon="check_circle" class="text-success" /> @editAttachmentFile.Name selected
+                            </div>
+                        }
+                        <InputFile OnChange="OnAttachmentSelected" accept="image/*,.pdf" class="form-control form-control-sm" />
+                        <div class="form-text">Upload a receipt or confirmation (max 5MB)</div>
                     </RadzenColumn>
                 </RadzenRow>
 

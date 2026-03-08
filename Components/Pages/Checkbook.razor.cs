@@ -2,6 +2,8 @@ using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Hosting;
 using Radzen;
 using Radzen.Blazor;
 
@@ -23,6 +25,9 @@ public partial class Checkbook
 
     [Inject]
     private CheckbookDataService CheckbookData { get; set; } = default!;
+
+    [Inject]
+    private IWebHostEnvironment Environment { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -91,6 +96,10 @@ public partial class Checkbook
     private decimal editAmount = 0m;
     private bool editIsDebit = true;
     private bool editCleared = false;
+    private string editNotes = string.Empty;
+    private string? editAttachmentPath = null;
+    private IBrowserFile? editAttachmentFile = null;
+    private bool removeAttachment = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -160,7 +169,9 @@ public partial class Checkbook
                     CategoryName = t.Category?.CategoryName ?? string.Empty,
                     IsCleared = t.Cleared,
                     Amount = t.Amount,
-                    Balance = runningBalance
+                    Balance = runningBalance,
+                    Notes = t.Notes,
+                    HasAttachment = !string.IsNullOrEmpty(t.AttachmentPath)
                 };
             }).ToList();
 
@@ -500,6 +511,10 @@ public partial class Checkbook
         editAmount = 0m;
         editIsDebit = true;
         editCleared = false;
+        editNotes = string.Empty;
+        editAttachmentPath = null;
+        editAttachmentFile = null;
+        removeAttachment = false;
         currentView = ViewMode.Edit;
     }
 
@@ -515,6 +530,10 @@ public partial class Checkbook
         editAmount = Math.Abs(budgetItem.Amount);
         editIsDebit = budgetItem.Amount < 0;
         editCleared = false;
+        editNotes = string.Empty;
+        editAttachmentPath = null;
+        editAttachmentFile = null;
+        removeAttachment = false;
         currentView = ViewMode.Edit;
     }
 
@@ -536,6 +555,10 @@ public partial class Checkbook
                 editIsDebit = amount < 0;
                 editAmount = Math.Abs(amount);
                 editCleared = transaction.Cleared;
+                editNotes = transaction.Notes ?? string.Empty;
+                editAttachmentPath = transaction.AttachmentPath;
+                editAttachmentFile = null;
+                removeAttachment = false;
                 currentView = ViewMode.Edit;
             }
         }
@@ -583,6 +606,25 @@ public partial class Checkbook
             var account = await CheckbookData.GetAccountForUserAsync(userId);
             var accountId = account?.AccountId ?? 1;
 
+            // Handle attachment file upload
+            string? attachmentPath = editAttachmentPath;
+            if (removeAttachment && !string.IsNullOrEmpty(editAttachmentPath))
+            {
+                // Delete the old file
+                await DeleteAttachmentFileAsync(editAttachmentPath);
+                attachmentPath = null;
+            }
+            if (editAttachmentFile != null)
+            {
+                // Delete old file if exists
+                if (!string.IsNullOrEmpty(editAttachmentPath))
+                {
+                    await DeleteAttachmentFileAsync(editAttachmentPath);
+                }
+                // Save new file
+                attachmentPath = await SaveAttachmentFileAsync(editAttachmentFile, userId);
+            }
+
             if (editTransactionId == -1)
             {
                 // Insert new transaction
@@ -594,7 +636,9 @@ public partial class Checkbook
                     CategoryId = categoryId,
                     AccountId = accountId,
                     Amount = finalAmount,
-                    Cleared = editCleared
+                    Cleared = editCleared,
+                    Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim(),
+                    AttachmentPath = attachmentPath
                 };
                 await CheckbookData.SaveTransactionAsync(newTransaction, isNew: true);
             }
@@ -609,6 +653,8 @@ public partial class Checkbook
                     transaction.CategoryId = categoryId;
                     transaction.Amount = finalAmount;
                     transaction.Cleared = editCleared;
+                    transaction.Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim();
+                    transaction.AttachmentPath = attachmentPath;
                     await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
                 }
             }
@@ -628,6 +674,47 @@ public partial class Checkbook
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
+    }
+
+    private async Task<string> SaveAttachmentFileAsync(IBrowserFile file, int userId)
+    {
+        // Create uploads directory if it doesn't exist
+        var uploadsPath = Path.Combine(Environment.WebRootPath, "uploads", "receipts", userId.ToString());
+        Directory.CreateDirectory(uploadsPath);
+
+        // Generate unique filename
+        var extension = Path.GetExtension(file.Name);
+        var fileName = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(uploadsPath, fileName);
+
+        // Save file (limit to 5MB)
+        await using var stream = new FileStream(filePath, FileMode.Create);
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(stream);
+
+        // Return relative path for storage
+        return $"uploads/receipts/{userId}/{fileName}";
+    }
+
+    private Task DeleteAttachmentFileAsync(string relativePath)
+    {
+        var fullPath = Path.Combine(Environment.WebRootPath, relativePath);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+        return Task.CompletedTask;
+    }
+
+    private void OnAttachmentSelected(InputFileChangeEventArgs e)
+    {
+        editAttachmentFile = e.File;
+        removeAttachment = false;
+    }
+
+    private void RemoveAttachment()
+    {
+        editAttachmentFile = null;
+        removeAttachment = true;
     }
 
     private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
