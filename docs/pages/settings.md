@@ -68,6 +68,21 @@ This is helpful because it tells you *where* a failure happened:
 
 If SMTP notices are disabled, the app will not send automated emails.
 
+## Bill-due Email Notifications
+
+This section controls the **server-wide behavior** of bill-due reminders.
+
+Notes:
+- The server-wide switch must be enabled here.
+- Each user must also opt-in on their **Profile** page (Receive bill-due notices).
+- The background worker runs inside the server process and does not require a user to have the UI open.
+
+Options:
+- **Enable bill-due email reminders**: master enable/disable.
+- **Due Soon Window (days ahead)**: how far in advance to remind.
+- **Send past-due reminders**: enable reminders after a due date has passed.
+- **Past Due Max (days)**: safety cap to stop reminding forever.
+
 ## Why this page matters
 
 When server email is set up correctly, the app becomes more than a register.

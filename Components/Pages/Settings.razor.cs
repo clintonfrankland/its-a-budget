@@ -34,6 +34,12 @@ public partial class Settings
     private bool ShowTestLog { get; set; }
     private List<string> TestLogLines { get; set; } = [];
 
+    // Bill Due Notification Settings
+    private bool BillDueIsEnabled { get; set; }
+    private int BillDueSoonDays { get; set; } = 3;
+    private bool BillPastDueEnabled { get; set; } = true;
+    private int BillPastDueMaxDays { get; set; } = 30;
+
     // User Management
     private List<User> UsersList { get; set; } = [];
     private string? UserErrorMessage { get; set; }
@@ -66,6 +72,7 @@ public partial class Settings
     private async Task LoadAsync()
     {
         await LoadSmtpSettingsAsync();
+        await LoadBillDueSettingsAsync();
         await LoadUsersAsync();
     }
 
@@ -210,6 +217,71 @@ public partial class Settings
             IsSendingTest = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    #endregion
+
+    #region Bill Due Notifications
+
+    private async Task LoadBillDueSettingsAsync()
+    {
+        var s = await DbContext.BillDueNotificationSettings.FirstOrDefaultAsync(x => x.Id == 1);
+        if (s is null)
+        {
+            s = new BillDueNotificationSetting { Id = 1, UpdatedAtUtc = DateTime.UtcNow };
+            DbContext.BillDueNotificationSettings.Add(s);
+            await DbContext.SaveChangesAsync();
+        }
+
+        BillDueIsEnabled = s.IsEnabled;
+        BillDueSoonDays = s.DueSoonDays;
+        BillPastDueEnabled = s.PastDueEnabled;
+        BillPastDueMaxDays = s.PastDueMaxDays;
+    }
+
+    private async Task PersistBillDueAsync()
+    {
+        var s = await DbContext.BillDueNotificationSettings.FirstAsync(x => x.Id == 1);
+        s.IsEnabled = BillDueIsEnabled;
+        s.DueSoonDays = Math.Clamp(BillDueSoonDays, 0, 60);
+        s.PastDueEnabled = BillPastDueEnabled;
+        s.PastDueMaxDays = Math.Clamp(BillPastDueMaxDays, 0, 365);
+        s.UpdatedAtUtc = DateTime.UtcNow;
+
+        await DbContext.SaveChangesAsync();
+        Message = "Bill-due notification settings saved.";
+        MessageCss = "alert-success";
+    }
+
+    private async Task OnBillDueEnabledChanged(ChangeEventArgs e)
+    {
+        BillDueIsEnabled = e.Value is bool b && b;
+        await PersistBillDueAsync();
+    }
+
+    private async Task OnBillDueSoonDaysChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var n))
+            BillDueSoonDays = n;
+        await PersistBillDueAsync();
+    }
+
+    private async Task OnBillPastDueEnabledChanged(ChangeEventArgs e)
+    {
+        BillPastDueEnabled = e.Value is bool b && b;
+        await PersistBillDueAsync();
+    }
+
+    private async Task OnBillPastDueMaxDaysChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var n))
+            BillPastDueMaxDays = n;
+        await PersistBillDueAsync();
+    }
+
+    private async Task ScrollToBillDue()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('bill-due')?.scrollIntoView({behavior:'smooth'});");
     }
 
     #endregion

@@ -24,6 +24,8 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<AuthLoginAudit> AuthLoginAudits => Set<AuthLoginAudit>();
     public DbSet<SmtpSetting> SmtpSettings => Set<SmtpSetting>();
+    public DbSet<BillDueNotificationSetting> BillDueNotificationSettings => Set<BillDueNotificationSetting>();
+    public DbSet<NotificationSendLog> NotificationSendLogs => Set<NotificationSendLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -128,6 +130,20 @@ public class ClintonFranklandDbContext : DbContext
         {
             entity.HasKey(s => s.Id);
             entity.Property(s => s.UpdatedAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<BillDueNotificationSetting>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.UpdatedAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<NotificationSendLog>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.CreatedAtUtc);
+            entity.HasIndex(x => new { x.UserId, x.BudgetId, x.NoticeType, x.NoticeLocalDate }).IsUnique();
         });
 
         // Configure User notification preferences with defaults

@@ -39,6 +39,7 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<EmailSenderService>();
+builder.Services.AddHostedService<BillDueNotificationWorker>();
 builder.Services.AddScoped<AccountsDataService>();
 builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetDataService>();
