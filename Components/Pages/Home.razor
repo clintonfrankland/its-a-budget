@@ -3,24 +3,25 @@
 
 <PageTitle>Welcome</PageTitle>
 
-<div class="landing-hero">
-    <div class="container py-5">
-        <div class="row align-items-center g-4">
-            <div class="col-lg-7">
-                <h1 class="display-5 fw-semibold mb-3">Your money, finally in one place</h1>
-                <p class="lead text-muted mb-4">
-                    Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
-                    and see your balance before life surprises you.
-                </p>
-
-                @if (AuthService.IsAuthenticated)
-                {
+@if (AuthService.IsAuthenticated)
+{
+    <div class="landing-hero">
+        <div class="container py-5">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-8">
+                    <h1 class="display-5 fw-semibold mb-3">Your money, finally in one place</h1>
+                    <p class="lead text-muted mb-4">
+                        Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
+                        and see your balance before life surprises you.
+                    </p>
+                    <h2 class="h3 mb-1">At a glance</h2>
+                    <p class="text-muted mb-4">A quick snapshot so you can make decisions fast.</p>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <div class="snapshot-card">
-                                <div class="snapshot-label">Today’s balance</div>
+                                <div class="snapshot-label">Today's balance</div>
                                 <div class="snapshot-value">@(Snapshot?.TodayBalance.ToString("C") ?? "...")</div>
-                                <div class="snapshot-sub text-muted">As of @DateTime.Today:ddd, MMM d</div>
+                                <div class="snapshot-sub text-muted">As of @DateTime.Today.ToString("ddd, MMM d")</div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -32,9 +33,16 @@
                         </div>
                         <div class="col-md-4">
                             <div class="snapshot-card">
-                                <div class="snapshot-label">Safe-to-spend</div>
-                                <div class="snapshot-value">@(Snapshot?.SafeToSpend.ToString("C") ?? "...")</div>
-                                <div class="snapshot-sub text-muted">Balance minus near-term bills</div>
+                                <div class="snapshot-label">Safe-to-spend (Lowest bal)</div>
+                                <div class="snapshot-value @(Snapshot?.LowestProjectedBalance < 0 ? "text-danger" : "")">
+                                    @(Snapshot?.LowestProjectedBalance.ToString("C") ?? "...")
+                                </div>
+                                <div class="snapshot-sub text-muted">
+                                    @if (Snapshot is not null)
+                                    {
+                                        @:On @Snapshot.LowestProjectedBalanceDate.ToString("MMM d")
+                                    }
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -43,9 +51,83 @@
                     {
                         <div class="alert alert-warning">Dashboard snapshot unavailable: @SnapshotError</div>
                     }
+                </div>
+
+                @* Right column: Welcome back card *@
+                <div class="col-lg-4">
+                    <div class="card shadow-sm sticky-top" style="top: 80px;">
+                        <div class="card-body p-4">
+                            <h2 class="h4 mb-2">Welcome back, @AuthService.CurrentUser.DisplayName</h2>
+                            <p class="text-muted mb-3">
+                                Jump straight to your ledger, forecast, or budget items.
+                            </p>
+                            <div class="d-grid gap-2">
+                                <a class="btn btn-primary" href="/checkbook">Open Checkbook</a>
+                                <a class="btn btn-outline-primary" href="/budget">Forecast</a>
+                                <a class="btn btn-outline-primary" href="/budgetitems">Budget Items</a>
+                                <a class="btn btn-outline-primary" href="/accounts">Accounts</a>
+                                <a class="btn btn-outline-secondary" href="/profile">Profile &amp; Notifications</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container py-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h5 mb-0">Upcoming bills</h3>
+                    <a class="btn btn-sm btn-outline-secondary" href="/budgetitems">View all</a>
+                </div>
+
+                @if (Snapshot?.UpcomingBills is null || Snapshot.UpcomingBills.Count == 0)
+                {
+                    <p class="text-muted mb-0">No upcoming bills found in the next 14 days.</p>
                 }
                 else
                 {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Due</th>
+                                    <th>Bill</th>
+                                    <th>Payee</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var b in Snapshot.UpcomingBills)
+                                {
+                                    <tr class="@(b.IsPastDue ? "table-warning" : "")">
+                                        <td style="white-space:nowrap;">@b.DueDate.ToString("MMM d")</td>
+                                        <td>@b.Name</td>
+                                        <td class="text-muted">@b.Payee</td>
+                                        <td class="text-end">@b.Amount.ToString("C")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="landing-hero">
+        <div class="container py-5">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-7">
+                    <h1 class="display-5 fw-semibold mb-3">Your money, finally in one place</h1>
+                    <p class="lead text-muted mb-4">
+                        Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
+                        and see your balance before life surprises you.
+                    </p>
+
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <div class="feature-pill">
@@ -72,41 +154,14 @@
                             </div>
                         </div>
                     </div>
-                }
 
-                <div class="d-flex flex-wrap gap-2">
-                    @if (AuthService.IsAuthenticated)
-                    {
-                        <a class="btn btn-primary btn-lg" href="/checkbook">Go to Checkbook</a>
-                        <a class="btn btn-outline-secondary btn-lg" href="/budget">Open Forecast</a>
-                        <a class="btn btn-outline-secondary btn-lg" href="/budgetitems">Manage Budget Items</a>
-                    }
-                    else
-                    {
+                    <div class="d-flex flex-wrap gap-2">
                         <a class="btn btn-outline-secondary btn-lg" href="#features">See what you get</a>
                         <a class="btn btn-outline-secondary btn-lg" href="#how-it-works">How it works</a>
-                    }
-                </div>
-            </div>
-
-            <div class="col-lg-5">
-                @if (AuthService.IsAuthenticated)
-                {
-                    <div class="card shadow-sm">
-                        <div class="card-body p-4">
-                            <h2 class="h4 mb-2">Welcome back, @AuthService.CurrentUser.DisplayName</h2>
-                            <p class="text-muted mb-3">
-                                You’re signed in. Jump straight to your ledger, forecast, or budget items.
-                            </p>
-                            <div class="d-grid gap-2">
-                                <a class="btn btn-primary" href="/checkbook">Open Checkbook</a>
-                                <a class="btn btn-outline-primary" href="/profile">Profile</a>
-                            </div>
-                        </div>
                     </div>
-                }
-                else
-                {
+                </div>
+
+                <div class="col-lg-5">
                     <RadzenCard class="login-card-landing">
                         <div class="login-header">
                             <RadzenIcon Icon="lock" Style="font-size: 44px; color: var(--rz-primary);" />
@@ -145,89 +200,17 @@
                             Tip: You can opt-in to bill reminders from <strong>Profile</strong>. Admins can configure SMTP and reminder windows in <strong>Settings</strong>.
                         </div>
                     </RadzenCard>
-                }
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="container py-5">
-    <div id="features" class="row g-4">
-        <div class="col-12">
-            @if (AuthService.IsAuthenticated)
-            {
-                <h2 class="h3 mb-1">At a glance</h2>
-                <p class="text-muted mb-0">A quick snapshot so you can make decisions fast.</p>
-            }
-            else
-            {
+    <div class="container py-5">
+        <div id="features" class="row g-4">
+            <div class="col-12">
                 <h2 class="h3 mb-1">What this app helps you do</h2>
-                <p class="text-muted mb-0">Simple, practical features you’ll actually use.</p>
-            }
-        </div>
-
-        @if (AuthService.IsAuthenticated)
-        {
-            <div class="col-lg-8">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h3 class="h5 mb-0">Upcoming bills</h3>
-                            <a class="btn btn-sm btn-outline-secondary" href="/budgetitems">View all</a>
-                        </div>
-
-                        @if (Snapshot?.UpcomingBills is null || Snapshot.UpcomingBills.Count == 0)
-                        {
-                            <p class="text-muted mb-0">No upcoming bills found in the next 14 days.</p>
-                        }
-                        else
-                        {
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Due</th>
-                                            <th>Bill</th>
-                                            <th>Payee</th>
-                                            <th class="text-end">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var b in Snapshot.UpcomingBills)
-                                        {
-                                            <tr class="@(b.IsPastDue ? "table-warning" : "")">
-                                                <td style="white-space:nowrap;">@b.DueDate:MMM d</td>
-                                                <td>@b.Name</td>
-                                                <td class="text-muted">@b.Payee</td>
-                                                <td class="text-end">@b.Amount.ToString("C")</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    </div>
-                </div>
+                <p class="text-muted mb-0">Simple, practical features you'll actually use.</p>
             </div>
-
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h3 class="h5">Quick actions</h3>
-                        <div class="d-grid gap-2">
-                            <a class="btn btn-primary" href="/checkbook">Open Checkbook</a>
-                            <a class="btn btn-outline-primary" href="/budget">Open Forecast</a>
-                            <a class="btn btn-outline-secondary" href="/profile">Notification preferences</a>
-                        </div>
-                        <div class="mt-3 small text-muted">
-                            Safe-to-spend is a simple estimate: today’s balance minus bills due in the next 7 days.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-        else
-        {
             <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
                     <div class="card-body">
@@ -288,21 +271,21 @@
                     </div>
                 </div>
             </div>
-        }
-    </div>
+        </div>
 
-    <div id="how-it-works" class="row mt-5">
-        <div class="col-lg-10">
-            <h2 class="h3">A simple flow that works</h2>
-            <ol class="text-muted">
-                <li><strong>Create Budget Items</strong> for recurring bills and income.</li>
-                <li><strong>Enter transactions</strong> in Checkbook as life happens.</li>
-                <li><strong>Use Budget Forecast</strong> when you want to see what’s coming.</li>
-                <li><strong>Turn on reminders</strong> (optional) so you do less remembering and more living.</li>
-            </ol>
+        <div id="how-it-works" class="row mt-5">
+            <div class="col-lg-10">
+                <h2 class="h3">A simple flow that works</h2>
+                <ol class="text-muted">
+                    <li><strong>Create Budget Items</strong> for recurring bills and income.</li>
+                    <li><strong>Enter transactions</strong> in Checkbook as life happens.</li>
+                    <li><strong>Use Budget Forecast</strong> when you want to see what's coming.</li>
+                    <li><strong>Turn on reminders</strong> (optional) so you do less remembering and more living.</li>
+                </ol>
+            </div>
         </div>
     </div>
-</div>
+}
 
 <style>
     .landing-hero {

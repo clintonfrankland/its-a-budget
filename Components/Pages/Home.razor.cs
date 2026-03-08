@@ -57,8 +57,8 @@ public partial class Home
 
         if (await AuthService.ValidateCredentialsAsync(LoginModel.Username, LoginModel.Password))
         {
-            // Per requirements: landing-page login always goes to Checkbook for now.
-            Navigation.NavigateTo("/checkbook");
+            // Stay on home page after login - refresh to show authenticated content
+            Navigation.NavigateTo("/", forceLoad: true);
             return;
         }
 
