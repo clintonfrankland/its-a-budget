@@ -38,6 +38,7 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 // Register application services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
+builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddScoped<AccountsDataService>();
 builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetDataService>();
@@ -65,6 +66,25 @@ BEGIN
     );
     CREATE INDEX IX_cfAuthLoginAudit_AttemptedAtUtc ON cfAuthLoginAudit(AttemptedAtUtc);
     CREATE INDEX IX_cfAuthLoginAudit_UserName ON cfAuthLoginAudit(UserName);
+END");
+
+        await db.Database.ExecuteSqlRawAsync(@"IF OBJECT_ID('cfSmtpSettings', 'U') IS NULL
+BEGIN
+    CREATE TABLE cfSmtpSettings (
+        Id INT NOT NULL PRIMARY KEY,
+        IsEnabled BIT NOT NULL DEFAULT(0),
+        Host NVARCHAR(256) NULL,
+        Port INT NOT NULL DEFAULT(587),
+        UserName NVARCHAR(256) NULL,
+        [Password] NVARCHAR(512) NULL,
+        SenderEmail NVARCHAR(256) NULL,
+        UpdatedAtUtc DATETIME2 NOT NULL
+    );
+END
+IF NOT EXISTS (SELECT 1 FROM cfSmtpSettings WHERE Id = 1)
+BEGIN
+    INSERT INTO cfSmtpSettings (Id, IsEnabled, Host, Port, UserName, [Password], SenderEmail, UpdatedAtUtc)
+    VALUES (1, 0, NULL, 587, NULL, NULL, NULL, SYSUTCDATETIME());
 END");
     }
     catch

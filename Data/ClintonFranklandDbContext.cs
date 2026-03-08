@@ -23,6 +23,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<User> Users => Set<User>();
     public DbSet<AuthLoginAudit> AuthLoginAudits => Set<AuthLoginAudit>();
+    public DbSet<SmtpSetting> SmtpSettings => Set<SmtpSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -121,6 +122,13 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(a => a.Succeeded).IsRequired();
             entity.HasIndex(a => a.AttemptedAtUtc);
             entity.HasIndex(a => a.UserName);
+        });
+
+        modelBuilder.Entity<SmtpSetting>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Port).HasDefaultValue(587);
+            entity.Property(s => s.UpdatedAtUtc).IsRequired();
         });
     }
 }
