@@ -120,10 +120,33 @@ public partial class Settings
         await PersistAsync();
     }
 
+    private bool IsSendingTest { get; set; }
+    private List<string> TestLogLines { get; set; } = new();
+
+    private void ClearTestLog()
+    {
+        TestLogLines.Clear();
+    }
+
+    private async Task AppendTestLogAsync(string line)
+    {
+        TestLogLines.Add(line);
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     private async Task SendTestAsync()
     {
+        if (IsSendingTest) return;
+
+        IsSendingTest = true;
+        ClearTestLog();
+        Message = null;
+        await InvokeAsync(StateHasChanged);
+
         try
         {
+            await AppendTestLogAsync("Starting SMTP test...");
             await PersistAsync();
 
             var target = !string.IsNullOrWhiteSpace(TestRecipientEmail)
@@ -132,19 +155,32 @@ public partial class Settings
 
             if (string.IsNullOrWhiteSpace(target))
             {
+                await AppendTestLogAsync("No test recipient configured.");
                 Message = "Set a Test Recipient Email, your profile email, or the Sender Email before sending a test.";
                 MessageCss = "alert-warning";
                 return;
             }
 
-            await EmailSenderService.SendAsync(target, "Budget App SMTP Test", "SMTP configuration is working.");
+            await EmailSenderService.SendWithDiagnosticsAsync(
+                target,
+                "Budget App SMTP Test",
+                "SMTP configuration is working.",
+                log: msg => _ = AppendTestLogAsync(msg));
+
             Message = $"Test email sent to {target}.";
             MessageCss = "alert-success";
+            await AppendTestLogAsync("SUCCESS: Test email sent.");
         }
         catch (Exception ex)
         {
             Message = $"Failed to send test email: {ex.Message}";
             MessageCss = "alert-danger";
+            await AppendTestLogAsync($"ERROR: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            IsSendingTest = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 }

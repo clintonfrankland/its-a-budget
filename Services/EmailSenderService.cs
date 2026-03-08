@@ -20,6 +20,17 @@ public class EmailSenderService
 
     public async Task SendAsync(string toEmail, string subject, string body)
     {
+        await SendWithDiagnosticsAsync(toEmail, subject, body, log: null);
+    }
+
+    public async Task SendWithDiagnosticsAsync(string toEmail, string subject, string body, Action<string>? log)
+    {
+        void Write(string msg)
+        {
+            log?.Invoke($"[{DateTime.Now:HH:mm:ss}] {msg}");
+        }
+
+        Write("Loading SMTP settings...");
         var smtpUi = await _db.SmtpSettings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == 1);
         if (smtpUi is null || !smtpUi.IsEnabled)
             throw new InvalidOperationException("SMTP is disabled.");
@@ -40,6 +51,11 @@ public class EmailSenderService
             _ => SecureSocketOptions.StartTls
         };
 
+        Write($"Server: {server.Host}:{port} (TLS mode: {smtpUi.TlsMode})");
+        Write($"Sender: {smtpUi.SenderEmail}{(string.IsNullOrWhiteSpace(smtpUi.FromName) ? "" : $" ({smtpUi.FromName})")}");
+        Write($"Recipient: {toEmail}");
+
+        Write("Building message...");
         var message = new MimeMessage();
         message.From.Add(string.IsNullOrWhiteSpace(smtpUi.FromName)
             ? MailboxAddress.Parse(smtpUi.SenderEmail)
@@ -53,19 +69,31 @@ public class EmailSenderService
 
         if (smtpUi.AllowInvalidCerts)
         {
+            Write("WARNING: AllowInvalidCerts is enabled. TLS certificate validation is disabled.");
             client.ServerCertificateValidationCallback = (_, _, _, _) => true;
         }
 
+        Write("Connecting to SMTP server...");
         await client.ConnectAsync(server.Host, port, secureSocketOptions);
+        Write("Connected.");
 
-        // Authenticate only if a username was provided.
         if (!string.IsNullOrWhiteSpace(server.UserName))
         {
+            Write("Authenticating...");
             await client.AuthenticateAsync(server.UserName, server.Password ?? "");
+            Write("Authenticated.");
+        }
+        else
+        {
+            Write("No SMTP username configured. Skipping authentication.");
         }
 
+        Write("Sending message...");
         await client.SendAsync(message);
+        Write("Message accepted by server.");
+
         await client.DisconnectAsync(true);
+        Write("Disconnected.");
     }
 
     public SmtpServerConfig GetServerConfig()
