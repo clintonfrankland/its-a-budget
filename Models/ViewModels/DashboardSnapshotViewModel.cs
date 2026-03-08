@@ -8,7 +8,15 @@ public class DashboardSnapshotViewModel
 
     public decimal UpcomingBillsTotal { get; set; }
 
-    public decimal SafeToSpend { get; set; }
+    /// <summary>
+    /// The lowest projected balance over the next 6 months
+    /// </summary>
+    public decimal LowestProjectedBalance { get; set; }
+
+    /// <summary>
+    /// The date when the lowest projected balance occurs
+    /// </summary>
+    public DateTime LowestProjectedBalanceDate { get; set; }
 
     public List<DashboardBillItemViewModel> UpcomingBills { get; set; } = [];
 }
