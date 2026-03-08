@@ -75,13 +75,6 @@ BEGIN
 END
 ");
 
-            // 4) Optional cleanup: remove legacy credential columns if they exist
-            migrationBuilder.Sql(@"
-IF COL_LENGTH('dbo.cfSmtpSettings', 'Host') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN Host;
-IF COL_LENGTH('dbo.cfSmtpSettings', 'Port') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN Port;
-IF COL_LENGTH('dbo.cfSmtpSettings', 'UserName') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN UserName;
-IF COL_LENGTH('dbo.cfSmtpSettings', 'Password') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN [Password];
-");
         }
 
         /// <inheritdoc />
