@@ -28,10 +28,23 @@ If you have bills that are due today or past due, you may see a warning that tel
    - **Amount**
    - **Type**: Expense or Income
    - **Category** (helps you group spending)
+   - **Notes** (optional)
+   - **Attachment** (optional, like a receipt or confirmation)
    - **Cleared** (optional)
 3. Select **Save**.
 
 Select **Cancel** if you want to back out without saving.
+
+## Notes and attachments (receipts)
+
+Sometimes you want proof or context, not just numbers.
+
+On a transaction you can add:
+
+- **Notes**: a short description (for example, “this was the annual renewal”)
+- **Attachment**: a file path/photo reference (for example, a receipt or confirmation)
+
+This is great for returns, reimbursements, and keeping a clean paper trail.
 
 ## Editing or deleting a transaction
 
