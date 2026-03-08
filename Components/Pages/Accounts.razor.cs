@@ -156,8 +156,19 @@ public partial class Accounts
     {
         try
         {
+            if (editBalance < 0 || editCreditLimit < 0 || editAvailableCredit < 0 || editMinimumPayment < 0 || editInterestRate < 0)
+            {
+                errorMessage = "Amounts and rates must be non-negative values.";
+                return;
+            }
+
             var userId = SiteInfoService.DefaultUserId;
             var now = DateTime.UtcNow;
+            var roundedBalance = CurrencyPolicy.Round(editBalance);
+            var roundedCreditLimit = CurrencyPolicy.Round(editCreditLimit);
+            var roundedAvailableCredit = CurrencyPolicy.Round(editAvailableCredit);
+            var roundedMinimumPayment = CurrencyPolicy.Round(editMinimumPayment);
+            var roundedInterestRate = CurrencyPolicy.Round(editInterestRate);
             if (editAccountId == -1)
             {
                 // Insert new account
@@ -166,12 +177,12 @@ public partial class Accounts
                     AccountName = editAccountName,
                     AccountNumber = editAccountNumber,
                     AccountTypeId = editAccountType,
-                    Balance = editBalance,
-                    CreditLimit = editCreditLimit,
-                    AvailableCredit = editAvailableCredit,
+                    Balance = roundedBalance,
+                    CreditLimit = roundedCreditLimit,
+                    AvailableCredit = roundedAvailableCredit,
                     DueDate = editDueDate,
-                    MinimumPayment = editMinimumPayment,
-                    InterestRate = editInterestRate,
+                    MinimumPayment = roundedMinimumPayment,
+                    InterestRate = roundedInterestRate,
                     WebUrl = editWebUrl,
                     BeginningBalance = 0m,
                     ClearedBalance = 0m,
@@ -190,12 +201,12 @@ public partial class Accounts
                     account.AccountName = editAccountName;
                     account.AccountNumber = editAccountNumber;
                     account.AccountTypeId = editAccountType;
-                    account.Balance = editBalance;
-                    account.CreditLimit = editCreditLimit;
-                    account.AvailableCredit = editAvailableCredit;
+                    account.Balance = roundedBalance;
+                    account.CreditLimit = roundedCreditLimit;
+                    account.AvailableCredit = roundedAvailableCredit;
                     account.DueDate = editDueDate;
-                    account.MinimumPayment = editMinimumPayment;
-                    account.InterestRate = editInterestRate;
+                    account.MinimumPayment = roundedMinimumPayment;
+                    account.InterestRate = roundedInterestRate;
                     account.WebUrl = editWebUrl;
                     account.LastUpdated = now;
                     await AccountsData.SaveAccountAsync(account, isNew: false);

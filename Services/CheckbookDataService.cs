@@ -28,6 +28,7 @@ public class CheckbookDataService
 
     public async Task SaveTransactionAsync(Transaction txn, bool isNew)
     {
+        txn.Amount = CurrencyPolicy.Round(txn.Amount);
         if (isNew) _db.Transactions.Add(txn);
         await _db.SaveChangesAsync();
     }

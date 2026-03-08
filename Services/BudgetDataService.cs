@@ -24,6 +24,7 @@ public class BudgetDataService
 
     public async Task SaveBudgetAsync(Budget budget, bool isNew)
     {
+        budget.Amount = CurrencyPolicy.Round(budget.Amount);
         if (isNew) _db.Budgets.Add(budget);
         await _db.SaveChangesAsync();
     }

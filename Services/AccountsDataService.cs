@@ -27,6 +27,14 @@ public class AccountsDataService
 
     public async Task SaveAccountAsync(Account account, bool isNew)
     {
+        account.Balance = CurrencyPolicy.Round(account.Balance);
+        account.BeginningBalance = CurrencyPolicy.Round(account.BeginningBalance);
+        account.ClearedBalance = CurrencyPolicy.Round(account.ClearedBalance);
+        account.CreditLimit = CurrencyPolicy.Round(account.CreditLimit);
+        account.AvailableCredit = CurrencyPolicy.Round(account.AvailableCredit);
+        account.MinimumPayment = CurrencyPolicy.Round(account.MinimumPayment);
+        account.InterestRate = CurrencyPolicy.Round(account.InterestRate);
+
         if (isNew)
             _db.Accounts.Add(account);
 

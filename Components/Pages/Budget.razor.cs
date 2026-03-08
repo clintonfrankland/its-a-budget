@@ -318,10 +318,23 @@ public partial class Budget
             return;
         }
 
+        if (editAmount < 0)
+        {
+            editErrorMessage = "Amount must be a non-negative value.";
+            return;
+        }
+
+        if (editNextDueDate == DateTime.MinValue || (editHasEndDate && editEndDate == DateTime.MinValue))
+        {
+            editErrorMessage = "Please enter valid dates.";
+            return;
+        }
+
         try
         {
             var userId = SiteInfoService.DefaultUserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
+            var roundedAmount = CurrencyPolicy.Round(editAmount);
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
             var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
@@ -341,7 +354,7 @@ public partial class Budget
                     FrequencyId = editFrequencyId,
                     NextDueDate = editNextDueDate,
                     EndDate = endDate,
-                    Amount = editAmount,
+                    Amount = roundedAmount,
                     CategoryId = categoryId,
                     UserId = userId,
                     IsAutomatic = isAuto,
@@ -362,7 +375,7 @@ public partial class Budget
                     budget.FrequencyId = editFrequencyId;
                     budget.NextDueDate = editNextDueDate;
                     budget.EndDate = endDate;
-                    budget.Amount = editAmount;
+                    budget.Amount = roundedAmount;
                     budget.CategoryId = categoryId;
                     budget.UserId = userId;
                     budget.IsAutomatic = isAuto;

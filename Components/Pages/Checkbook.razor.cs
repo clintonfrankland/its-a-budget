@@ -556,8 +556,21 @@ public partial class Checkbook
     {
         try
         {
+            if (editAmount < 0)
+            {
+                errorMessage = "Amount must be a non-negative value.";
+                return;
+            }
+
+            if (editDate == DateTime.MinValue)
+            {
+                errorMessage = "Please enter a valid transaction date.";
+                return;
+            }
+
             var userId = SiteInfoService.DefaultUserId;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
+            finalAmount = CurrencyPolicy.Round(finalAmount);
             // Get or create Category and Payee (ensure they exist for required FK)
             var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
             var payeeId = await GetOrCreatePayeeAsync(editPayee, userId);
