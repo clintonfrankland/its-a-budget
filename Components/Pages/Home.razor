@@ -1,70 +1,251 @@
 @page "/"
+@rendermode InteractiveServer
 
-<PageTitle>Clinton Frankland, RN</PageTitle>
+<PageTitle>Welcome</PageTitle>
 
-<h1>Objective</h1>
-<p>IT professional with 20+ years of experience with software development in C#.Net, VB.Net, SQL Server, JavaScript, Asp.Net, HTML, CSS and Windows Forms. Seeking to leverage my technical experience to grow in my role as an IT professional and foster growth and development in less tenured development.</p>
+<div class="landing-hero">
+    <div class="container py-5">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <h1 class="display-5 fw-semibold mb-3">Your money, finally in one place</h1>
+                <p class="lead text-muted mb-4">
+                    Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
+                    and see your balance before life surprises you.
+                </p>
 
-<h1>Professional Experience</h1>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="feature-pill">
+                            <div class="feature-title">Checkbook ledger</div>
+                            <div class="feature-sub">Track transactions with a running balance that stays honest.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-pill">
+                            <div class="feature-title">Budget forecast</div>
+                            <div class="feature-sub">Project your balance forward so upcoming bills are visible.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-pill">
+                            <div class="feature-title">Recurring bills</div>
+                            <div class="feature-sub">Keep a clean list of bills and income you can trust.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-pill">
+                            <div class="feature-title">Email reminders</div>
+                            <div class="feature-sub">Optional bill-due notices, sent by the server in the background.</div>
+                        </div>
+                    </div>
+                </div>
 
-<h3>Business Systems Analyst IV</h3>
-<div class="cf-jobrow"><h5 class="cf-jobtitle">Navy Federal Credit Union </h5><div class="cf-jobtime">December 2019 to Present </div></div>
-<blockquote style="margin: 0px 0px 0px 24px;">
-    <ul>
-        <li>Lead the team through transition from AutoIt scripting development into full object oriented .Net development.</li>
-        <li>Acted as SQL Server lead and Development lead for Lending Systems Process Solutions.</li>
-        <li>Authored and presented SQL Standards as set of clear, easy to follow processes and standards, with yearly revisions.</li>
-        <li>Authored Development Standards, increasing code quality in order to lower project complexity and risk.</li>
-        <li>Created shared class libraries to promote code reuse, and established group to oversee and review additions.</li>
-        <li>Designed and implemented development infrastructure to streamline development process for new and existing applications.</li>
-        <li>Named department Employee of the Quarter for Q1 2020 and Q2 2021, Lending Props Award Winner 2022, and Sustained Superior Performance award winner for 2020-2021.</li>
-        <li>Peer leadership through daily mentoring of less experienced developers.</li>
-    </ul>
-</blockquote>
+                <div class="d-flex flex-wrap gap-2">
+                    @if (AuthService.IsAuthenticated)
+                    {
+                        <a class="btn btn-primary btn-lg" href="/checkbook">Go to Checkbook</a>
+                        <a class="btn btn-outline-secondary btn-lg" href="/budget">Open Forecast</a>
+                        <a class="btn btn-outline-secondary btn-lg" href="/budgetitems">Manage Budget Items</a>
+                    }
+                    else
+                    {
+                        <a class="btn btn-outline-secondary btn-lg" href="#features">See what you get</a>
+                        <a class="btn btn-outline-secondary btn-lg" href="#how-it-works">How it works</a>
+                    }
+                </div>
+            </div>
 
-<h3>Senior Software Developer</h3>
-<div class="cf-jobrow"><h5 class="cf-jobtitle">Contact Automation, LLC</h5><div class="cf-jobtime">2006 - 2019</div></div>
-<blockquote style="margin: 0px 0px 0px 24px;">
-    <ul>
-        <li>Planned and managed conversion of more than 150 applications from VB v6.0 to VB.Net or C#.Net using updated SIP and WebRTC APIs.</li>
-        <li>Designed reporting framework and authored over 500 reports utilizing Microsoft SQL Server, T-SQL, ASP.Net, and Infragistics controls.</li>
-        <li>Managed and maintained SQL and Windows servers.</li>
-        <li>Converted infrastructure of 600 phone lines from physical T1 PRIs to SIP.</li>
-        <li>Created application documentation and oversaw project documentation requirements.</li>
-        <li>Condensed Windows Servers from 10+ to 2, while also expanding usage by over 400%.</li>
-    </ul>
-</blockquote>
+            <div class="col-lg-5">
+                @if (AuthService.IsAuthenticated)
+                {
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4">
+                            <h2 class="h4 mb-2">Welcome back, @AuthService.CurrentUser.DisplayName</h2>
+                            <p class="text-muted mb-3">
+                                You’re signed in. Jump straight to your ledger, forecast, or budget items.
+                            </p>
+                            <div class="d-grid gap-2">
+                                <a class="btn btn-primary" href="/checkbook">Open Checkbook</a>
+                                <a class="btn btn-outline-primary" href="/profile">Profile</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <RadzenCard class="login-card-landing">
+                        <div class="login-header">
+                            <RadzenIcon Icon="lock" Style="font-size: 44px; color: var(--rz-primary);" />
+                            <h2 class="h4 mt-2 mb-1">Sign in</h2>
+                            <p class="text-muted mb-0">Go straight to your Checkbook after login.</p>
+                        </div>
 
-<h3>IT Systems Architect</h3>
-<div class="cf-jobrow"><h5 class="cf-jobtitle">Affiliated Computer Services</h5><div class="cf-jobtime">1998 to 2006</div></div>
-<blockquote style="margin: 0px 0px 0px 24px;">
-    <ul>
-        <li>Architected server management, monitoring, and capacity planning environment for over 200 servers at ROADWAY EXPRESS utilizing NetIQ AppManager, SQL Server, Visual Basic, and ASP.</li>
-        <li>Managed project to reorient the Desktop Services group for the Eastern United States to a common operations manual, and toolset.</li>
-        <li>Developed Active Directory design and project plan for ZALES.</li>
-        <li>Authored 'Server Operations Procedure Manual' for STANFORD UNIVERSITY.</li>
-        <li>Featured speaker at the NetIQ NetConnect conference on capacity planning with NetIQ AppManager.</li>
-        <li>Expanded existing infrastructure of 7 Microsoft Windows NT Servers to 49 Microsoft Windows NT Servers and 29 Microsoft Windows NT Server Terminal Server Edition for ROADWAY EXPRESS.</li>
-    </ul>
-</blockquote>
+                        @if (ShowWarning)
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
+                                         AllowClose="false" class="mb-3">
+                                Invalid username or password.
+                            </RadzenAlert>
+                        }
 
-<h1>Education, Licensure, and Certification</h1>
+                        <EditForm Model="LoginModel" OnValidSubmit="HandleLogin" FormName="landingLoginForm">
+                            <div class="mb-3">
+                                <RadzenLabel Text="Username" Component="landingUsername" class="d-block mb-1" />
+                                <RadzenTextBox @bind-Value="LoginModel.Username" Name="landingUsername"
+                                               Placeholder="Enter your username"
+                                               Style="width: 100%;" AutoComplete="true" />
+                            </div>
 
-<h3>Microcomputer Operations</h3>
-<div class="cf-jobrow"><h5 class="cf-jobtitle">Southern Ohio College</h5><div class="cf-jobtime">1989 to 1993</div></div>
-<blockquote style="margin: 0px 0px 0px 24px; border: none; padding: 0px;">
-    <ul>
-        <li>Microsoft Certified Systems Engineer, + Internet MCID # 1014963</li>
-    </ul>
-</blockquote>
+                            <div class="mb-3">
+                                <RadzenLabel Text="Password" Component="landingPassword" class="d-block mb-1" />
+                                <RadzenPassword @bind-Value="LoginModel.Password" Name="landingPassword"
+                                                Placeholder="Enter your password" Style="width: 100%;" />
+                            </div>
 
-<h3>Practical Nursing</h3>
-<div class="cf-jobrow"><h5 class="cf-jobtitle">Lanier Technical College</h5><div class="cf-jobtime">2011 to 2013</div></div>
-<blockquote style="margin: 0px 0px 0px 24px; border: none; padding: 0px;">
-    <ul>
-        <li>Florida Compact LPN License # PN 5239332</li>
-        <li>Basic Life Support (BLS) Certified</li>
-        <li>Advanced Cardiovascular Life Support (ACLS) Certified</li>
-        <li>IV Certified</li>
-    </ul>
-</blockquote>
+                            <RadzenButton ButtonType="ButtonType.Submit" Text="Sign In"
+                                          ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Large"
+                                          Style="width: 100%;" Icon="login" />
+                        </EditForm>
+
+                        <div class="mt-3 small text-muted">
+                            Tip: You can opt-in to bill reminders from <strong>Profile</strong>. Admins can configure SMTP and reminder windows in <strong>Settings</strong>.
+                        </div>
+                    </RadzenCard>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5">
+    <div id="features" class="row g-4">
+        <div class="col-12">
+            <h2 class="h3 mb-1">What this app helps you do</h2>
+            <p class="text-muted mb-0">Simple, practical features you’ll actually use.</p>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Stay grounded with a ledger</h3>
+                    <p class="text-muted mb-0">
+                        Enter real transactions, keep a running balance, and quickly see what cleared versus what is still pending.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Plan ahead with Budget Forecast</h3>
+                    <p class="text-muted mb-0">
+                        Forecast upcoming bills and income so you can spot the pinch points before they happen.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Keep a clean bill list</h3>
+                    <p class="text-muted mb-0">
+                        Manage recurring budget items in one place. Mark bills as bills so reminders and forecasts behave correctly.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Optional bill-due reminders</h3>
+                    <p class="text-muted mb-0">
+                        If enabled by an admin and you opt-in, the server can email you when bills are due soon or past due.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Designed for real life</h3>
+                    <p class="text-muted mb-0">
+                        Fast pages, clear navigation, and fewer "dashboard gimmicks". The goal is control, not noise.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="h5">Self-host friendly</h3>
+                    <p class="text-muted mb-0">
+                        Built to run as a simple container-based app with a SQL Server database. No external dependencies required.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="how-it-works" class="row mt-5">
+        <div class="col-lg-10">
+            <h2 class="h3">A simple flow that works</h2>
+            <ol class="text-muted">
+                <li><strong>Create Budget Items</strong> for recurring bills and income.</li>
+                <li><strong>Enter transactions</strong> in Checkbook as life happens.</li>
+                <li><strong>Use Budget Forecast</strong> when you want to see what’s coming.</li>
+                <li><strong>Turn on reminders</strong> (optional) so you do less remembering and more living.</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<style>
+    .landing-hero {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.00));
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding-top: 20px;
+        margin-top: 10px;
+    }
+
+    .feature-pill {
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: #fff;
+        height: 100%;
+    }
+
+    .feature-title {
+        font-weight: 650;
+        margin-bottom: 4px;
+    }
+
+    .feature-sub {
+        color: #6c757d;
+        font-size: 0.95rem;
+        line-height: 1.35;
+    }
+
+    .login-card-landing {
+        padding: 26px;
+        border-radius: 14px;
+        border: 1px solid var(--rz-border-color);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.10);
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 18px;
+    }
+
+    .login-card-landing .rz-textbox,
+    .login-card-landing .rz-password {
+        border-radius: 10px;
+    }
+
+    .login-card-landing .rz-button {
+        border-radius: 10px;
+        font-weight: 650;
+        padding: 12px;
+    }
+</style>

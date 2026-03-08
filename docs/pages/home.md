@@ -1,30 +1,23 @@
-# Home
+# Home (Landing page)
 
 ## What this page is
 
-**Home** is the app’s landing page when you open the site using the main address (the “root” link).
+**Home** is the app’s "front door".
 
-In most budgeting apps, the home page is where you’d expect a dashboard. In this app, the real “working areas” are reached from the top navigation bar:
+It is intentionally more of a landing page than a dashboard:
 
-- **Checkbook**
-- **Budget Forecast**
-- **Budget Items**
-- **Accounts**
+- It explains what the app is for.
+- It highlights core features.
+- It includes a **sign-in box**, so you can log in without navigating to a separate page.
 
-## How to use it
+## Login behavior
 
-If you’re just trying to manage your budget, treat Home like a starting point:
-
-1. Sign in (if you’re not already signed in).
-2. Use the top menu to jump to the page you need.
+- If you sign in from the landing page, you are taken straight to **Checkbook**.
 
 ## Recommended first stop
 
-If you’re new to the app, start with:
+If you’re new to the app, the simplest workflow is:
 
-- **Budget Items** to create your recurring bills and regular income.
-- Then **Checkbook** to enter day-to-day transactions and keep your running balance accurate.
-
-## Why it’s still useful
-
-Even when Home isn’t your main dashboard, it’s still a friendly “front door” to the app. The navigation stays consistent, so you can always get where you need to go in one click.
+1. **Budget Items**: create recurring bills and income.
+2. **Checkbook**: enter day-to-day transactions and keep the running balance accurate.
+3. **Budget Forecast**: use it when you want to see what’s coming.
