@@ -13,32 +13,66 @@
                     and see your balance before life surprises you.
                 </p>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="feature-pill">
-                            <div class="feature-title">Checkbook ledger</div>
-                            <div class="feature-sub">Track transactions with a running balance that stays honest.</div>
+                @if (AuthService.IsAuthenticated)
+                {
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="snapshot-card">
+                                <div class="snapshot-label">Today’s balance</div>
+                                <div class="snapshot-value">@(Snapshot?.TodayBalance.ToString("C") ?? "...")</div>
+                                <div class="snapshot-sub text-muted">As of @DateTime.Today:ddd, MMM d</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="snapshot-card">
+                                <div class="snapshot-label">Upcoming bills (7 days)</div>
+                                <div class="snapshot-value">@(Snapshot?.UpcomingBillsTotal.ToString("C") ?? "...")</div>
+                                <div class="snapshot-sub text-muted">Bills due soon or past due</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="snapshot-card">
+                                <div class="snapshot-label">Safe-to-spend</div>
+                                <div class="snapshot-value">@(Snapshot?.SafeToSpend.ToString("C") ?? "...")</div>
+                                <div class="snapshot-sub text-muted">Balance minus near-term bills</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="feature-pill">
-                            <div class="feature-title">Budget forecast</div>
-                            <div class="feature-sub">Project your balance forward so upcoming bills are visible.</div>
+
+                    @if (!string.IsNullOrWhiteSpace(SnapshotError))
+                    {
+                        <div class="alert alert-warning">Dashboard snapshot unavailable: @SnapshotError</div>
+                    }
+                }
+                else
+                {
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="feature-pill">
+                                <div class="feature-title">Checkbook ledger</div>
+                                <div class="feature-sub">Track transactions with a running balance that stays honest.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-pill">
+                                <div class="feature-title">Budget forecast</div>
+                                <div class="feature-sub">Project your balance forward so upcoming bills are visible.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-pill">
+                                <div class="feature-title">Recurring bills</div>
+                                <div class="feature-sub">Keep a clean list of bills and income you can trust.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-pill">
+                                <div class="feature-title">Email reminders</div>
+                                <div class="feature-sub">Optional bill-due notices, sent by the server in the background.</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="feature-pill">
-                            <div class="feature-title">Recurring bills</div>
-                            <div class="feature-sub">Keep a clean list of bills and income you can trust.</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="feature-pill">
-                            <div class="feature-title">Email reminders</div>
-                            <div class="feature-sub">Optional bill-due notices, sent by the server in the background.</div>
-                        </div>
-                    </div>
-                </div>
+                }
 
                 <div class="d-flex flex-wrap gap-2">
                     @if (AuthService.IsAuthenticated)
@@ -120,70 +154,141 @@
 <div class="container py-5">
     <div id="features" class="row g-4">
         <div class="col-12">
-            <h2 class="h3 mb-1">What this app helps you do</h2>
-            <p class="text-muted mb-0">Simple, practical features you’ll actually use.</p>
+            @if (AuthService.IsAuthenticated)
+            {
+                <h2 class="h3 mb-1">At a glance</h2>
+                <p class="text-muted mb-0">A quick snapshot so you can make decisions fast.</p>
+            }
+            else
+            {
+                <h2 class="h3 mb-1">What this app helps you do</h2>
+                <p class="text-muted mb-0">Simple, practical features you’ll actually use.</p>
+            }
         </div>
 
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Stay grounded with a ledger</h3>
-                    <p class="text-muted mb-0">
-                        Enter real transactions, keep a running balance, and quickly see what cleared versus what is still pending.
-                    </p>
+        @if (AuthService.IsAuthenticated)
+        {
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="h5 mb-0">Upcoming bills</h3>
+                            <a class="btn btn-sm btn-outline-secondary" href="/budgetitems">View all</a>
+                        </div>
+
+                        @if (Snapshot?.UpcomingBills is null || Snapshot.UpcomingBills.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No upcoming bills found in the next 14 days.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Due</th>
+                                            <th>Bill</th>
+                                            <th>Payee</th>
+                                            <th class="text-end">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var b in Snapshot.UpcomingBills)
+                                        {
+                                            <tr class="@(b.IsPastDue ? "table-warning" : "")">
+                                                <td style="white-space:nowrap;">@b.DueDate:MMM d</td>
+                                                <td>@b.Name</td>
+                                                <td class="text-muted">@b.Payee</td>
+                                                <td class="text-end">@b.Amount.ToString("C")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Plan ahead with Budget Forecast</h3>
-                    <p class="text-muted mb-0">
-                        Forecast upcoming bills and income so you can spot the pinch points before they happen.
-                    </p>
+
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Quick actions</h3>
+                        <div class="d-grid gap-2">
+                            <a class="btn btn-primary" href="/checkbook">Open Checkbook</a>
+                            <a class="btn btn-outline-primary" href="/budget">Open Forecast</a>
+                            <a class="btn btn-outline-secondary" href="/profile">Notification preferences</a>
+                        </div>
+                        <div class="mt-3 small text-muted">
+                            Safe-to-spend is a simple estimate: today’s balance minus bills due in the next 7 days.
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Keep a clean bill list</h3>
-                    <p class="text-muted mb-0">
-                        Manage recurring budget items in one place. Mark bills as bills so reminders and forecasts behave correctly.
-                    </p>
+        }
+        else
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Stay grounded with a ledger</h3>
+                        <p class="text-muted mb-0">
+                            Enter real transactions, keep a running balance, and quickly see what cleared versus what is still pending.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Optional bill-due reminders</h3>
-                    <p class="text-muted mb-0">
-                        If enabled by an admin and you opt-in, the server can email you when bills are due soon or past due.
-                    </p>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Plan ahead with Budget Forecast</h3>
+                        <p class="text-muted mb-0">
+                            Forecast upcoming bills and income so you can spot the pinch points before they happen.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Designed for real life</h3>
-                    <p class="text-muted mb-0">
-                        Fast pages, clear navigation, and fewer "dashboard gimmicks". The goal is control, not noise.
-                    </p>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Keep a clean bill list</h3>
+                        <p class="text-muted mb-0">
+                            Manage recurring budget items in one place. Mark bills as bills so reminders and forecasts behave correctly.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="h5">Self-host friendly</h3>
-                    <p class="text-muted mb-0">
-                        Built to run as a simple container-based app with a SQL Server database. No external dependencies required.
-                    </p>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Optional bill-due reminders</h3>
+                        <p class="text-muted mb-0">
+                            If enabled by an admin and you opt-in, the server can email you when bills are due soon or past due.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Designed for real life</h3>
+                        <p class="text-muted mb-0">
+                            Fast pages, clear navigation, and fewer "dashboard gimmicks". The goal is control, not noise.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">Self-host friendly</h3>
+                        <p class="text-muted mb-0">
+                            Built to run as a simple container-based app with a SQL Server database. No external dependencies required.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 
     <div id="how-it-works" class="row mt-5">
@@ -231,6 +336,32 @@
         border-radius: 14px;
         border: 1px solid var(--rz-border-color);
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.10);
+    }
+
+    .snapshot-card {
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 14px;
+        padding: 16px;
+        background: #fff;
+        height: 100%;
+    }
+
+    .snapshot-label {
+        color: #6c757d;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 6px;
+    }
+
+    .snapshot-value {
+        font-size: 1.6rem;
+        font-weight: 750;
+        letter-spacing: -0.02em;
+    }
+
+    .snapshot-sub {
+        margin-top: 4px;
+        font-size: 0.85rem;
     }
 
     .login-header {
