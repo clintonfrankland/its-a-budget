@@ -47,6 +47,23 @@ builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
 
+// Apply EF Core migrations on startup.
+// Baseline: the app predates migrations, but we use an empty baseline migration to seed __EFMigrationsHistory.
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+
+    app.Logger.LogInformation("Applying database migrations (startup)");
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database migrations complete");
+}
+catch (Exception ex)
+{
+    app.Logger.LogCritical(ex, "Database migration failed");
+    throw;
+}
+
 // Ensure required user preference columns exist for legacy databases.
 using (var scope = app.Services.CreateScope())
 {
@@ -68,44 +85,7 @@ BEGIN
     CREATE INDEX IX_cfAuthLoginAudit_UserName ON cfAuthLoginAudit(UserName);
 END");
 
-        await db.Database.ExecuteSqlRawAsync(@"IF OBJECT_ID('cfSmtpSettings', 'U') IS NULL
-BEGIN
-    CREATE TABLE cfSmtpSettings (
-        Id INT NOT NULL PRIMARY KEY,
-        IsEnabled BIT NOT NULL DEFAULT(0),
-        -- NOTE: SMTP server credentials are NOT stored here.
-        -- Host/Port/UserName/Password should be supplied via environment variables.
-        SenderEmail NVARCHAR(256) NULL,
-        FromName NVARCHAR(128) NULL,
-        TlsMode INT NULL,
-        AllowInvalidCerts BIT NULL,
-        TestRecipientEmail NVARCHAR(256) NULL,
-        UpdatedAtUtc DATETIME2 NULL
-    );
-END
-
--- Backward-compatible schema updates (older DBs may have had extra columns like Host/Port/UserName/Password)
-IF COL_LENGTH('cfSmtpSettings', 'SenderEmail') IS NULL ALTER TABLE cfSmtpSettings ADD SenderEmail NVARCHAR(256) NULL;
-IF COL_LENGTH('cfSmtpSettings', 'FromName') IS NULL ALTER TABLE cfSmtpSettings ADD FromName NVARCHAR(128) NULL;
-IF COL_LENGTH('cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE cfSmtpSettings ADD TestRecipientEmail NVARCHAR(256) NULL;
-
-IF COL_LENGTH('cfSmtpSettings', 'TlsMode') IS NULL ALTER TABLE cfSmtpSettings ADD TlsMode INT NULL;
-UPDATE cfSmtpSettings SET TlsMode = 1 WHERE TlsMode IS NULL;
-ALTER TABLE cfSmtpSettings ALTER COLUMN TlsMode INT NOT NULL;
-
-IF COL_LENGTH('cfSmtpSettings', 'AllowInvalidCerts') IS NULL ALTER TABLE cfSmtpSettings ADD AllowInvalidCerts BIT NULL;
-UPDATE cfSmtpSettings SET AllowInvalidCerts = 0 WHERE AllowInvalidCerts IS NULL;
-ALTER TABLE cfSmtpSettings ALTER COLUMN AllowInvalidCerts BIT NOT NULL;
-
-IF COL_LENGTH('cfSmtpSettings', 'UpdatedAtUtc') IS NULL ALTER TABLE cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NULL;
-UPDATE cfSmtpSettings SET UpdatedAtUtc = SYSUTCDATETIME() WHERE UpdatedAtUtc IS NULL;
-ALTER TABLE cfSmtpSettings ALTER COLUMN UpdatedAtUtc DATETIME2 NOT NULL;
-
-IF NOT EXISTS (SELECT 1 FROM cfSmtpSettings WHERE Id = 1)
-BEGIN
-    INSERT INTO cfSmtpSettings (Id, IsEnabled, SenderEmail, FromName, TlsMode, AllowInvalidCerts, TestRecipientEmail, UpdatedAtUtc)
-    VALUES (1, 0, NULL, NULL, 1, 0, NULL, SYSUTCDATETIME());
-END");
+        // cfSmtpSettings is managed via EF migrations.
     }
     catch
     {
