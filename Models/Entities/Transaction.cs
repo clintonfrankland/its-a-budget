@@ -41,6 +41,14 @@ public class Transaction
     [Column("UserId")]
     public int? UserId { get; set; }
 
+    [Column("Notes")]
+    [MaxLength(500)]
+    public string? Notes { get; set; }
+
+    [Column("AttachmentPath")]
+    [MaxLength(255)]
+    public string? AttachmentPath { get; set; }
+
     // Navigation properties
     [ForeignKey("AccountId")]
     public virtual Account? Account { get; set; }

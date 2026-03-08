@@ -9,4 +9,6 @@ public class TransactionViewModel
     public bool IsCleared { get; set; }
     public decimal Amount { get; set; }
     public decimal Balance { get; set; }
+    public string? Notes { get; set; }
+    public bool HasAttachment { get; set; }
 }
