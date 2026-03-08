@@ -127,7 +127,6 @@ public class ClintonFranklandDbContext : DbContext
         modelBuilder.Entity<SmtpSetting>(entity =>
         {
             entity.HasKey(s => s.Id);
-            entity.Property(s => s.Port).HasDefaultValue(587);
             entity.Property(s => s.UpdatedAtUtc).IsRequired();
         });
     }

@@ -1,3 +1,4 @@
+using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
@@ -13,11 +14,15 @@ public partial class Settings
     [Inject] private EmailSenderService EmailSenderService { get; set; } = default!;
 
     private bool IsEnabled { get; set; }
-    private string? Host { get; set; }
-    private int Port { get; set; } = 587;
-    private string? UserName { get; set; }
-    private string? Password { get; set; }
     private string? SenderEmail { get; set; }
+    private string? FromName { get; set; }
+    private SmtpTlsMode TlsMode { get; set; } = SmtpTlsMode.StartTls;
+    private bool AllowInvalidCerts { get; set; }
+    private string? TestRecipientEmail { get; set; }
+
+    private string ServerHostDisplay { get; set; } = "";
+    private string ServerPortDisplay { get; set; } = "";
+    private string ServerUserDisplay { get; set; } = "";
 
     private string? Message { get; set; }
     private string MessageCss { get; set; } = "alert-info";
@@ -42,32 +47,37 @@ public partial class Settings
         var smtp = await DbContext.SmtpSettings.FirstOrDefaultAsync(x => x.Id == 1);
         if (smtp is null)
         {
-            smtp = new SmtpSetting { Id = 1, UpdatedAtUtc = DateTime.UtcNow, Port = 587 };
+            smtp = new SmtpSetting { Id = 1, UpdatedAtUtc = DateTime.UtcNow };
             DbContext.SmtpSettings.Add(smtp);
             await DbContext.SaveChangesAsync();
         }
 
         IsEnabled = smtp.IsEnabled;
-        Host = smtp.Host;
-        Port = smtp.Port <= 0 ? 587 : smtp.Port;
-        UserName = smtp.UserName;
-        Password = smtp.Password;
         SenderEmail = smtp.SenderEmail;
+        FromName = smtp.FromName;
+        TlsMode = smtp.TlsMode;
+        AllowInvalidCerts = smtp.AllowInvalidCerts;
+        TestRecipientEmail = smtp.TestRecipientEmail;
+
+        var server = EmailSenderService.GetServerConfig();
+        ServerHostDisplay = string.IsNullOrWhiteSpace(server.Host) ? "(not set)" : server.Host;
+        ServerPortDisplay = server.Port <= 0 ? "587" : server.Port.ToString();
+        ServerUserDisplay = string.IsNullOrWhiteSpace(server.UserName) ? "(not set)" : server.UserName;
     }
 
     private async Task PersistAsync()
     {
         var smtp = await DbContext.SmtpSettings.FirstAsync(x => x.Id == 1);
         smtp.IsEnabled = IsEnabled;
-        smtp.Host = string.IsNullOrWhiteSpace(Host) ? null : Host.Trim();
-        smtp.Port = Port <= 0 ? 587 : Port;
-        smtp.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName.Trim();
-        smtp.Password = string.IsNullOrWhiteSpace(Password) ? null : Password;
         smtp.SenderEmail = string.IsNullOrWhiteSpace(SenderEmail) ? null : SenderEmail.Trim();
+        smtp.FromName = string.IsNullOrWhiteSpace(FromName) ? null : FromName.Trim();
+        smtp.TlsMode = TlsMode;
+        smtp.AllowInvalidCerts = AllowInvalidCerts;
+        smtp.TestRecipientEmail = string.IsNullOrWhiteSpace(TestRecipientEmail) ? null : TestRecipientEmail.Trim();
         smtp.UpdatedAtUtc = DateTime.UtcNow;
 
         await DbContext.SaveChangesAsync();
-        Message = "SMTP settings saved.";
+        Message = "Server email settings saved.";
         MessageCss = "alert-success";
     }
 
@@ -77,34 +87,36 @@ public partial class Settings
         await PersistAsync();
     }
 
-    private async Task OnHostChanged(ChangeEventArgs e)
-    {
-        Host = e.Value?.ToString();
-        await PersistAsync();
-    }
-
-    private async Task OnPortChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var p) && p > 0 && p <= 65535)
-            Port = p;
-        await PersistAsync();
-    }
-
-    private async Task OnUsernameChanged(ChangeEventArgs e)
-    {
-        UserName = e.Value?.ToString();
-        await PersistAsync();
-    }
-
-    private async Task OnPasswordChanged(ChangeEventArgs e)
-    {
-        Password = e.Value?.ToString();
-        await PersistAsync();
-    }
-
     private async Task OnSenderChanged(ChangeEventArgs e)
     {
         SenderEmail = e.Value?.ToString();
+        await PersistAsync();
+    }
+
+    private async Task OnFromNameChanged(ChangeEventArgs e)
+    {
+        FromName = e.Value?.ToString();
+        await PersistAsync();
+    }
+
+    private async Task OnTlsModeChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        if (Enum.TryParse<SmtpTlsMode>(raw, ignoreCase: true, out var mode))
+            TlsMode = mode;
+
+        await PersistAsync();
+    }
+
+    private async Task OnAllowInvalidCertsChanged(ChangeEventArgs e)
+    {
+        AllowInvalidCerts = e.Value is bool b && b;
+        await PersistAsync();
+    }
+
+    private async Task OnTestRecipientChanged(ChangeEventArgs e)
+    {
+        TestRecipientEmail = e.Value?.ToString();
         await PersistAsync();
     }
 
@@ -113,10 +125,14 @@ public partial class Settings
         try
         {
             await PersistAsync();
-            var target = AuthService.CurrentUser.EmailAddress ?? SenderEmail;
+
+            var target = !string.IsNullOrWhiteSpace(TestRecipientEmail)
+                ? TestRecipientEmail
+                : (AuthService.CurrentUser.EmailAddress ?? SenderEmail);
+
             if (string.IsNullOrWhiteSpace(target))
             {
-                Message = "Set your profile email or sender email before sending a test.";
+                Message = "Set a Test Recipient Email, your profile email, or the Sender Email before sending a test.";
                 MessageCss = "alert-warning";
                 return;
             }

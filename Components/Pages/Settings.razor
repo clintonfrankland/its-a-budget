@@ -30,38 +30,64 @@ else
     }
 
     <div class="card">
-        <div class="card-header fw-semibold">SMTP Email</div>
+        <div class="card-header fw-semibold">SMTP Email (Server-wide)</div>
         <div class="card-body">
+            <p class="text-muted mb-3">
+                These settings are used by the server to send automated notices.
+                SMTP credentials (host/username/password) come from server configuration (environment variables), not per-user settings.
+            </p>
+
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="smtpEnabled" checked="@IsEnabled" @onchange="OnEnabledChanged" />
-                <label class="form-check-label" for="smtpEnabled">Enable SMTP</label>
+                <label class="form-check-label" for="smtpEnabled">Enable SMTP notices</label>
             </div>
 
             <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Server Host (read-only)</label>
+                    <input class="form-control" value="@ServerHostDisplay" readonly />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Server Port (read-only)</label>
+                    <input class="form-control" value="@ServerPortDisplay" readonly />
+                </div>
                 <div class="col-md-6">
-                    <label class="form-label">Host</label>
-                    <input class="form-control" value="@Host" @onchange="OnHostChanged" />
+                    <label class="form-label">Server Username (read-only)</label>
+                    <input class="form-control" value="@ServerUserDisplay" readonly />
+                    <div class="form-text">Password is never shown here.</div>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Port</label>
-                    <input type="number" class="form-control" value="@Port" @onchange="OnPortChanged" min="1" max="65535" />
-                </div>
-                <div class="col-md-3">
+
+                <div class="col-md-6">
                     <label class="form-label">Sender Email</label>
                     <input class="form-control" value="@SenderEmail" @onchange="OnSenderChanged" />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Username</label>
-                    <input class="form-control" value="@UserName" @onchange="OnUsernameChanged" />
+                    <label class="form-label">From Name (optional)</label>
+                    <input class="form-control" value="@FromName" @onchange="OnFromNameChanged" />
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Password</label>
-                    <input class="form-control" value="@Password" @onchange="OnPasswordChanged" />
+
+                <div class="col-md-4">
+                    <label class="form-label">TLS Mode</label>
+                    <select class="form-select" value="@TlsMode" @onchange="OnTlsModeChanged">
+                        <option value="StartTls">STARTTLS (recommended)</option>
+                        <option value="SslOnConnect">SSL/TLS on connect (often port 465)</option>
+                        <option value="None">None (not recommended)</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="allowBadCerts" checked="@AllowInvalidCerts" @onchange="OnAllowInvalidCertsChanged" />
+                        <label class="form-check-label" for="allowBadCerts">Allow invalid TLS certificates</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Test Recipient Email (optional)</label>
+                    <input class="form-control" value="@TestRecipientEmail" @onchange="OnTestRecipientChanged" />
                 </div>
             </div>
 
             <div class="mt-3 d-flex gap-2">
-                <button class="btn btn-primary" @onclick="PersistAsync">Save SMTP Settings</button>
+                <button class="btn btn-primary" @onclick="PersistAsync">Save Settings</button>
                 <button class="btn btn-outline-primary" @onclick="SendTestAsync">Send Test Email</button>
             </div>
         </div>

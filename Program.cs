@@ -73,18 +73,29 @@ BEGIN
     CREATE TABLE cfSmtpSettings (
         Id INT NOT NULL PRIMARY KEY,
         IsEnabled BIT NOT NULL DEFAULT(0),
-        Host NVARCHAR(256) NULL,
-        Port INT NOT NULL DEFAULT(587),
-        UserName NVARCHAR(256) NULL,
-        [Password] NVARCHAR(512) NULL,
+        -- NOTE: SMTP server credentials are NOT stored here.
+        -- Host/Port/UserName/Password should be supplied via environment variables.
         SenderEmail NVARCHAR(256) NULL,
+        FromName NVARCHAR(128) NULL,
+        TlsMode INT NOT NULL DEFAULT(1),
+        AllowInvalidCerts BIT NOT NULL DEFAULT(0),
+        TestRecipientEmail NVARCHAR(256) NULL,
         UpdatedAtUtc DATETIME2 NOT NULL
     );
 END
+
+-- Backward-compatible schema updates (older DBs may have had extra columns like Host/Port/UserName/Password)
+IF COL_LENGTH('cfSmtpSettings', 'FromName') IS NULL ALTER TABLE cfSmtpSettings ADD FromName NVARCHAR(128) NULL;
+IF COL_LENGTH('cfSmtpSettings', 'TlsMode') IS NULL ALTER TABLE cfSmtpSettings ADD TlsMode INT NOT NULL CONSTRAINT DF_cfSmtpSettings_TlsMode DEFAULT(1);
+IF COL_LENGTH('cfSmtpSettings', 'AllowInvalidCerts') IS NULL ALTER TABLE cfSmtpSettings ADD AllowInvalidCerts BIT NOT NULL CONSTRAINT DF_cfSmtpSettings_AllowInvalidCerts DEFAULT(0);
+IF COL_LENGTH('cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE cfSmtpSettings ADD TestRecipientEmail NVARCHAR(256) NULL;
+IF COL_LENGTH('cfSmtpSettings', 'SenderEmail') IS NULL ALTER TABLE cfSmtpSettings ADD SenderEmail NVARCHAR(256) NULL;
+IF COL_LENGTH('cfSmtpSettings', 'UpdatedAtUtc') IS NULL ALTER TABLE cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NOT NULL CONSTRAINT DF_cfSmtpSettings_UpdatedAtUtc DEFAULT(SYSUTCDATETIME());
+
 IF NOT EXISTS (SELECT 1 FROM cfSmtpSettings WHERE Id = 1)
 BEGIN
-    INSERT INTO cfSmtpSettings (Id, IsEnabled, Host, Port, UserName, [Password], SenderEmail, UpdatedAtUtc)
-    VALUES (1, 0, NULL, 587, NULL, NULL, NULL, SYSUTCDATETIME());
+    INSERT INTO cfSmtpSettings (Id, IsEnabled, SenderEmail, FromName, TlsMode, AllowInvalidCerts, TestRecipientEmail, UpdatedAtUtc)
+    VALUES (1, 0, NULL, NULL, 1, 0, NULL, SYSUTCDATETIME());
 END");
     }
     catch
