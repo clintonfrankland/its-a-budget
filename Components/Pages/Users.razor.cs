@@ -59,11 +59,11 @@ public partial class Users
 
         if (current.IsAdmin)
         {
-            UsersList = await DbContext.Users.Where(u => !u.IsDeleted).OrderBy(u => u.UserId).ToListAsync();
+            UsersList = await DbContext.Users.AsNoTracking().Where(u => !u.IsDeleted).OrderBy(u => u.UserId).ToListAsync();
         }
         else
         {
-            UsersList = await DbContext.Users.Where(u => !u.IsDeleted && u.UserId == current.UserId).ToListAsync();
+            UsersList = await DbContext.Users.AsNoTracking().Where(u => !u.IsDeleted && u.UserId == current.UserId).ToListAsync();
         }
     }
 

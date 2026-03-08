@@ -15,6 +15,7 @@ public class AccountsDataService
 
     public Task<List<Account>> GetAccountsForUserAsync(int userId) =>
         _db.Accounts
+            .AsNoTracking()
             .Include(a => a.AccountType)
             .Where(a => a.UserId == userId && (a.IsDeleted == null || a.IsDeleted == false))
             .OrderBy(a => a.AccountName)
@@ -22,6 +23,7 @@ public class AccountsDataService
 
     public Task<Account?> GetAccountByIdAsync(int accountId) =>
         _db.Accounts
+            .AsNoTracking()
             .Include(a => a.AccountType)
             .FirstOrDefaultAsync(a => a.AccountId == accountId);
 

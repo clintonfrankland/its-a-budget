@@ -48,7 +48,9 @@ else
     <div class="container mt-2">
         <RadzenDataGrid Data="@UsersList" TItem="User"
                         Density="Density.Compact"
-                        AllowFiltering="true" AllowSorting="true"
+                        AllowFiltering="true" AllowSorting="true" AllowPaging="true"
+                        PageSize="25" PageSizeOptions="@(new int[] { 25, 50, 100 })"
+                        ShowPagingSummary="true" PagingSummaryFormat="Showing {0} to {1} of {2} users"
                         FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                         class="rz-datatable-striped">
             <Columns>

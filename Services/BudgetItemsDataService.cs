@@ -10,19 +10,19 @@ public class BudgetItemsDataService
     public BudgetItemsDataService(ClintonFranklandDbContext db) => _db = db;
 
     public Task<List<Budget>> GetBudgetsForUserAsync(int userId) =>
-        _db.Budgets.Include(b => b.Category).Include(b => b.Frequency).Where(b => b.UserId == userId).ToListAsync();
+        _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Frequency).Where(b => b.UserId == userId).ToListAsync();
 
     public Task<List<Category>> GetCategoriesForUserAsync(int userId) =>
-        _db.Categories.Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();
+        _db.Categories.AsNoTracking().Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();
 
     public Task<List<Payee>> GetPayeesForUserAsync(int userId) =>
-        _db.Payees.Where(p => p.UserId == userId && !p.IsDeleted).OrderBy(p => p.PayeeName).ToListAsync();
+        _db.Payees.AsNoTracking().Where(p => p.UserId == userId && !p.IsDeleted).OrderBy(p => p.PayeeName).ToListAsync();
 
     public Task<List<Frequency>> GetFrequenciesAsync() =>
-        _db.Frequencies.OrderBy(f => f.Sort).ToListAsync();
+        _db.Frequencies.AsNoTracking().OrderBy(f => f.Sort).ToListAsync();
 
     public Task<Budget?> GetBudgetByIdAsync(int budgetId) =>
-        _db.Budgets.Include(b => b.Category).Include(b => b.Payee).FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+        _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Payee).FirstOrDefaultAsync(b => b.BudgetId == budgetId);
 
     public Task<Budget?> FindBudgetAsync(int budgetId) => _db.Budgets.FindAsync(budgetId).AsTask();
 

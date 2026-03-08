@@ -9,20 +9,20 @@ public class CheckbookDataService
     private readonly ClintonFranklandDbContext _db;
     public CheckbookDataService(ClintonFranklandDbContext db) => _db = db;
 
-    public Task<Account?> GetAccountForUserAsync(int userId) => _db.Accounts.FirstOrDefaultAsync(a => a.UserId == userId);
+    public Task<Account?> GetAccountForUserAsync(int userId) => _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId);
 
     public Task<List<Transaction>> GetTransactionsForUserAsync(int userId) =>
-        _db.Transactions.Include(t => t.Payee).Include(t => t.Category)
+        _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category)
             .Where(t => t.UserId == userId)
             .OrderByDescending(t => t.Cleared).ThenBy(t => t.TransactionDate).ThenByDescending(t => t.Amount)
             .ToListAsync();
 
-    public Task<List<Payee>> GetPayeesForUserAsync(int userId) => _db.Payees.Where(p => p.UserId == userId && !p.IsDeleted).OrderBy(p => p.PayeeName).ToListAsync();
-    public Task<List<Category>> GetCategoriesForUserAsync(int userId) => _db.Categories.Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();
-    public Task<decimal> GetTransactionSumAsync(int userId) => _db.Transactions.Where(t => t.UserId == userId).SumAsync(t => (decimal?)t.Amount).ContinueWith(t => t.Result ?? 0m);
-    public Task<List<Budget>> GetBudgetsForUserAsync(int userId) => _db.Budgets.Include(b => b.Category).Include(b => b.Frequency).Include(b => b.Payee).Where(b => b.UserId == userId).ToListAsync();
+    public Task<List<Payee>> GetPayeesForUserAsync(int userId) => _db.Payees.AsNoTracking().Where(p => p.UserId == userId && !p.IsDeleted).OrderBy(p => p.PayeeName).ToListAsync();
+    public Task<List<Category>> GetCategoriesForUserAsync(int userId) => _db.Categories.AsNoTracking().Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();
+    public Task<decimal> GetTransactionSumAsync(int userId) => _db.Transactions.AsNoTracking().Where(t => t.UserId == userId).SumAsync(t => (decimal?)t.Amount).ContinueWith(t => t.Result ?? 0m);
+    public Task<List<Budget>> GetBudgetsForUserAsync(int userId) => _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Frequency).Include(b => b.Payee).Where(b => b.UserId == userId).ToListAsync();
 
-    public Task<Transaction?> GetTransactionByIdAsync(int id) => _db.Transactions.Include(t => t.Payee).Include(t => t.Category).FirstOrDefaultAsync(t => t.TransactionId == id);
+    public Task<Transaction?> GetTransactionByIdAsync(int id) => _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category).FirstOrDefaultAsync(t => t.TransactionId == id);
     public Task<Transaction?> FindTransactionAsync(int id) => _db.Transactions.FindAsync(id).AsTask();
     public Task<Budget?> FindBudgetAsync(int id) => _db.Budgets.FindAsync(id).AsTask();
 
