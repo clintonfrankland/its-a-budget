@@ -15,6 +15,7 @@ namespace ClintonFrankland.Migrations
             // This migration upgrades the existing cfSmtpSettings table to support server-wide SMTP settings
             // without storing SMTP credentials (Pattern A).
 
+            // 1) Create table if missing
             migrationBuilder.Sql(@"
 IF OBJECT_ID('dbo.cfSmtpSettings', 'U') IS NULL
 BEGIN
@@ -29,41 +30,53 @@ BEGIN
         UpdatedAtUtc DATETIME2 NOT NULL CONSTRAINT DF_cfSmtpSettings_UpdatedAtUtc DEFAULT(SYSUTCDATETIME())
     );
 END
+");
 
--- Add new columns if missing
+            // 2) Add/upgrade columns (split into separate statements so SQL Server compiles after DDL)
+            migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'SenderEmail') IS NULL ALTER TABLE dbo.cfSmtpSettings ADD SenderEmail NVARCHAR(256) NULL;
 IF COL_LENGTH('dbo.cfSmtpSettings', 'FromName') IS NULL ALTER TABLE dbo.cfSmtpSettings ADD FromName NVARCHAR(128) NULL;
 IF COL_LENGTH('dbo.cfSmtpSettings', 'TestRecipientEmail') IS NULL ALTER TABLE dbo.cfSmtpSettings ADD TestRecipientEmail NVARCHAR(256) NULL;
+");
 
+            migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'TlsMode') IS NULL
 BEGIN
     ALTER TABLE dbo.cfSmtpSettings ADD TlsMode INT NULL;
-    UPDATE dbo.cfSmtpSettings SET TlsMode = 1 WHERE TlsMode IS NULL;
-    ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN TlsMode INT NOT NULL;
 END
+UPDATE dbo.cfSmtpSettings SET TlsMode = 1 WHERE TlsMode IS NULL;
+ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN TlsMode INT NOT NULL;
+");
 
+            migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'AllowInvalidCerts') IS NULL
 BEGIN
     ALTER TABLE dbo.cfSmtpSettings ADD AllowInvalidCerts BIT NULL;
-    UPDATE dbo.cfSmtpSettings SET AllowInvalidCerts = 0 WHERE AllowInvalidCerts IS NULL;
-    ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN AllowInvalidCerts BIT NOT NULL;
 END
+UPDATE dbo.cfSmtpSettings SET AllowInvalidCerts = 0 WHERE AllowInvalidCerts IS NULL;
+ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN AllowInvalidCerts BIT NOT NULL;
+");
 
+            migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'UpdatedAtUtc') IS NULL
 BEGIN
     ALTER TABLE dbo.cfSmtpSettings ADD UpdatedAtUtc DATETIME2 NULL;
-    UPDATE dbo.cfSmtpSettings SET UpdatedAtUtc = SYSUTCDATETIME() WHERE UpdatedAtUtc IS NULL;
-    ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN UpdatedAtUtc DATETIME2 NOT NULL;
 END
+UPDATE dbo.cfSmtpSettings SET UpdatedAtUtc = SYSUTCDATETIME() WHERE UpdatedAtUtc IS NULL;
+ALTER TABLE dbo.cfSmtpSettings ALTER COLUMN UpdatedAtUtc DATETIME2 NOT NULL;
+");
 
--- Seed the single server-wide row
+            // 3) Seed the single server-wide row (use dynamic SQL to avoid compile-time column validation)
+            migrationBuilder.Sql(@"
 IF NOT EXISTS (SELECT 1 FROM dbo.cfSmtpSettings WHERE Id = 1)
 BEGIN
-    INSERT INTO dbo.cfSmtpSettings (Id, IsEnabled, SenderEmail, FromName, TlsMode, AllowInvalidCerts, TestRecipientEmail, UpdatedAtUtc)
-    VALUES (1, 0, NULL, NULL, 1, 0, NULL, SYSUTCDATETIME());
+    EXEC(N'INSERT INTO dbo.cfSmtpSettings (Id, IsEnabled, SenderEmail, FromName, TlsMode, AllowInvalidCerts, TestRecipientEmail, UpdatedAtUtc)
+          VALUES (1, 0, NULL, NULL, 1, 0, NULL, SYSUTCDATETIME());');
 END
+");
 
--- Optional cleanup: remove legacy credential columns if they exist
+            // 4) Optional cleanup: remove legacy credential columns if they exist
+            migrationBuilder.Sql(@"
 IF COL_LENGTH('dbo.cfSmtpSettings', 'Host') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN Host;
 IF COL_LENGTH('dbo.cfSmtpSettings', 'Port') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN Port;
 IF COL_LENGTH('dbo.cfSmtpSettings', 'UserName') IS NOT NULL ALTER TABLE dbo.cfSmtpSettings DROP COLUMN UserName;
