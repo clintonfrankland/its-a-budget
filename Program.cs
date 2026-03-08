@@ -5,6 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using Radzen;
 using System.Globalization;
 
+// GLOBALIZATION STRATEGY:
+// The app intentionally pins culture to en-US (United States - English) for all server-side rendering and formatting.
+// Rationale: The primary driver is currency formatting. en-US uses the "$" symbol (e.g., "$1,234.56"),
+// while most other cultures use a generic currency symbol like "¤" (e.g., "¤1,234.56" or "1 234,56¤").
+// This ensures consistent, predictable currency display across all environments (dev, prod, review).
+// See GLOBALIZATION.md for detailed rationale and implementation details.
+
 // Pin the default culture early (before the app builds) so server-side currency formatting
 // uses "$" instead of the generic currency symbol "¤".
 var usCulture = CultureInfo.GetCultureInfo("en-US");
