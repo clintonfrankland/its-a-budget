@@ -38,6 +38,7 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 // Register application services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
+builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddScoped<AccountsDataService>();
 builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetDataService>();
@@ -45,6 +46,23 @@ builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddRadzenComponents();
 
 var app = builder.Build();
+
+// Apply EF Core migrations on startup.
+// Baseline: the app predates migrations, but we use an empty baseline migration to seed __EFMigrationsHistory.
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+
+    app.Logger.LogInformation("Applying database migrations (startup)");
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database migrations complete");
+}
+catch (Exception ex)
+{
+    app.Logger.LogCritical(ex, "Database migration failed");
+    throw;
+}
 
 // Ensure required user preference columns exist for legacy databases.
 using (var scope = app.Services.CreateScope())
@@ -66,6 +84,8 @@ BEGIN
     CREATE INDEX IX_cfAuthLoginAudit_AttemptedAtUtc ON cfAuthLoginAudit(AttemptedAtUtc);
     CREATE INDEX IX_cfAuthLoginAudit_UserName ON cfAuthLoginAudit(UserName);
 END");
+
+        // cfSmtpSettings is managed via EF migrations.
     }
     catch
     {
