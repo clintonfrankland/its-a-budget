@@ -5,6 +5,17 @@ using Microsoft.EntityFrameworkCore;
 using Radzen;
 using System.Globalization;
 
+static string? GetArgValue(string[] args, string name)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+            return args[i + 1];
+    }
+
+    return null;
+}
+
 // GLOBALIZATION STRATEGY:
 // The app intentionally pins culture to en-US (United States - English) for all server-side rendering and formatting.
 // Rationale: The primary driver is currency formatting. en-US uses the "$" symbol (e.g., "$1,234.56"),
@@ -40,12 +51,46 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddHostedService<BillDueNotificationWorker>();
+
+// Backups (optional, disabled by default)
+builder.Services.AddSingleton<DatabaseBackupService>();
+builder.Services.AddHostedService<DatabaseBackupWorker>();
+
 builder.Services.AddScoped<AccountsDataService>();
 builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();
 builder.Services.AddRadzenComponents();
+
+// CLI-style commands (backup/export + restore smoke test)
+// Usage examples:
+//   dotnet run -- backup --out ./backups
+//   dotnet run -- restore-smoketest --file ./backups/Db_backup_20260310_010203.bak
+if (args.Length > 0)
+{
+    var cmd = args[0].Trim().ToLowerInvariant();
+    if (cmd is "backup" or "export")
+    {
+        var outDir = GetArgValue(args, "--out") ?? GetArgValue(args, "-o") ?? "./backups";
+
+        using var tempApp = builder.Build();
+        var svc = tempApp.Services.GetRequiredService<DatabaseBackupService>();
+        await svc.BackupDatabaseAsync(connectionString: null, outputDirectory: outDir, ct: CancellationToken.None);
+        return;
+    }
+
+    if (cmd is "restore-smoketest" or "restore")
+    {
+        var file = GetArgValue(args, "--file") ?? GetArgValue(args, "-f")
+            ?? throw new ArgumentException("Missing required --file <path-to-bak>");
+
+        using var tempApp = builder.Build();
+        var svc = tempApp.Services.GetRequiredService<DatabaseBackupService>();
+        await svc.RestoreSmokeTestAsync(connectionString: null, backupFile: file, ct: CancellationToken.None);
+        return;
+    }
+}
 
 var app = builder.Build();
 
