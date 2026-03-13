@@ -58,6 +58,23 @@
 }
 
 <div class="container" @onclick="CollapseNavbar">
+    @if (AuthService.IsAuthenticated && AuthService.CurrentUser.IsAdmin && StartupDiagnostics.Checked && StartupDiagnostics.HasIssue)
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            <h5 class="mb-1">Startup database diagnostics</h5>
+            <div><strong>Failure type:</strong> @StartupDiagnostics.FailureType</div>
+            <div><strong>Details:</strong> @StartupDiagnostics.ErrorMessage</div>
+            <div><strong>Last applied migration:</strong> @(StartupDiagnostics.LastAppliedMigration ?? "(none found)")</div>
+            <div class="mt-2"><strong>Safe next steps:</strong></div>
+            <ul class="mb-0">
+                @foreach (var step in StartupDiagnostics.SafeSteps)
+                {
+                    <li>@step</li>
+                }
+            </ul>
+        </div>
+    }
+
     @Body
     <hr />
     <footer>

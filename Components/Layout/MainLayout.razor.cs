@@ -6,6 +6,7 @@ namespace ClintonFrankland.Components.Layout;
 
 public partial class MainLayout : IDisposable
 {
+    [Inject] private StartupDiagnosticsState StartupDiagnostics { get; set; } = default!;
     [Inject]
     private AuthService AuthService { get; set; } = default!;
 

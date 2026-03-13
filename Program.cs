@@ -47,6 +47,7 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 });
 
 // Register application services
+builder.Services.AddSingleton<StartupDiagnosticsState>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<EmailSenderService>();
@@ -94,21 +95,51 @@ if (args.Length > 0)
 
 var app = builder.Build();
 
-// Apply EF Core migrations on startup.
-// Baseline: the app predates migrations, but we use an empty baseline migration to seed __EFMigrationsHistory.
+// Apply EF Core migrations on startup and collect diagnostics for admin banner.
+var startupDiagnostics = app.Services.GetRequiredService<StartupDiagnosticsState>();
 try
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
 
-    app.Logger.LogInformation("Applying database migrations (startup)");
-    await db.Database.MigrateAsync();
-    app.Logger.LogInformation("Database migrations complete");
+    app.Logger.LogInformation("Checking database connectivity/migrations (startup)");
+
+    var canConnect = await db.Database.CanConnectAsync();
+    if (!canConnect)
+    {
+        startupDiagnostics.Checked = true;
+        startupDiagnostics.HasIssue = true;
+        startupDiagnostics.FailureType = "connectivity";
+        startupDiagnostics.ErrorMessage = "Unable to connect to configured SQL Server database.";
+        app.Logger.LogCritical("Database connectivity check failed");
+    }
+    else
+    {
+        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        startupDiagnostics.LastAppliedMigration = applied.LastOrDefault();
+
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count > 0)
+        {
+            app.Logger.LogInformation("Applying {Count} pending migration(s)", pending.Count);
+            await db.Database.MigrateAsync();
+            applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+            startupDiagnostics.LastAppliedMigration = applied.LastOrDefault();
+        }
+
+        startupDiagnostics.Checked = true;
+        startupDiagnostics.HasIssue = false;
+        app.Logger.LogInformation("Database startup checks complete");
+    }
 }
 catch (Exception ex)
 {
-    app.Logger.LogCritical(ex, "Database migration failed");
-    throw;
+    startupDiagnostics.Checked = true;
+    startupDiagnostics.HasIssue = true;
+    startupDiagnostics.FailureType = startupDiagnostics.FailureType ?? "migration";
+    startupDiagnostics.ErrorMessage = ex.Message;
+
+    app.Logger.LogCritical(ex, "Database startup check/migration failed");
 }
 
 // Ensure required user preference columns exist for legacy databases.
