@@ -109,7 +109,6 @@ public class DashboardDataService
 
         // Sort by date and calculate running balance to find the lowest point
         var sortedItems = projectedItems
-            .Where(i => i.Date >= startDate)
             .OrderBy(i => i.Date)
             .ThenByDescending(i => i.Amount) // Process income before expenses on same day
             .ToList();

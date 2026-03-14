@@ -66,7 +66,6 @@ public partial class Budget
     private bool editHasEndDate = false;
     private DateTime editEndDate = DateTime.Today;
     private string editErrorMessage = string.Empty;
-    private bool _initialized = false;
 
     // Edit Next fields (stores original budget data for creating one-time budget)
     private int editNextOriginalBudgetTypeId = 1;
@@ -87,7 +86,6 @@ public partial class Budget
                 return;
             }
             await LoadDataAsync();
-            _initialized = true;
             StateHasChanged();
         }
     }
