@@ -5,9 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClintonFrankland</RootNamespace>
-    <Version>5.2.0</Version>
-    <FileVersion>5.1.0</FileVersion>
-    <AssemblyVersion>5.1.0</AssemblyVersion>
+    <VersionPrefix>5.3.0</VersionPrefix>
+    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
+    <BuildNumber>70</BuildNumber>
+    <Version>$(VersionPrefix)</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.15.1" />
