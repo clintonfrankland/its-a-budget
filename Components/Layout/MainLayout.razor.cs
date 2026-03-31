@@ -16,7 +16,6 @@ public partial class MainLayout : IDisposable
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
-    private bool _isLoading = true;
     private bool _navbarExpanded = false;
 
     // CSS class for navbar collapse state
@@ -33,7 +32,6 @@ public partial class MainLayout : IDisposable
         if (firstRender)
         {
             await AuthService.InitializeAsync();
-            _isLoading = false;
             StateHasChanged();
         }
     }
