@@ -24,11 +24,15 @@ public partial class BudgetItems
     [Inject]
     private BudgetItemsDataService BudgetItemsData { get; set; } = default!;
 
+    [Inject]
+    private CheckbookDataService CheckbookData { get; set; } = default!;
+
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
     private List<BudgetItemViewModel> budgetItems = new();
+    private Dictionary<string, decimal[]> _sparklineData = new();
     private List<FrequencyOption> frequencyOptions = new();
     
     // Grid reference and search
@@ -83,6 +87,7 @@ public partial class BudgetItems
         {
             var userId = SiteInfoService.DefaultUserId;
             var budgetsData = await BudgetItemsData.GetBudgetsForUserAsync(userId);
+            _sparklineData = await CheckbookData.GetMonthlyCategoryTotalsAsync(userId, 3);
 
             // Convert to view models for RadzenDataGrid
             budgetItems = budgetsData.Select(b => new BudgetItemViewModel
@@ -91,15 +96,16 @@ public partial class BudgetItems
                 BudgetName = b.BudgetName ?? string.Empty,
                 Category = b.Category?.CategoryName ?? string.Empty,
                 DueDate = b.NextDueDate ?? DateTime.Today,
-                EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01")) 
-                    ? string.Empty 
+                EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01"))
+                    ? string.Empty
                     : b.EndDate.Value.ToString("MM/dd/yyyy"),
                 FrequencyName = b.Frequency?.FrequencyName ?? string.Empty,
                 Amount = b.Amount ?? 0m,
                 Monthly = CalculateMonthlyAmount(b.Amount ?? 0m, b.FrequencyId ?? 0, b.BudgetTypeId),
                 IsBill = b.IsBill ?? false,
                 IsAuto = b.IsAutomatic ?? false,
-                IsLate = b.IsLate ?? false
+                IsLate = b.IsLate ?? false,
+                SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : []
             }).ToList();
 
             // Load autocomplete data (EF Core)
@@ -404,5 +410,59 @@ public partial class BudgetItems
     {
         searchText = value ?? string.Empty;
         budgetItemsGrid?.GoToPage(0);
+    }
+
+    private MarkupString RenderSparkline(BudgetItemViewModel item)
+    {
+        const int svgW = 84;
+        const int svgH = 32;
+        const int barW = 22;
+        const int maxBarH = 28;
+        const int baseline = svgH - 2;
+        const int barSpacing = 28; // barW (22) + gap (6)
+
+        var isExpense = item.Monthly < 0;
+        var rawData = item.SparklineData;
+        // Normalise to positive spend magnitudes
+        var data = rawData.Select(v => isExpense ? Math.Max(-v, 0m) : Math.Max(v, 0m)).ToArray();
+        var budget = Math.Abs(item.Monthly);
+        var maxVal = data.Length > 0 ? Math.Max(data.Max(), budget) : budget;
+        if (maxVal == 0) return new MarkupString(string.Empty);
+
+        var today = DateTime.Today;
+        var monthLabels = Enumerable.Range(0, 3)
+            .Select(i => new DateTime(today.Year, today.Month, 1).AddMonths(-3 + i).ToString("MMM"))
+            .ToList();
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"<svg width=\"{svgW}\" height=\"{svgH}\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display:block;overflow:visible\">");
+
+        for (var i = 0; i < 3; i++)
+        {
+            var barH = data.Length > i ? (int)(data[i] / maxVal * maxBarH) : 0;
+            var barX = 3 + i * barSpacing;
+            var label = i < monthLabels.Count ? monthLabels[i] : string.Empty;
+            var amount = data.Length > i ? data[i].ToString("C0") : "$0";
+
+            if (barH > 0)
+            {
+                var opacity = i == 2 ? "1" : "0.4";
+                sb.Append($"<rect x=\"{barX}\" y=\"{baseline - barH}\" width=\"{barW}\" height=\"{barH}\" fill=\"#4A90D9\" rx=\"2\" opacity=\"{opacity}\"><title>{label}: {amount}</title></rect>");
+            }
+            else
+            {
+                sb.Append($"<rect x=\"{barX}\" y=\"{baseline - 2}\" width=\"{barW}\" height=\"2\" fill=\"#dee2e6\" rx=\"1\"><title>{label}: $0</title></rect>");
+            }
+        }
+
+        if (budget > 0)
+        {
+            var lineY = (int)(baseline - budget / maxVal * maxBarH);
+            if (lineY >= 0 && lineY <= svgH)
+                sb.Append($"<line x1=\"0\" y1=\"{lineY}\" x2=\"{svgW}\" y2=\"{lineY}\" stroke=\"#FF6B6B\" stroke-width=\"1.5\" stroke-dasharray=\"4,3\"><title>Budget: {budget:C0}/mo</title></line>");
+        }
+
+        sb.Append("</svg>");
+        return new MarkupString(sb.ToString());
     }
 }

@@ -19,6 +19,17 @@ public class DashboardSnapshotViewModel
     public DateTime LowestProjectedBalanceDate { get; set; }
 
     public List<DashboardBillItemViewModel> UpcomingBills { get; set; } = [];
+
+    public List<DashboardCategorySpendViewModel> CategorySpend { get; set; } = [];
+}
+
+public class DashboardCategorySpendViewModel
+{
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    /// <summary>Monthly-normalised budget for this category. Null if no budget item exists.</summary>
+    public decimal? BudgetedMonthly { get; set; }
+    public bool IsOnBudget => BudgetedMonthly.HasValue && Math.Abs(Total - BudgetedMonthly.Value) <= 1m;
 }
 
 public class DashboardBillItemViewModel

@@ -17,6 +17,7 @@ public partial class Home
 
     private DashboardSnapshotViewModel? Snapshot { get; set; }
     private string? SnapshotError { get; set; }
+    private bool _showAllCategories;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
