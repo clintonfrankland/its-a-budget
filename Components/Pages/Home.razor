@@ -50,7 +50,62 @@
                         </div>
                     </div>
 
-                    @if (!string.IsNullOrWhiteSpace(SnapshotError))
+                    @if (Snapshot?.CategorySpend is { Count: > 0 })
+    {
+        const int pageSize = 8;
+        var visible = _showAllCategories ? Snapshot.CategorySpend : Snapshot.CategorySpend.Take(pageSize).ToList();
+        var maxSpend = Snapshot.CategorySpend.Max(c => c.Total);
+        <div class="container py-2 pb-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="h5 mb-0">Spending in @DateTime.Today.ToString("MMMM")</h3>
+                        <a class="btn btn-sm btn-outline-secondary" href="/checkbook">View checkbook</a>
+                    </div>
+                    <div class="row g-2">
+                        @foreach (var cat in visible)
+                        {
+                            var pct = maxSpend > 0 ? (int)(cat.Total / maxSpend * 100) : 0;
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <div class="category-spend-card">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="category-spend-name">@cat.CategoryName</div>
+                                        @if (cat.IsOnBudget)
+                                        {
+                                            <span class="category-star" title="On budget">★</span>
+                                        }
+                                    </div>
+                                    <div class="category-spend-amount">
+                                        @if (cat.BudgetedMonthly.HasValue && !cat.IsOnBudget)
+                                        {
+                                            @cat.Total.ToString("C0")<span class="category-budget-slash"> / @cat.BudgetedMonthly.Value.ToString("C0")</span>
+                                        }
+                                        else
+                                        {
+                                            @cat.Total.ToString("C0")
+                                        }
+                                    </div>
+                                    <div class="category-spend-bar-track">
+                                        <div class="category-spend-bar" style="width: @(pct)%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    @if (Snapshot.CategorySpend.Count > pageSize)
+                    {
+                        <div class="text-center mt-3">
+                            <button class="btn btn-sm btn-link text-muted" @onclick="() => _showAllCategories = !_showAllCategories">
+                                @(_showAllCategories ? "Show less" : $"Show {Snapshot.CategorySpend.Count - pageSize} more…")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(SnapshotError))
                     {
                         <div class="alert alert-warning">Dashboard snapshot unavailable: @SnapshotError</div>
                     }
@@ -104,8 +159,14 @@
                             <tbody>
                                 @foreach (var b in Snapshot.UpcomingBills)
                                 {
-                                    <tr class="@(b.IsPastDue ? "table-warning" : "")">
-                                        <td style="white-space:nowrap;">@b.DueDate.ToString("MMM d")</td>
+                                    <tr class="@(b.IsPastDue ? "bill-row-pastdue" : "")">
+                                        <td style="white-space:nowrap;">
+                                            @b.DueDate.ToString("MMM d")
+                                            @if (b.IsPastDue)
+                                            {
+                                                <span class="badge text-bg-danger ms-2 fw-normal">Overdue</span>
+                                            }
+                                        </td>
                                         <td>@b.Name</td>
                                         <td class="text-muted">@b.Payee</td>
                                         <td class="text-end">@b.Amount.ToString("C")</td>
@@ -357,6 +418,63 @@ else
     .snapshot-sub {
         margin-top: 4px;
         font-size: 0.85rem;
+    }
+
+    .category-spend-card {
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: #fff;
+        height: 100%;
+    }
+
+    .category-spend-name {
+        font-size: 0.78rem;
+        color: #6c757d;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .category-spend-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .category-spend-bar-track {
+        height: 3px;
+        background: rgba(0,0,0,0.07);
+        border-radius: 2px;
+        margin-top: 8px;
+    }
+
+    .category-spend-bar {
+        height: 3px;
+        background: var(--bs-primary);
+        border-radius: 2px;
+    }
+
+    .category-star {
+        color: gold;
+        font-size: 0.95rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .category-budget-slash {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #6c757d;
+    }
+
+    .bill-row-pastdue td:first-child {
+        border-left: 3px solid var(--bs-danger);
+        padding-left: calc(0.5rem - 3px);
     }
 
     .login-header {

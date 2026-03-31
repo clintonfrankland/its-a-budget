@@ -90,6 +90,14 @@ else
                             <strong>@filteredBudgetItems.Sum(i => i.Monthly).ToString("C")</strong>
                         </FooterTemplate>
                     </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="3-mo Trend" Width="100px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center" Visible="@IsAtLeast(ScreenSize.ExtraLarge)">
+                        <HeaderTemplate>
+                            <span title="3 complete months of actual spend. Bars are oldest→newest; dashed line is monthly budget.">3-mo Trend</span>
+                        </HeaderTemplate>
+                        <Template Context="item">
+                            @RenderSparkline(item)
+                        </Template>
+                    </RadzenDataGridColumn>
 
                     @if (AuthService.CurrentUser.ListButtonsRight)
                     {

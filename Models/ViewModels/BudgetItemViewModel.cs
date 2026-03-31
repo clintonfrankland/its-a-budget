@@ -17,4 +17,6 @@ public class BudgetItemViewModel
     // Additional fields for BudgetItems page
     public string EndDateName { get; set; } = string.Empty;
     public decimal Monthly { get; set; }
+    /// <summary>Raw transaction sums for the last 3 complete months, oldest-first. May be negative for expenses.</summary>
+    public decimal[] SparklineData { get; set; } = [];
 }
