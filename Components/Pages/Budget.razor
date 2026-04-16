@@ -41,6 +41,12 @@ else
         {
             @if (chartData.Count > 0)
             {
+                var balances = chartData.Select(c => c.Balance).ToList();
+                var minBalance = balances.Min();
+                var maxBalance = balances.Max();
+                var axisMin = minBalance < 0 ? Math.Floor(minBalance / 2500m) * 2500m : 0m;
+                var axisMax = maxBalance > 0 ? Math.Ceiling(maxBalance / 2500m) * 2500m : 2500m;
+                var axisStep = axisMax - axisMin > 0 ? 2500m : 1000m;
                 <div class="container mt-4">
                     <RadzenCard class="w-100">
                         <RadzenChart Style="height: 350px; width: 100%;">
@@ -52,7 +58,7 @@ else
                                 <RadzenGridLines Visible="true" Stroke="#e0e0e0" StrokeWidth="1" />
                                 <RadzenAxisTitle Text="Date" />
                             </RadzenCategoryAxis>
-                            <RadzenValueAxis FormatString="{0:$#,##0}" Step="2500" Min="0">
+                            <RadzenValueAxis FormatString="{0:$#,##0}" Step="@axisStep" Min="@axisMin" Max="@axisMax">
                                 <RadzenGridLines Visible="true" Stroke="#e0e0e0" StrokeWidth="1" />
                                 <RadzenAxisTitle Text="Balance" />
                             </RadzenValueAxis>
@@ -401,4 +407,3 @@ else
         </div>
     }
 }
-
