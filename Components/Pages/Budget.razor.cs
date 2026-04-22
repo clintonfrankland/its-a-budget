@@ -328,16 +328,46 @@ public partial class Budget
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(editBudgetName))
+        {
+            editErrorMessage = "Budget name is required.";
+            return;
+        }
+
+        if (!frequencyOptions.Any(f => f.FrequencyId == editFrequencyId))
+        {
+            editErrorMessage = "Frequency is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editCategory))
+        {
+            editErrorMessage = "Category is required.";
+            return;
+        }
+
+        var payeeName = editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
+        if (editIsBill && string.IsNullOrWhiteSpace(payeeName))
+        {
+            editErrorMessage = "Payee is required for bill items.";
+            return;
+        }
+
         try
         {
             var userId = SiteInfoService.DefaultUserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
-            var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
-            // Get or create Category
-            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
+            var budgetName = editBudgetName.Trim();
+            var categoryName = editCategory.Trim();
+            var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
+            if (categoryId <= 0)
+            {
+                editErrorMessage = "Category is required.";
+                return;
+            }
 
             // Get or create Payee
             var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
@@ -347,7 +377,7 @@ public partial class Budget
                 // Insert new budget
                 var newBudget = new Models.Entities.Budget
                 {
-                    BudgetName = editBudgetName,
+                    BudgetName = budgetName,
                     BudgetTypeId = budgetTypeId,
                     FrequencyId = editFrequencyId,
                     NextDueDate = editNextDueDate,
@@ -368,7 +398,7 @@ public partial class Budget
                 var budget = await BudgetData.FindBudgetAsync(editBudgetId);
                 if (budget != null)
                 {
-                    budget.BudgetName = editBudgetName;
+                    budget.BudgetName = budgetName;
                     budget.BudgetTypeId = budgetTypeId;
                     budget.FrequencyId = editFrequencyId;
                     budget.NextDueDate = editNextDueDate;
@@ -389,7 +419,7 @@ public partial class Budget
         }
         catch (Exception ex)
         {
-            errorMessage = $"{ex.GetType()}: {ex.Message}";
+            editErrorMessage = $"Save failed: {ex.Message}";
         }
     }
 
@@ -525,9 +555,37 @@ public partial class Budget
 
     private async Task SaveEditNextAsync()
     {
+        editErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(editBudgetName))
+        {
+            editErrorMessage = "Budget name is required.";
+            return;
+        }
+
+        if (editNextDueDate == DateTime.MinValue)
+        {
+            editErrorMessage = "Please enter a valid due date.";
+            return;
+        }
+
+        if (editAmount < 0)
+        {
+            editErrorMessage = "Amount must be a non-negative value.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editCategory))
+        {
+            editErrorMessage = "Category is required.";
+            return;
+        }
+
         try
         {
             var userId = SiteInfoService.DefaultUserId;
+            var budgetName = editBudgetName.Trim();
+            var categoryName = editCategory.Trim();
 
             // 1. Mark the original budget as paid (EF Core)
             var originalBudget = await BudgetData.FindBudgetAsync(editBudgetId);
@@ -546,12 +604,18 @@ public partial class Budget
             }
 
             // 2. Create a new one-time budget (FrequencyId = 0)
-            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
+            var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
+            if (categoryId <= 0)
+            {
+                editErrorMessage = "Category is required.";
+                return;
+            }
+
             var payeeId = await GetOrCreatePayeeAsync(editNextOriginalPayee, userId);
 
             var newBudget = new Models.Entities.Budget
             {
-                BudgetName = editBudgetName,
+                BudgetName = budgetName,
                 BudgetTypeId = editNextOriginalBudgetTypeId,
                 FrequencyId = 0,  // 0 = One-time
                 NextDueDate = editNextDueDate,
@@ -571,7 +635,7 @@ public partial class Budget
         }
         catch (Exception ex)
         {
-            errorMessage = $"{ex.GetType()}: {ex.Message}";
+            editErrorMessage = $"Save failed: {ex.Message}";
         }
     }
 
