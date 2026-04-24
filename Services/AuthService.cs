@@ -15,6 +15,32 @@ public class AuthService
         public DateTime? LockedOutUntilUtc { get; set; }
     }
 
+    private sealed class CredentialValidationResult
+    {
+        public bool Success { get; init; }
+        public string NormalizedUserName { get; init; } = string.Empty;
+        public User? User { get; init; }
+
+        public static CredentialValidationResult Failed(string normalizedUserName) => new()
+        {
+            Success = false,
+            NormalizedUserName = normalizedUserName
+        };
+
+        public static CredentialValidationResult FromUser(string normalizedUserName, User user) => new()
+        {
+            Success = true,
+            NormalizedUserName = normalizedUserName,
+            User = user
+        };
+
+        public static CredentialValidationResult FromConfig(string normalizedUserName) => new()
+        {
+            Success = true,
+            NormalizedUserName = normalizedUserName
+        };
+    }
+
     private const string AuthStorageKey = "auth_state";
     private static readonly ConcurrentDictionary<string, FailedAttemptState> FailedLoginState = new();
 
@@ -66,13 +92,41 @@ public class AuthService
 
     public async Task<bool> ValidateCredentialsAsync(string username, string password)
     {
+        var result = await ValidateCredentialsCoreAsync(username, password);
+        if (!result.Success)
+            return false;
+
+        if (result.User is not null)
+        {
+            await LoginAsync(result.User);
+            return true;
+        }
+
+        await LoginAsync(result.NormalizedUserName);
+        return true;
+    }
+
+    public async Task<int?> ValidateApiCredentialsAsync(string username, string password, int fallbackUserId)
+    {
+        var result = await ValidateCredentialsCoreAsync(username, password);
+        if (!result.Success)
+            return null;
+
+        return result.User?.UserId ?? fallbackUserId;
+    }
+
+    private async Task<CredentialValidationResult> ValidateCredentialsCoreAsync(string username, string password)
+    {
         var normalizedUserName = (username ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedUserName) || string.IsNullOrWhiteSpace(password))
+            return CredentialValidationResult.Failed(normalizedUserName);
+
         var key = BuildAttemptKey(normalizedUserName);
 
         if (IsLockedOut(key, out var lockoutReason))
         {
             await WriteAuditAsync(normalizedUserName, false, lockoutReason);
-            return false;
+            return CredentialValidationResult.Failed(normalizedUserName);
         }
 
         var user = await _db.Users.FirstOrDefaultAsync(u =>
@@ -85,15 +139,14 @@ public class AuthService
             {
                 RecordFailedAttempt(key);
                 await WriteAuditAsync(normalizedUserName, false, "Invalid username or password");
-                return false;
+                return CredentialValidationResult.Failed(normalizedUserName);
             }
 
             user.LastLogin = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             ClearFailedAttempts(key);
-            await LoginAsync(user);
             await WriteAuditAsync(normalizedUserName, true, "DB user login success");
-            return true;
+            return CredentialValidationResult.FromUser(normalizedUserName, user);
         }
 
         // Fallback to appsettings credentials for compatibility.
@@ -103,14 +156,13 @@ public class AuthService
         if (string.Equals(normalizedUserName, validUser, StringComparison.OrdinalIgnoreCase) && password == validPassword)
         {
             ClearFailedAttempts(key);
-            await LoginAsync(normalizedUserName);
             await WriteAuditAsync(normalizedUserName, true, "Config credential login success");
-            return true;
+            return CredentialValidationResult.FromConfig(normalizedUserName);
         }
 
         RecordFailedAttempt(key);
         await WriteAuditAsync(normalizedUserName, false, "Invalid username or password");
-        return false;
+        return CredentialValidationResult.Failed(normalizedUserName);
     }
 
     public async Task LoginAsync(User user)

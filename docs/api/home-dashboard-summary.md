@@ -8,12 +8,13 @@
 
 ## Authentication behavior
 
-The endpoint authenticates using the same credential rules as the app login model:
+The endpoint authenticates using the same credential rules and validation flow as the app login model:
 
 1. Try `cfUsers` username/password (salt + hash verification).
 2. If DB user auth does not match, allow the configured fallback credentials from:
    - `AppSettings:LoginUser`
    - `AppSettings:LoginPassword`
+3. Reuse the shared authentication behavior for lockout tracking, audit logging, and DB user `LastLogin` updates.
 
 If authentication fails, the endpoint returns `401 Unauthorized`.
 

@@ -88,7 +88,7 @@ The app includes one authenticated JSON endpoint for home dashboard snapshot int
 
 ### `POST /api/home-dashboard-summary`
 
-Authenticates with an existing username/password, then returns the same core summary values used on the Home page.
+Authenticates with an existing username/password using the app's shared auth validation behavior, then returns the same core summary values used on the Home page.
 
 Request JSON:
 
