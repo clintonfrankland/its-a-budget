@@ -23,6 +23,7 @@ This app is designed to be simple, fast, and practical. It helps you:
 | Profile | Your personal settings, including bill-due notice preferences | [Profile](pages/profile.md) |
 | Settings (Admin) | Server-wide settings like SMTP email delivery | [Settings](pages/settings.md) |
 | Users (Admin) | Manage user accounts and access | [Users](pages/users.md) |
+| API: Home Dashboard Summary | Authenticated JSON snapshot for integrations/widgets | [Home Dashboard Summary API](api/home-dashboard-summary.md) |
 
 ## A quick note about buttons and icons
 

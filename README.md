@@ -30,7 +30,7 @@ graph TD
     EF --> SQL
 ```
 
-The app is a **Blazor Server** application — all rendering and logic runs on the server. The browser holds only a lightweight WebSocket circuit. There is no client-side WASM or REST API layer.
+The app is a **Blazor Server** application — all rendering and logic runs on the server. The browser holds only a lightweight WebSocket circuit. There is no client-side WASM layer, and only a small authenticated JSON endpoint for home dashboard summary integrations.
 
 ---
 
@@ -79,6 +79,62 @@ flowchart TD
 3. Checkbook → enter your opening balance transaction
 4. Settings (admin) → configure SMTP if you want bill-due email reminders
 5. Profile → opt in to notifications and set your timezone
+
+---
+
+## API surface
+
+The app includes one authenticated JSON endpoint for home dashboard snapshot integrations.
+
+### `POST /api/home-dashboard-summary`
+
+Authenticates with an existing username/password, then returns the same core summary values used on the Home page.
+
+Request JSON:
+
+```json
+{
+  "username": "your-username",
+  "password": "your-password"
+}
+```
+
+Response codes:
+
+- `200 OK` for valid credentials
+- `401 Unauthorized` for invalid credentials
+
+Response JSON (`200 OK`):
+
+```json
+{
+  "asOfDate": "2026-04-24T00:00:00",
+  "todayBalance": 1234.56,
+  "upcomingBillsTotal": 450.00,
+  "safeToSpend": 980.12,
+  "safeToSpendDate": "2026-05-03T00:00:00",
+  "upcomingBills": [
+    {
+      "budgetId": 42,
+      "name": "Electric",
+      "payee": "Power Co",
+      "dueDate": "2026-04-28T00:00:00",
+      "amount": 125.00,
+      "isPastDue": false
+    }
+  ],
+  "categorySpend": [
+    {
+      "categoryName": "Groceries",
+      "total": 320.50,
+      "budgetedMonthly": 400.00,
+      "isOnBudget": true
+    }
+  ]
+}
+```
+
+For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/home-dashboard-summary.md).
 
 ---
 

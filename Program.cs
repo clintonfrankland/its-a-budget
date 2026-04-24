@@ -1,4 +1,5 @@
 using ClintonFrankland.Data;
+using ClintonFrankland.Models;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +63,7 @@ builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();
+builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.AddRadzenComponents();
 
 // CLI-style commands (backup/export + restore smoke test)
@@ -188,6 +190,40 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+app.MapPost("/api/home-dashboard-summary", async (
+    HomeDashboardSummaryAuthRequest request,
+    DashboardApiAuthService auth,
+    DashboardDataService dashboardData) =>
+{
+    var userId = await auth.ValidateAndResolveUserIdAsync(request.Username, request.Password);
+    if (!userId.HasValue)
+        return Results.Unauthorized();
+
+    var today = DateTime.Today;
+    var snapshot = await dashboardData.GetSnapshotAsync(userId.Value, today);
+
+    var dueThrough = today.AddDays(7);
+    var upcomingBills = snapshot.UpcomingBills
+        .Where(b => b.DueDate.Date >= today && b.DueDate.Date <= dueThrough)
+        .OrderBy(b => b.DueDate)
+        .ThenBy(b => b.Name)
+        .ToList();
+
+    var response = new HomeDashboardSummaryResponse
+    {
+        AsOfDate = snapshot.AsOfDate,
+        TodayBalance = snapshot.TodayBalance,
+        UpcomingBillsTotal = upcomingBills.Sum(b => b.Amount),
+        SafeToSpend = snapshot.LowestProjectedBalance,
+        SafeToSpendDate = snapshot.LowestProjectedBalanceDate,
+        UpcomingBills = upcomingBills,
+        CategorySpend = snapshot.CategorySpend
+    };
+
+    return Results.Ok(response);
+})
+.DisableAntiforgery();
 
 app.MapRazorComponents<ClintonFrankland.Components.App>()
     .AddInteractiveServerRenderMode();
