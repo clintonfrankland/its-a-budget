@@ -133,15 +133,8 @@ public class AuthService
             !u.IsDeleted &&
             u.UserName.ToLower() == normalizedUserName.ToLower());
 
-        if (user is not null)
+        if (user is not null && PasswordUtility.VerifyPassword(password, user.Salt, user.PasswordHash))
         {
-            if (!PasswordUtility.VerifyPassword(password, user.Salt, user.PasswordHash))
-            {
-                RecordFailedAttempt(key);
-                await WriteAuditAsync(normalizedUserName, false, "Invalid username or password");
-                return CredentialValidationResult.Failed(normalizedUserName);
-            }
-
             user.LastLogin = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             ClearFailedAttempts(key);
