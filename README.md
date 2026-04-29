@@ -48,6 +48,21 @@ The app is a **Blazor Server** application — all rendering and logic runs on t
 
 ---
 
+## Build & Run
+
+| Command | Purpose |
+|---|---|
+| `dotnet build` | Compile the project |
+| `dotnet run` | Start the app |
+| `dotnet watch` | Start with hot reload |
+| `dotnet ef migrations add <Name>` | Create a new EF migration |
+| `dotnet ef database update` | Apply pending migrations manually |
+| `dotnet run -- backup --out ./backups` | Take a manual database backup |
+| `dotnet run -- restore-smoketest --file ./backups/...` | Verify a backup file is readable |
+| `dotnet run -- restore --file ./backups/...` | Restore a backup |
+
+---
+
 ## User workflows
 
 ```mermaid
@@ -157,6 +172,22 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 
 ---
 
+## Domain concepts
+
+| Term | Definition |
+|---|---|
+| **Account** | A financial account (checking, credit card, etc.) with a tracked balance and cleared balance. |
+| **Transaction** | A ledger entry recording income or expenditure against an account. |
+| **Budget item** | A recurring income or expense rule that drives the forecast and optionally triggers bill-due notifications. |
+| **Budget forecast** | The projected running balance calculated from future budget items. |
+| **Category** | A user-owned classification tag applied to transactions and budget items. |
+| **Payee** | A user-owned named entity representing who a payment is made to or received from. |
+| **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
+| **Safe to spend** | The lowest projected balance between today and the next paydate — used as a guardrail for discretionary spending. |
+| **Cleared** | A flag on a transaction indicating it has settled in the bank. The cleared balance is the sum of cleared transactions only. |
+
+---
+
 ## File inventory
 
 | Path | Description |
@@ -201,6 +232,39 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | `wwwroot/css/app.css` | Global CSS overrides |
 | `wwwroot/images/` | `sproutpenny.png`, `favicon.png` |
 | `docs/` | Per-page user guides and test plans |
+
+---
+
+## Coding conventions
+
+- Use file-scoped namespaces.
+- Prefer `var` when the type is obvious.
+- Use async EF Core APIs only — do not mix sync and async paths on the same resource.
+- Never abbreviate variable or method names; keep names fully spelled out and human-readable.
+- Keep component logic in `.razor.cs` code-behind files; keep `.razor` files markup-only.
+- Use `IDbContextFactory<ClintonFranklandDbContext>` for per-operation contexts; never hold a `DbContext` across renders.
+- The project version is a four-part field (`major.minor.patch.build`) in `ClintonFrankland.Blazor.csproj` — bump it in every task.
+
+---
+
+## Constraints
+
+- Do not introduce another UI component library alongside Radzen.Blazor.
+- Do not casually modify secrets or login credentials.
+- Do not skip build and test verification before calling a task done.
+- Do not hold `DbContext` instances across Blazor renders.
+- Do not rename or remove `cf`-prefixed tables without a deliberate migration plan.
+
+---
+
+## Known pitfalls
+
+- **Culture is pinned to `en-US`.** Currency formatting and decimal parsing depend on it. Do not remove the culture pin in `Program.cs`.
+- **Radzen grids need explicit reload after mutations.** After inserting, updating, or deleting grid data, call the grid's `Reload()` method — the component does not refresh automatically.
+- **SQL Server migration dialect.** EF Core migrations use SQL Server-specific syntax. Do not apply migrations generated for another provider.
+- **Background worker timezone handling.** The bill-due notification worker operates in each user's stored timezone, not the server timezone. Changes to notification logic must account for this.
+- **Four-part version field.** `ClintonFrankland.Blazor.csproj` uses `<Version>major.minor.patch.build</Version>`. The displayed app version is read directly from this field — increment it in every task.
+- **Startup migrations.** EF migrations run automatically on startup. Always verify migration safety before deploying schema changes.
 
 ---
 

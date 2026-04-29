@@ -1,82 +1,25 @@
-# Project: SproutPenny Budget App
-
-SproutPenny Budget App is a C# Blazor Server application (.NET 10) with a SQL Server backend, Radzen.Blazor components, Bootstrap, Chart.js, DataTables, and background workers for budget notifications and backups.
+# AI Instructions
 
 ## Core Rules
 
 1. **Plan before you touch code.** No guessing. Write the plan first, execute second, re-plan when needed.
 2. **Use parallel help when the task is large.** Break hard problems down and keep context clean.
 3. **Make the system self-improving.** When a mistake teaches something durable, update the instructions.
-4. **Test every change.** After every code change, run `dotnet build`; when automated tests exist or are added, run `dotnet test`; verify manual behavior when needed.
+4. **Test every change.** After every code change, evaluate what tests are appropriate, add them, and run the full test suite.
 5. **Treat bugs as urgent.** Trace, root-cause, fix, and verify.
-6. **Version bump every task.** Update `ClintonFrankland.Blazor.csproj` using the repo's four-part `<Version>` scheme before you call the work done.
+6. **Version bump every task.** Update the project version file using the repo's versioning rules before you call the work done.
+7. **Keep README.md current.** Update `README.md` in the repo root whenever behavior, schema, routes, uploads, or user-facing features change. This is as non-negotiable as the version bump — do it in the same task.
 
-## Build & Run
-
-- `dotnet build`
-- `dotnet run`
-- `dotnet watch`
-- `dotnet ef migrations add <Name>`
-- `dotnet ef database update`
-- `dotnet run -- backup --out ./backups`
-- `dotnet run -- restore-smoketest --file ./backups/...`
-- `dotnet run -- restore --file ./backups/...`
-
-## Architecture
-
-- **Blazor Server** for all interactive UI.
-- **Radzen.Blazor** as the main UI component library.
-- **SQL Server via EF Core** with migrations applied on startup.
-- **Custom session auth** via `ProtectedSessionStorage` and `AuthService`.
-- **Background workers** for bill-due notifications and database backups.
-
-## Project Structure
-
-```text
-/
-├── Program.cs
-├── ClintonFrankland.Blazor.csproj
-├── Components/
-├── Data/
-├── Models/
-├── Services/
-├── Migrations/
-├── docs/
-└── wwwroot/
-```
-
-## Key Domain Concepts
-
-- **Accounts** hold balances and account metadata.
-- **Transactions** are the ledger entries.
-- **Budget items** drive recurring forecast behavior.
-- **Categories, payees, and frequencies** are user-owned lookup tables.
-- **SMTP settings and bill-due notifications** are persisted in the database.
-- **Database backups** are a first-class operational feature.
-
-## Coding Conventions
+## C# Coding Conventions
 
 - Use file-scoped namespaces.
 - Prefer `var` when the type is obvious.
-- Keep component logic in `.razor.cs` code-behind files.
-- Use async EF Core APIs only.
-- Use `IDbContextFactory<ClintonFranklandDbContext>` for per-operation contexts.
+- Use async APIs consistently — do not mix sync and async paths on the same resource.
+- Never abbreviate variable or method names. Names should be fully spelled out and as descriptive and human-readable as possible.
 
 ## Things You Must Not Do
 
-- Do not introduce another UI component library.
-- Do not casually modify secrets or login credentials.
-- Do not skip build verification.
-- Do not hold DbContexts across renders.
-- Do not break the `cf` table naming convention without a deliberate migration plan.
-
-## Gotchas & Pitfalls
-
-- Culture is pinned to `en-US` and currency formatting depends on it.
-- Radzen grids need explicit reload behavior after mutations.
-- Startup migrations and SQL Server-specific migration dialect matter.
-- Background worker timezone handling is important.
-- The four-part `<Version>` field is the displayed application version.
+- Do not skip build and test verification.
 
 ## Workflow
 
@@ -87,8 +30,8 @@ SproutPenny Budget App is a C# Blazor Server application (.NET 10) with a SQL Se
 ### Implementation
 1. Read relevant files first.
 2. Follow existing patterns.
-3. Run `dotnet build` after changes.
-4. Run `dotnet test` when tests exist or are added, then manually verify behavior where needed.
+3. Run the build after changes.
+4. Run all tests before calling work done.
 
 ### Parallel Work
 - Use parallel help for isolated subtasks.
@@ -99,22 +42,39 @@ SproutPenny Budget App is a C# Blazor Server application (.NET 10) with a SQL Se
 - Fork sessions when it improves clarity.
 
 ### Multi-Repo Work
-- Be explicit when work spans Budget App and sibling repos.
+- Be explicit when work spans multiple repositories.
 - Verify assumptions before copying patterns across repos.
 
 ### Automation
-- Keep backup and notification workflows documented.
-- Prefer explicit, inspectable automation.
+- Keep automation explicit, inspectable, and documented.
+- Update any automation docs when workflows change.
 
 ## Documentation
 
-`README.md` and `docs/` are the canonical project docs. Keep them current in the same task that changes workflows, schema, commands, background jobs, or operational behavior.
+`README.md` (repo root) and `docs/` are the canonical project docs. `README.md` is the front door — it must always reflect the current state of the project. Update it in the same task that changes architecture, endpoints, uploads, schemas, or user flows. Never leave it stale.
+
+### What README.md must contain
+
+Keep these sections current. Do not remove them; do not let them drift.
+
+1. **Project overview** — one paragraph stating purpose and audience.
+2. **Architecture diagram** — Mermaid diagram showing the system boundary and all key components.
+3. **Technology section** — table of every technology, library, and framework with its version. Pull versions from project files.
+4. **Domain concepts** — brief definitions of the key entities and domain terms used throughout the codebase.
+5. **User workflows** — one Mermaid flowchart per distinct user type tracing every discernible path through the application.
+6. **File reference table** — every significant source file in every directory, with a one-line description. Group by folder. Do not omit services, pages, models, or config files.
+7. **Coding conventions** — project-specific conventions beyond the generic C# rules in these instructions.
+8. **Constraints** — hard rules about what must not change or be introduced (e.g. preserved API contracts, locked dependencies).
+9. **Known pitfalls** — non-obvious traps a developer would hit: wrong paths, environment differences, legacy exclusions.
+10. **SQL objects** — table listing every database table with a brief description. Include views, stored procedures, and functions if they exist.
+11. **External dependencies** — two tables: project references first, then package references per project. Pull versions from project files.
 
 ### Standards
 
-- Prefer diagrams where they add clarity.
-- Keep docs focused on this project.
-- Add new docs under `docs/` when needed.
+- Use GitHub-flavoured Markdown throughout.
+- Use Mermaid diagrams — they render natively on GitHub and in most IDEs. Prefer `flowchart TD` or `flowchart LR` for workflows; `graph TB` for component/system diagrams.
+- Keep documentation focused on this project. Do not pad with generic advice.
+- Add supplementary detail under `docs/` when a topic is too large for the README.
 
 ## Self-Improvement
 
