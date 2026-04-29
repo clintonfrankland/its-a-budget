@@ -52,6 +52,7 @@ builder.Services.AddSingleton<StartupDiagnosticsState>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<EmailSenderService>();
+builder.Services.AddScoped<MigrationErrorTracker>();
 builder.Services.AddHostedService<BillDueNotificationWorker>();
 
 // Backups (optional, disabled by default)
@@ -124,9 +125,19 @@ try
         if (pending.Count > 0)
         {
             app.Logger.LogInformation("Applying {Count} pending migration(s)", pending.Count);
-            await db.Database.MigrateAsync();
-            applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
-            startupDiagnostics.LastAppliedMigration = applied.LastOrDefault();
+            try
+            {
+                await db.Database.MigrateAsync();
+                applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+                startupDiagnostics.LastAppliedMigration = applied.LastOrDefault();
+            }
+            catch (Exception ex)
+            {
+                var tracker = scope.ServiceProvider.GetRequiredService<MigrationErrorTracker>();
+                var targetMigration = pending.LastOrDefault();
+                await tracker.CaptureMigrationErrorAsync(ex, targetMigration);
+                throw;
+            }
         }
 
         startupDiagnostics.Checked = true;

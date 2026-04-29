@@ -26,6 +26,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<SmtpSetting> SmtpSettings => Set<SmtpSetting>();
     public DbSet<BillDueNotificationSetting> BillDueNotificationSettings => Set<BillDueNotificationSetting>();
     public DbSet<NotificationSendLog> NotificationSendLogs => Set<NotificationSendLog>();
+    public DbSet<MigrationError> MigrationErrors => Set<MigrationError>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -144,6 +145,18 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.HasIndex(x => x.CreatedAtUtc);
             entity.HasIndex(x => new { x.UserId, x.BudgetId, x.NoticeType, x.NoticeLocalDate }).IsUnique();
+        });
+
+        modelBuilder.Entity<MigrationError>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.MigrationName).HasMaxLength(256);
+            entity.Property(x => x.ErrorMessage).IsRequired();
+            entity.Property(x => x.StackTrace).IsRequired();
+            entity.Property(x => x.OccurredAt)
+                .IsRequired()
+                .HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.OccurredAt);
         });
 
         // Configure User notification preferences with defaults
