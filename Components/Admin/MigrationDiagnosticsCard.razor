@@ -1,0 +1,199 @@
+@using System.Data
+@using System.Data.Common
+@using ClintonFrankland.Data
+@using ClintonFrankland.Models.Entities
+@using ClintonFrankland.Services
+@using Microsoft.EntityFrameworkCore
+@inject ClintonFranklandDbContext DbContext
+@inject IConfiguration Configuration
+@inject MigrationErrorTracker MigrationErrorTracker
+@inject AuthService AuthService
+
+<RadzenCard class="mb-4">
+    <h4 class="mb-3"><RadzenIcon Icon="fact_check" class="me-2" />Migration Diagnostics</h4>
+
+    @if (!IsAdminAuthorized)
+    {
+        <div class="alert alert-warning mb-0">Admin access required to view migration diagnostics.</div>
+    }
+    else
+    {
+        <div class="mb-3">
+            <h6><RadzenIcon Icon="history" class="me-2" />Current Applied Migration</h6>
+            @if (!string.IsNullOrWhiteSpace(LatestAppliedMigrationName))
+            {
+                <div><strong>Migration:</strong> @LatestAppliedMigrationName</div>
+                <div><strong>Applied:</strong> @(LatestAppliedMigrationDateUtc.HasValue ? $"{LatestAppliedMigrationDateUtc:yyyy-MM-dd HH:mm:ss} UTC" : "Unknown")</div>
+            }
+            else
+            {
+                <div>No migrations applied.</div>
+            }
+        </div>
+
+        <div class="mb-3">
+            <h6><RadzenIcon Icon="pending_actions" class="me-2" />Pending Migrations</h6>
+            @if (PendingMigrations.Count == 0)
+            {
+                <div>All migrations applied.</div>
+            }
+            else
+            {
+                <ul class="mb-0">
+                    @foreach (var migration in PendingMigrations)
+                    {
+                        <li>@migration</li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <div class="mb-3">
+            <h6><RadzenIcon Icon="dns" class="me-2" />DB Connection Target</h6>
+            <div><strong>Server:</strong> @ConnectionServer</div>
+            <div><strong>Database:</strong> @ConnectionDatabase</div>
+        </div>
+
+        <div>
+            <h6><RadzenIcon Icon="error" class="me-2" />Latest Migration Error</h6>
+            @if (LatestMigrationError is null)
+            {
+                <div>No migration errors recorded.</div>
+            }
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(LatestMigrationError.MigrationName))
+                {
+                    <div><strong>Migration:</strong> @LatestMigrationError.MigrationName</div>
+                }
+                <div><strong>Occurred:</strong> @LatestMigrationError.OccurredAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</div>
+                <div><strong>Error:</strong> @LatestMigrationError.ErrorMessage</div>
+            }
+        </div>
+    }
+</RadzenCard>
+
+@code {
+    private string? LatestAppliedMigrationName { get; set; }
+    private DateTime? LatestAppliedMigrationDateUtc { get; set; }
+    private List<string> PendingMigrations { get; set; } = [];
+    private MigrationError? LatestMigrationError { get; set; }
+    private string ConnectionServer { get; set; } = "(unknown)";
+    private string ConnectionDatabase { get; set; } = "(unknown)";
+
+    private bool IsAdminAuthorized => AuthService.IsAuthenticated && AuthService.CurrentUser.IsAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAdminAuthorized)
+            return;
+
+        await LoadLatestAppliedMigrationAsync();
+        PendingMigrations = (await DbContext.Database.GetPendingMigrationsAsync()).ToList();
+        LatestMigrationError = await MigrationErrorTracker.GetLatestErrorAsync();
+        ParseConnectionTarget();
+    }
+
+    private async Task LoadLatestAppliedMigrationAsync()
+    {
+        var connection = DbContext.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            if (await TableExistsAsync(connection, "__EFMigrationsHistory"))
+            {
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT TOP 1 [MigrationId] FROM [__EFMigrationsHistory] ORDER BY [MigrationId] DESC";
+                LatestAppliedMigrationName = (await cmd.ExecuteScalarAsync())?.ToString();
+                LatestAppliedMigrationDateUtc = null;
+                return;
+            }
+
+            if (await TableExistsAsync(connection, "EF_MigrationHistory"))
+            {
+                var dateColumn = await GetFirstDateColumnAsync(connection, "EF_MigrationHistory");
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = dateColumn is null
+                    ? "SELECT TOP 1 [MigrationName] FROM [EF_MigrationHistory] ORDER BY [MigrationName] DESC"
+                    : $"SELECT TOP 1 [MigrationName], [{dateColumn}] FROM [EF_MigrationHistory] ORDER BY [{dateColumn}] DESC";
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    LatestAppliedMigrationName = reader.IsDBNull(0) ? null : reader.GetString(0);
+                    if (dateColumn is not null && !reader.IsDBNull(1))
+                        LatestAppliedMigrationDateUtc = reader.GetDateTime(1).ToUniversalTime();
+                }
+            }
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static async Task<bool> TableExistsAsync(DbConnection connection, string tableName)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @tableName";
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@tableName";
+        p.Value = tableName;
+        cmd.Parameters.Add(p);
+
+        return await cmd.ExecuteScalarAsync() is not null;
+    }
+
+    private static async Task<string?> GetFirstDateColumnAsync(DbConnection connection, string tableName)
+    {
+        var candidateColumns = new[] { "AppliedOn", "InstalledOn", "AppliedAt", "AppliedDate", "OccurredAt", "CreatedAt", "CreatedAtUtc" };
+        foreach (var column in candidateColumns)
+        {
+            var cmd = connection.CreateCommand();
+            cmd.CommandText = @"SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @tableName AND COLUMN_NAME = @columnName";
+
+            var p1 = cmd.CreateParameter();
+            p1.ParameterName = "@tableName";
+            p1.Value = tableName;
+            cmd.Parameters.Add(p1);
+
+            var p2 = cmd.CreateParameter();
+            p2.ParameterName = "@columnName";
+            p2.Value = column;
+            cmd.Parameters.Add(p2);
+
+            if (await cmd.ExecuteScalarAsync() is not null)
+                return column;
+        }
+
+        return null;
+    }
+
+    private void ParseConnectionTarget()
+    {
+        var connectionString = Configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return;
+
+        var segments = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var segment in segments)
+        {
+            var pair = segment.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (pair.Length != 2)
+                continue;
+
+            var key = pair[0].ToLowerInvariant();
+            var value = pair[1];
+
+            if (key is "server" or "data source")
+                ConnectionServer = value;
+            else if (key is "database" or "initial catalog")
+                ConnectionDatabase = value;
+        }
+    }
+}

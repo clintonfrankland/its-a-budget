@@ -1,4 +1,5 @@
 @page "/settings"
+@using ClintonFrankland.Components.Admin
 @using ClintonFrankland.Models.Entities
 @rendermode InteractiveServer
 
@@ -30,6 +31,8 @@ else
                         <button type="button" class="btn-close" @onclick="() => Message = null"></button>
                     </div>
                 }
+
+                <MigrationDiagnosticsCard />
 
                 @* SMTP Email Section *@
                 <section id="smtp-email" class="mb-5">
