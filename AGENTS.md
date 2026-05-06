@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Canonical AI instructions for **SproutPenny Budget App** live in `ai-instructions.md`.
+Canonical AI instructions for this project live in `ai-instructions.md`.
 
 For Codex/AGENTS-compatible tools:
 1. Read `ai-instructions.md` first.

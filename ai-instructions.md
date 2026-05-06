@@ -16,16 +16,23 @@
 - Prefer `var` when the type is obvious.
 - Use async APIs consistently — do not mix sync and async paths on the same resource.
 - Never abbreviate variable or method names. Names should be fully spelled out and as descriptive and human-readable as possible.
+- Reusable logic belongs in shared libraries, not tool-specific or page-specific files.
+- Keep component logic in `.razor.cs` code-behind files where the project uses Blazor.
 
 ## Things You Must Not Do
 
 - Do not skip build and test verification.
+- Do not bypass logging conventions.
+- Do not break workspace path conventions.
+- Do not hand-wave idempotency in automation tools.
+- Do not hold DbContexts across renders or across awaits.
+- Do not introduce another UI component library where one is already established.
 
 ## Workflow
 
 ### Plan Mode
 - Start complex work with a plan.
-- Re-plan instead of thrashing when needed.
+- Re-plan instead of thrashing when something turns sideways.
 
 ### Implementation
 1. Read relevant files first.
@@ -48,6 +55,8 @@
 ### Automation
 - Keep automation explicit, inspectable, and documented.
 - Update any automation docs when workflows change.
+- Prefer deterministic logging and retry behavior in cron tools.
+- Use timeout-aware process helpers instead of raw process spawning.
 
 ## Documentation
 
@@ -75,6 +84,8 @@ Keep these sections current. Do not remove them; do not let them drift.
 - Use Mermaid diagrams — they render natively on GitHub and in most IDEs. Prefer `flowchart TD` or `flowchart LR` for workflows; `graph TB` for component/system diagrams.
 - Keep documentation focused on this project. Do not pad with generic advice.
 - Add supplementary detail under `docs/` when a topic is too large for the README.
+- Keep operational documentation aligned with actual code.
+- When workflow behavior changes, update the relevant docs in the same task.
 
 ## Self-Improvement
 

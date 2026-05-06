@@ -1,8 +1,10 @@
 # AI Compatibility Wrapper
 
-Canonical AI instructions for **SproutPenny Budget App** live in `ai-instructions.md`.
+Canonical AI instructions for this project live in `ai-instructions.md`.
 
 Read and follow `ai-instructions.md` first.
+
+Project-specific commands, architecture details, and configuration are documented below this header.
 
 Minimum non-negotiables before doing work:
 - plan before changing code

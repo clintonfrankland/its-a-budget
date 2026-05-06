@@ -1,6 +1,6 @@
 # Copilot Instructions
 
-Canonical AI instructions for **SproutPenny Budget App** live in `ai-instructions.md`.
+Canonical AI instructions for this project live in `ai-instructions.md`.
 
 Read `ai-instructions.md` first, then apply any editor-specific constraints.
 
