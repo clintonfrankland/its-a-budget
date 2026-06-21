@@ -53,6 +53,10 @@ else
                             <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
                                           Click="@(() => OnSearch(string.Empty))" title="Clear search" />
                         }
+                        <RadzenButton Icon="description" Text="CSV" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                      Click="ExportCsvAsync" title="Export filtered budget items as CSV" />
+                        <RadzenButton Icon="grid_on" Text="Excel" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                      Click="ExportExcelAsync" title="Export filtered budget items as Excel" />
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
@@ -273,5 +277,4 @@ else
         </div>
     }
 }
-
 

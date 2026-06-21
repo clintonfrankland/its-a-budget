@@ -2,6 +2,7 @@ using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Radzen;
 using Radzen.Blazor;
 
@@ -26,6 +27,12 @@ public partial class BudgetItems
 
     [Inject]
     private CheckbookDataService CheckbookData { get; set; } = default!;
+
+    [Inject]
+    private BudgetItemsExportService BudgetItemsExport { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -94,6 +101,7 @@ public partial class BudgetItems
             {
                 BudgetId = b.BudgetId,
                 BudgetName = b.BudgetName ?? string.Empty,
+                Type = b.BudgetTypeId == 0 ? "Income" : "Expense",
                 Category = b.Category?.CategoryName ?? string.Empty,
                 DueDate = b.NextDueDate ?? DateTime.Today,
                 EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01"))
@@ -105,6 +113,7 @@ public partial class BudgetItems
                 IsBill = b.IsBill ?? false,
                 IsAuto = b.IsAutomatic ?? false,
                 IsLate = b.IsLate ?? false,
+                Payee = b.Payee?.PayeeName ?? string.Empty,
                 SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : []
             }).ToList();
 
@@ -404,6 +413,35 @@ public partial class BudgetItems
             (item.FrequencyName?.ToLower().Contains(searchLower) ?? false) ||
             item.Amount.ToString("C").ToLower().Contains(searchLower)
         );
+    }
+
+    private List<BudgetItemViewModel> GetExportItems()
+    {
+        var gridView = budgetItemsGrid?.View;
+        if (gridView is not null)
+            return gridView.ToList();
+
+        return filteredBudgetItems.OrderBy(item => item.BudgetName).ToList();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var fileName = BudgetItemsExport.CreateFileName("csv");
+        var bytes = BudgetItemsExport.CreateCsv(GetExportItems());
+        await DownloadAsync(fileName, "text/csv;charset=utf-8", bytes);
+    }
+
+    private async Task ExportExcelAsync()
+    {
+        var fileName = BudgetItemsExport.CreateFileName("xlsx");
+        var bytes = BudgetItemsExport.CreateExcel(GetExportItems());
+        await DownloadAsync(fileName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+    }
+
+    private async Task DownloadAsync(string fileName, string contentType, byte[] bytes)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("budgetApp.downloadFileFromBase64", fileName, contentType, base64);
     }
 
     private void OnSearch(string? value)

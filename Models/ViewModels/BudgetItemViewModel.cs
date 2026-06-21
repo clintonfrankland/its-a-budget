@@ -5,6 +5,7 @@ public class BudgetItemViewModel
     public int BudgetId { get; set; }
     public DateTime DueDate { get; set; }
     public string BudgetName { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
     public string Payee { get; set; } = string.Empty;  // Optional payee override
     public string Category { get; set; } = string.Empty;
     public string FrequencyName { get; set; } = string.Empty;

@@ -10,7 +10,13 @@ public class BudgetItemsDataService
     public BudgetItemsDataService(ClintonFranklandDbContext db) => _db = db;
 
     public Task<List<Budget>> GetBudgetsForUserAsync(int userId) =>
-        _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Frequency).Where(b => b.UserId == userId).ToListAsync();
+        _db.Budgets
+            .AsNoTracking()
+            .Include(b => b.Category)
+            .Include(b => b.Frequency)
+            .Include(b => b.Payee)
+            .Where(b => b.UserId == userId)
+            .ToListAsync();
 
     public Task<List<Category>> GetCategoriesForUserAsync(int userId) =>
         _db.Categories.AsNoTracking().Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();

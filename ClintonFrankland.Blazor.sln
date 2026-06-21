@@ -5,6 +5,8 @@ VisualStudioVersion = 18.2.11408.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClintonFrankland.Blazor", "ClintonFrankland.Blazor.csproj", "{BBB2CB1C-777E-9376-B02F-808AC6837892}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClintonFrankland.Blazor.Tests", "ClintonFrankland.Blazor.Tests\ClintonFrankland.Blazor.Tests.csproj", "{DFD262BD-02D8-4561-A142-24B604F39626}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{BBB2CB1C-777E-9376-B02F-808AC6837892}.Release|x64.Build.0 = Release|Any CPU
 		{BBB2CB1C-777E-9376-B02F-808AC6837892}.Release|x86.ActiveCfg = Release|Any CPU
 		{BBB2CB1C-777E-9376-B02F-808AC6837892}.Release|x86.Build.0 = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|x64.Build.0 = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Debug|x86.Build.0 = Debug|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|x64.ActiveCfg = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|x64.Build.0 = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|x86.ActiveCfg = Release|Any CPU
+		{DFD262BD-02D8-4561-A142-24B604F39626}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
