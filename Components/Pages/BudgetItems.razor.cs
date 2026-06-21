@@ -57,6 +57,8 @@ public partial class BudgetItems
     // Frequency dropdown option
     private record FrequencyOption(int FrequencyId, string FrequencyName);
 
+    private int CurrentBudgetItemsUserId => ResolveBudgetItemsUserId(AuthService.CurrentUser, SiteInfoService.DefaultUserId);
+
     // Edit fields
     private int editBudgetId = -1;
     private string editBudgetName = string.Empty;
@@ -92,7 +94,7 @@ public partial class BudgetItems
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentBudgetItemsUserId;
             var budgetsData = await BudgetItemsData.GetBudgetsForUserAsync(userId);
             _sparklineData = await CheckbookData.GetMonthlyCategoryTotalsAsync(userId, 3);
 
@@ -156,7 +158,7 @@ public partial class BudgetItems
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentBudgetItemsUserId;
             var categories = await BudgetItemsData.GetCategoriesForUserAsync(userId);
 
             categoriesList = categories
@@ -278,7 +280,7 @@ public partial class BudgetItems
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentBudgetItemsUserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
@@ -346,6 +348,9 @@ public partial class BudgetItems
 
     private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
         => BudgetItemsData.GetOrCreatePayeeAsync(payeeName, userId);
+
+    internal static int ResolveBudgetItemsUserId(UserInfo currentUser, int fallbackDefaultUserId)
+        => currentUser.UserId > 0 ? currentUser.UserId : fallbackDefaultUserId;
 
     private async Task DeleteBudgetAsync()
     {
