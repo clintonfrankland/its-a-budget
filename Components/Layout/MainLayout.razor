@@ -17,6 +17,7 @@
                     <li class="nav-item"><a class="nav-link" href="checkbook" @onclick="CollapseNavbar">Checkbook</a></li>
                     <li class="nav-item"><a class="nav-link" href="budget" @onclick="CollapseNavbar">Budget Forecast</a></li>
                     <li class="nav-item"><a class="nav-link" href="budgetitems" @onclick="CollapseNavbar">Budget Items</a></li>
+                    <li class="nav-item"><a class="nav-link" href="payees" @onclick="CollapseNavbar">Payees</a></li>
                     <li class="nav-item"><a class="nav-link" href="accounts" @onclick="CollapseNavbar">Accounts</a></li>
                     @if (AuthService.CurrentUser.IsAdmin)
                     {
@@ -81,5 +82,4 @@
         <p>&copy; @DateTime.Now.Year - @SiteInfoService.SiteInfo.SiteName <small class="text-muted">(@SiteInfoService.SiteInfo.Version)</small></p>
     </footer>
 </div>
-
 

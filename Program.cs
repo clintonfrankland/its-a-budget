@@ -62,6 +62,7 @@ builder.Services.AddHostedService<DatabaseBackupWorker>();
 builder.Services.AddScoped<AccountsDataService>();
 builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetItemsExportService>();
+builder.Services.AddScoped<PayeesDataService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();

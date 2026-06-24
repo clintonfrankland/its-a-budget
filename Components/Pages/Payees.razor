@@ -1,0 +1,186 @@
+@page "/payees"
+@using ClintonFrankland.Models.ViewModels
+@rendermode InteractiveServer
+
+<PageTitle>Payees</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (currentView == ViewMode.List)
+    {
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <h1>Payees</h1>
+                </div>
+                <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
+                    <RadzenButton Icon="merge_type" Text="Merge" ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Medium" Click="ShowMerge" Disabled="@(!activePayees.Any())" />
+                </div>
+            </div>
+        </div>
+
+        <div class="container mt-4">
+            <RadzenDataGrid @ref="payeesGrid" Data="@filteredPayees" TItem="PayeeSummaryViewModel"
+                            Density="Density.Compact"
+                            AllowFiltering="true" AllowSorting="true"
+                            FilterMode="FilterMode.CheckBoxList" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            class="rz-datatable-striped">
+                <HeaderTemplate>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2" Wrap="FlexWrap.Wrap">
+                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..."
+                                       Style="width: 250px;"
+                                       @oninput="@(args => OnSearch(args.Value?.ToString()))" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                          Click="@(() => OnSearch(string.Empty))" title="Clear search" />
+                        }
+                        <RadzenCheckBox @bind-Value="includeDeleted" TValue="bool" Change="LoadDataAsync" Name="includeDeletedPayees" />
+                        <RadzenLabel Text="Show deleted" Component="includeDeletedPayees" Style="margin-bottom: 0;" />
+                    </RadzenStack>
+                </HeaderTemplate>
+                <Columns>
+                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                              Click="() => ShowEditAsync(item.PayeeId)" Disabled="@item.IsDeleted" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="PayeeName" Title="Payee" SortOrder="SortOrder.Ascending">
+                        <Template Context="item">
+                            <span class="@(item.IsDeleted ? "text-muted text-decoration-line-through" : "")">@item.PayeeName</span>
+                            @if (!string.IsNullOrWhiteSpace(item.DuplicateHint))
+                            {
+                                <RadzenIcon Icon="content_copy" title="@($"Possible duplicate group: {item.DuplicateHint}")" Style="font-size: 15px; color: var(--rz-warning);" />
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="LastTransactionDate" Title="Last Txn" Width="110px" FormatString="{0:MM/dd/yyyy}" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="BudgetCount" Title="Budgets" Width="90px" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Income30Days" Title="30d In" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Expense30Days" Title="30d Out" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Income6Months" Title="6m In" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Expense6Months" Title="6m Out" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Income1Year" Title="1y In" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Property="Expense1Year" Title="1y Out" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="item">
+                            <RadzenButton Icon="receipt_long" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                          Click="() => OpenTransactions(item.PayeeName)" title="View matching transactions" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    {
+                        <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <Template Context="item">
+                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                              Click="() => ShowEditAsync(item.PayeeId)" Disabled="@item.IsDeleted" title="Edit" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    }
+                </Columns>
+            </RadzenDataGrid>
+        </div>
+    }
+    else if (currentView == ViewMode.Edit)
+    {
+        <div class="container" style="max-width: 550px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">Edit Payee</h4>
+                @if (!string.IsNullOrEmpty(editErrorMessage))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="true" Close="@(() => editErrorMessage = string.Empty)" class="mb-3">
+                        @editErrorMessage
+                    </RadzenAlert>
+                }
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Name:" Component="editPayeeNameTextBox" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenTextBox @bind-Value="editPayeeName" Name="editPayeeNameTextBox" MaxLength="64" Style="width: 100%;" />
+                    </RadzenColumn>
+                </RadzenRow>
+                <div class="text-end mt-3">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" class="me-2" />
+                    <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SavePayeeAsync" />
+                </div>
+            </RadzenCard>
+        </div>
+    }
+    else if (currentView == ViewMode.Merge)
+    {
+        <div class="container" style="max-width: 700px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">Merge Payees</h4>
+                @if (!string.IsNullOrEmpty(mergeErrorMessage))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="true" Close="@(() => mergeErrorMessage = string.Empty)" class="mb-3">
+                        @mergeErrorMessage
+                    </RadzenAlert>
+                }
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Keep:" Component="keepPayeeDropDown" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenDropDown @bind-Value="keepPayeeId" TValue="int" Name="keepPayeeDropDown"
+                                        Data="@activePayees" TextProperty="PayeeName" ValueProperty="PayeeId"
+                                        Style="width: 100%;" Change="ClearMergePreview" />
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Remove:" Component="removePayeeDropDown" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenDropDown @bind-Value="removePayeeId" TValue="int" Name="removePayeeDropDown"
+                                        Data="@activePayees" TextProperty="PayeeName" ValueProperty="PayeeId"
+                                        Style="width: 100%;" Change="ClearMergePreview" />
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <div class="text-end mt-3">
+                    <RadzenButton Text="Preview" Icon="visibility" ButtonStyle="ButtonStyle.Secondary" Click="PreviewMergeAsync" />
+                </div>
+
+                @if (mergePreview is not null)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" class="mt-3">
+                        <div><strong>@mergePreview.RemovePayeeName</strong> will be merged into <strong>@mergePreview.KeepPayeeName</strong>.</div>
+                        <div>@mergePreview.TransactionCount transaction(s) and @mergePreview.BudgetCount budget item(s) will move.</div>
+                    </RadzenAlert>
+                    <RadzenRow Gap="0.5rem" class="mb-2">
+                        <RadzenColumn Size="4" class="text-end pt-2">
+                            <RadzenLabel Text="Confirm:" Component="mergeConfirmTextBox" />
+                        </RadzenColumn>
+                        <RadzenColumn Size="8">
+                            <RadzenTextBox @bind-Value="mergeConfirmationName" Name="mergeConfirmTextBox"
+                                           Placeholder="@mergePreview.KeepPayeeName" Style="width: 100%;" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <div class="text-end mt-3">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" class="me-2" />
+                    <RadzenButton Text="Merge" Icon="merge_type" ButtonStyle="ButtonStyle.Primary"
+                                  Disabled="@(mergePreview is null)" Click="MergePayeesAsync" />
+                </div>
+            </RadzenCard>
+        </div>
+    }
+}

@@ -29,6 +29,9 @@ public partial class Checkbook
     [Inject]
     private IWebHostEnvironment Environment { get; set; } = default!;
 
+    [SupplyParameterFromQuery(Name = "search")]
+    private string? InitialSearch { get; set; }
+
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
 
@@ -112,6 +115,7 @@ public partial class Checkbook
                 return;
             }
 
+            transactionSearchText = InitialSearch ?? string.Empty;
             await LoadDataAsync();
             StateHasChanged();
         }
