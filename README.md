@@ -78,9 +78,10 @@ flowchart TD
     F --> I[Budget Forecast\nview chart · mark paid · edit next]
     F --> J[Accounts\nmanage balances & account details]
     F --> K[Profile\nnotification prefs · timezone]
-    F --> L{Admin only}
-    L --> M[Settings\nSMTP · bill-due notifications]
-    L --> N[Users\nuser management]
+    F --> L[Payees\nsearch · edit · select and merge duplicates]
+    F --> M{Admin only}
+    M --> N[Settings\nSMTP · bill-due notifications]
+    M --> O[Users\nuser management]
 ```
 
 **Typical daily use:**
@@ -94,6 +95,12 @@ flowchart TD
 3. Checkbook → enter your opening balance transaction
 4. Settings (admin) → configure SMTP if you want bill-due email reminders
 5. Profile → opt in to notifications and set your timezone
+
+**Payee cleanup:**
+1. Open Payees to search, sort, and review active or deleted payees
+2. Select two or more active payees with row checkboxes
+3. Click Merge, choose the selected payee to keep, and preview the reassigned transaction and budget item totals
+4. Confirm the merge to reassign activity to the kept payee and soft-delete the selected duplicates
 
 ---
 
@@ -181,7 +188,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Budget item** | A recurring income or expense rule that drives the forecast and optionally triggers bill-due notifications. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
-| **Payee** | A user-owned named entity representing who a payment is made to or received from. |
+| **Payee** | A user-owned named entity representing who a payment is made to or received from. Active payees can be selected in bulk and merged into one kept payee while transactions and budget items are reassigned. |
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
 | **Safe to spend** | The lowest projected balance between today and the next paydate — used as a guardrail for discretionary spending. |
 | **Cleared** | A flag on a transaction indicating it has settled in the bank. The cleared balance is the sum of cleared transactions only. |
@@ -208,6 +215,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | `Components/Pages/Budget.razor(.cs)` | Budget forecast chart and upcoming items list |
 | `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items |
 | `Components/Pages/Accounts.razor(.cs)` | Account list with balances and details |
+| `Components/Pages/Payees.razor(.cs)` | Payee search, edit, transaction drill-in, active/deleted filtering, and selected-row duplicate merge workflow |
 | `Components/Pages/Profile.razor(.cs)` | User preferences and notification settings |
 | `Components/Pages/Settings.razor(.cs)` | Admin: SMTP config, bill-due notification settings, backup |
 | `Components/Pages/Users.razor(.cs)` | Admin: user management |
@@ -222,6 +230,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
 | `Services/BudgetDataService.cs` | Budget CRUD and forecast projection logic |
 | `Services/BudgetItemsDataService.cs` | Budget item management |
+| `Services/PayeesDataService.cs` | Payee summaries, edit validation, merge preview, and user-scoped multi-source payee merge operations |
 | `Services/DashboardDataService.cs` | Home snapshot: balance, upcoming bills, lowest projected balance, category spend |
 | `Services/DatabaseBackupService.cs` | `BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION` via ADO.NET |
 | `Services/DatabaseBackupWorker.cs` | Hosted service — scheduled automated SQL backups |
