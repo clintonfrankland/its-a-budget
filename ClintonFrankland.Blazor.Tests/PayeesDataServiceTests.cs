@@ -72,28 +72,43 @@ public class PayeesDataServiceTests
     }
 
     [Fact]
-    public async Task MergePayeesAsync_ReassignsTransactionsAndBudgetsThenSoftDeletesSource()
+    public async Task MergePayeesAsync_ReassignsTransactionsAndBudgetsThenSoftDeletesSelectedSources()
     {
         await using var db = CreateDbContext();
         SeedRequiredLookups(db);
         db.Payees.AddRange(
             new Payee { PayeeId = 1, PayeeName = "Keep", UserId = 42, IsDeleted = false },
-            new Payee { PayeeId = 2, PayeeName = "Remove", UserId = 42, IsDeleted = false });
+            new Payee { PayeeId = 2, PayeeName = "Remove A", UserId = 42, IsDeleted = false },
+            new Payee { PayeeId = 3, PayeeName = "Remove B", UserId = 42, IsDeleted = false },
+            new Payee { PayeeId = 4, PayeeName = "Not Selected", UserId = 42, IsDeleted = false });
         db.Budgets.Add(new Budget { BudgetId = 1, BudgetName = "Bill", BudgetTypeId = 1, CategoryId = 1, UserId = 42, PayeeId = 2 });
+        db.Budgets.Add(new Budget { BudgetId = 2, BudgetName = "Bill 2", BudgetTypeId = 1, CategoryId = 1, UserId = 42, PayeeId = 3 });
+        db.Budgets.Add(new Budget { BudgetId = 3, BudgetName = "Other", BudgetTypeId = 1, CategoryId = 1, UserId = 42, PayeeId = 4 });
         db.Transactions.Add(Transaction(1, 42, 2, new DateOnly(2026, 6, 20), -25m));
+        db.Transactions.Add(Transaction(2, 42, 3, new DateOnly(2026, 6, 21), -30m));
+        db.Transactions.Add(Transaction(3, 42, 4, new DateOnly(2026, 6, 22), -40m));
         await db.SaveChangesAsync();
 
         var service = new PayeesDataService(db);
-        var preview = await service.PreviewMergeAsync(42, 1, 2);
-        var result = await service.MergePayeesAsync(42, 1, 2, "Keep");
+        var selectedPayeeIds = new[] { 1, 2, 3 };
+        var preview = await service.PreviewMergeAsync(42, 1, selectedPayeeIds);
+        var result = await service.MergePayeesAsync(42, 1, selectedPayeeIds, "Keep");
 
-        Assert.Equal(1, preview.TransactionCount);
-        Assert.Equal(1, preview.BudgetCount);
-        Assert.Equal(1, result.TransactionsUpdated);
-        Assert.Equal(1, result.BudgetsUpdated);
+        Assert.Equal(2, preview.TransactionCount);
+        Assert.Equal(2, preview.BudgetCount);
+        Assert.Equal(["Remove A", "Remove B"], preview.RemovedPayees.Select(p => p.PayeeName));
+        Assert.Equal(2, result.TransactionsUpdated);
+        Assert.Equal(2, result.BudgetsUpdated);
+        Assert.Equal([2, 3], result.RemovedPayeeIds.OrderBy(id => id));
         Assert.True((await db.Payees.FindAsync(2))!.IsDeleted);
+        Assert.True((await db.Payees.FindAsync(3))!.IsDeleted);
+        Assert.False((await db.Payees.FindAsync(4))!.IsDeleted);
         Assert.Equal(1, (await db.Transactions.FindAsync(1))!.PayeeId);
+        Assert.Equal(1, (await db.Transactions.FindAsync(2))!.PayeeId);
+        Assert.Equal(4, (await db.Transactions.FindAsync(3))!.PayeeId);
         Assert.Equal(1, (await db.Budgets.FindAsync(1))!.PayeeId);
+        Assert.Equal(1, (await db.Budgets.FindAsync(2))!.PayeeId);
+        Assert.Equal(4, (await db.Budgets.FindAsync(3))!.PayeeId);
     }
 
     [Fact]
@@ -109,10 +124,24 @@ public class PayeesDataServiceTests
 
         var service = new PayeesDataService(db);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, 1));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, 3));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, 4));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MergePayeesAsync(42, 1, 2, "Wrong"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, [1]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, [2, 3]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, [1, 3]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewMergeAsync(42, 1, [1, 4]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MergePayeesAsync(42, 1, [1, 2], "Wrong"));
+    }
+
+    [Fact]
+    public void PayeesPageSource_UsesSelectedRowsAndRemovesOldRemoveDropdown()
+    {
+        var componentSource = ReadRepoFile("Components/Pages/Payees.razor");
+        var codeBehindSource = ReadRepoFile("Components/Pages/Payees.razor.cs");
+
+        Assert.Contains("selectedPayeeIds.Count < 2", componentSource);
+        Assert.Contains("TogglePayeeSelection", componentSource);
+        Assert.Contains("Data=\"@selectedPayees\"", componentSource);
+        Assert.DoesNotContain("removePayeeDropDown", componentSource);
+        Assert.DoesNotContain("removePayeeId", codeBehindSource);
     }
 
     private static ClintonFranklandDbContext CreateDbContext()
@@ -148,4 +177,19 @@ public class PayeesDataServiceTests
         Amount = amount,
         Cleared = false
     };
+
+    private static string ReadRepoFile(string relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var path = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not find {relativePath} from {AppContext.BaseDirectory}.");
+    }
 }

@@ -94,55 +94,93 @@ public class PayeesDataService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<PayeeMergePreview> PreviewMergeAsync(int userId, int keepPayeeId, int removePayeeId)
+    public async Task<PayeeMergePreview> PreviewMergeAsync(int userId, int keepPayeeId, IReadOnlyCollection<int> selectedPayeeIds)
     {
-        var (keep, remove) = await ValidateMergePayeesAsync(userId, keepPayeeId, removePayeeId);
-        var transactionCount = await _db.Transactions.CountAsync(t => t.UserId == userId && t.PayeeId == removePayeeId);
-        var budgetCount = await _db.Budgets.CountAsync(b => b.UserId == userId && b.PayeeId == removePayeeId);
+        var (keep, removePayees) = await ValidateMergePayeesAsync(userId, keepPayeeId, selectedPayeeIds);
+        var removePayeeIds = removePayees.Select(p => p.PayeeId).ToList();
+        var transactionCounts = await _db.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && removePayeeIds.Contains(t.PayeeId))
+            .GroupBy(t => t.PayeeId)
+            .Select(g => new { PayeeId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PayeeId, x => x.Count);
+        var budgetCounts = await _db.Budgets
+            .AsNoTracking()
+            .Where(b => b.UserId == userId && b.PayeeId.HasValue && removePayeeIds.Contains(b.PayeeId.Value))
+            .GroupBy(b => b.PayeeId!.Value)
+            .Select(g => new { PayeeId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PayeeId, x => x.Count);
 
-        return new PayeeMergePreview(keep.PayeeId, keep.PayeeName, remove.PayeeId, remove.PayeeName, transactionCount, budgetCount);
+        var sources = removePayees
+            .OrderBy(p => p.PayeeName)
+            .Select(p => new PayeeMergeSourcePreview(
+                p.PayeeId,
+                p.PayeeName,
+                transactionCounts.GetValueOrDefault(p.PayeeId),
+                budgetCounts.GetValueOrDefault(p.PayeeId)))
+            .ToList();
+
+        return new PayeeMergePreview(keep.PayeeId, keep.PayeeName, sources);
     }
 
-    public async Task<PayeeMergeResult> MergePayeesAsync(int userId, int keepPayeeId, int removePayeeId, string confirmationName)
+    public async Task<PayeeMergeResult> MergePayeesAsync(int userId, int keepPayeeId, IReadOnlyCollection<int> selectedPayeeIds, string confirmationName)
     {
-        var preview = await PreviewMergeAsync(userId, keepPayeeId, removePayeeId);
+        var preview = await PreviewMergeAsync(userId, keepPayeeId, selectedPayeeIds);
         if (!string.Equals(confirmationName?.Trim(), preview.KeepPayeeName, StringComparison.Ordinal))
             throw new InvalidOperationException("Confirmation must match the destination payee name.");
 
         await using var transaction = await BeginTransactionIfSupportedAsync();
-        var (keep, remove) = await ValidateMergePayeesAsync(userId, keepPayeeId, removePayeeId);
+        var (keep, removePayees) = await ValidateMergePayeesAsync(userId, keepPayeeId, selectedPayeeIds);
+        var removePayeeIds = removePayees.Select(p => p.PayeeId).ToList();
 
-        var transactions = await _db.Transactions.Where(t => t.UserId == userId && t.PayeeId == remove.PayeeId).ToListAsync();
+        var transactions = await _db.Transactions.Where(t => t.UserId == userId && removePayeeIds.Contains(t.PayeeId)).ToListAsync();
         foreach (var item in transactions)
             item.PayeeId = keep.PayeeId;
 
-        var budgets = await _db.Budgets.Where(b => b.UserId == userId && b.PayeeId == remove.PayeeId).ToListAsync();
+        var budgets = await _db.Budgets.Where(b => b.UserId == userId && b.PayeeId.HasValue && removePayeeIds.Contains(b.PayeeId.Value)).ToListAsync();
         foreach (var item in budgets)
             item.PayeeId = keep.PayeeId;
 
-        remove.IsDeleted = true;
+        foreach (var payee in removePayees)
+            payee.IsDeleted = true;
+
         await _db.SaveChangesAsync();
 
         if (transaction is not null)
             await transaction.CommitAsync();
 
-        return new PayeeMergeResult(keep.PayeeId, remove.PayeeId, transactions.Count, budgets.Count);
+        return new PayeeMergeResult(keep.PayeeId, removePayeeIds, transactions.Count, budgets.Count);
     }
 
-    private async Task<(Payee Keep, Payee Remove)> ValidateMergePayeesAsync(int userId, int keepPayeeId, int removePayeeId)
+    private async Task<(Payee Keep, List<Payee> RemovePayees)> ValidateMergePayeesAsync(int userId, int keepPayeeId, IReadOnlyCollection<int> selectedPayeeIds)
     {
-        if (keepPayeeId == removePayeeId)
-            throw new InvalidOperationException("Choose two different payees to merge.");
+        var selectedIds = selectedPayeeIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
 
-        var keep = await _db.Payees.FirstOrDefaultAsync(p => p.UserId == userId && p.PayeeId == keepPayeeId)
-            ?? throw new InvalidOperationException("Destination payee was not found.");
-        var remove = await _db.Payees.FirstOrDefaultAsync(p => p.UserId == userId && p.PayeeId == removePayeeId)
-            ?? throw new InvalidOperationException("Source payee was not found.");
+        if (selectedIds.Count < 2)
+            throw new InvalidOperationException("Select at least two active payees to merge.");
 
-        if (keep.IsDeleted || remove.IsDeleted)
+        if (!selectedIds.Contains(keepPayeeId))
+            throw new InvalidOperationException("The destination payee must be one of the selected payees.");
+
+        var payees = await _db.Payees
+            .Where(p => p.UserId == userId && selectedIds.Contains(p.PayeeId))
+            .ToListAsync();
+
+        if (payees.Count != selectedIds.Count)
+            throw new InvalidOperationException("One or more selected payees were not found.");
+
+        if (payees.Any(p => p.IsDeleted))
             throw new InvalidOperationException("Deleted payees cannot be merged.");
 
-        return (keep, remove);
+        var keep = payees.Single(p => p.PayeeId == keepPayeeId);
+        var removePayees = payees.Where(p => p.PayeeId != keepPayeeId).ToList();
+        if (removePayees.Count == 0)
+            throw new InvalidOperationException("Choose at least one payee to merge into the destination.");
+
+        return (keep, removePayees);
     }
 
     private async Task<IDbContextTransaction?> BeginTransactionIfSupportedAsync()

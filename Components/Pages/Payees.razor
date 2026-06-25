@@ -24,7 +24,7 @@ else
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
                     <RadzenButton Icon="merge_type" Text="Merge" ButtonStyle="ButtonStyle.Primary"
-                                  Size="ButtonSize.Medium" Click="ShowMerge" Disabled="@(!activePayees.Any())" />
+                                  Size="ButtonSize.Medium" Click="ShowMerge" Disabled="@(selectedPayeeIds.Count < 2)" />
                 </div>
             </div>
         </div>
@@ -50,6 +50,18 @@ else
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
+                    <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Title="" Width="54px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <Template Context="item">
+                            @if (!item.IsDeleted)
+                            {
+                                <RadzenCheckBox TValue="bool"
+                                                Value="@selectedPayeeIds.Contains(item.PayeeId)"
+                                                Change="@(selected => TogglePayeeSelection(item.PayeeId, selected))"
+                                                Name="@($"selectPayee{item.PayeeId}")"
+                                                title="Select for merge" />
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
                     @if (!AuthService.CurrentUser.ListButtonsRight)
                     {
                         <RadzenDataGridColumn TItem="PayeeSummaryViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
@@ -139,20 +151,19 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="8">
                         <RadzenDropDown @bind-Value="keepPayeeId" TValue="int" Name="keepPayeeDropDown"
-                                        Data="@activePayees" TextProperty="PayeeName" ValueProperty="PayeeId"
+                                        Data="@selectedPayees" TextProperty="PayeeName" ValueProperty="PayeeId"
                                         Style="width: 100%;" Change="ClearMergePreview" />
                     </RadzenColumn>
                 </RadzenRow>
-                <RadzenRow Gap="0.5rem" class="mb-2">
-                    <RadzenColumn Size="4" class="text-end pt-2">
-                        <RadzenLabel Text="Remove:" Component="removePayeeDropDown" />
-                    </RadzenColumn>
-                    <RadzenColumn Size="8">
-                        <RadzenDropDown @bind-Value="removePayeeId" TValue="int" Name="removePayeeDropDown"
-                                        Data="@activePayees" TextProperty="PayeeName" ValueProperty="PayeeId"
-                                        Style="width: 100%;" Change="ClearMergePreview" />
-                    </RadzenColumn>
-                </RadzenRow>
+                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" class="mb-2">
+                    <div class="mb-1">Selected payees</div>
+                    <ul class="mb-0 ps-3">
+                        @foreach (var payee in selectedPayees)
+                        {
+                            <li>@payee.PayeeName</li>
+                        }
+                    </ul>
+                </RadzenAlert>
 
                 <div class="text-end mt-3">
                     <RadzenButton Text="Preview" Icon="visibility" ButtonStyle="ButtonStyle.Secondary" Click="PreviewMergeAsync" />
@@ -161,8 +172,15 @@ else
                 @if (mergePreview is not null)
                 {
                     <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" class="mt-3">
-                        <div><strong>@mergePreview.RemovePayeeName</strong> will be merged into <strong>@mergePreview.KeepPayeeName</strong>.</div>
-                        <div>@mergePreview.TransactionCount transaction(s) and @mergePreview.BudgetCount budget item(s) will move.</div>
+                        <div><strong>@mergePreview.KeepPayeeName</strong> will be kept.</div>
+                        <div>The selected payees below will be removed after their activity is reassigned.</div>
+                        <ul class="mb-2 ps-3">
+                            @foreach (var source in mergePreview.RemovedPayees)
+                            {
+                                <li><strong>@source.PayeeName</strong>: @source.TransactionCount transaction(s), @source.BudgetCount budget item(s)</li>
+                            }
+                        </ul>
+                        <div>@mergePreview.TransactionCount transaction(s) and @mergePreview.BudgetCount budget item(s) will move in total.</div>
                     </RadzenAlert>
                     <RadzenRow Gap="0.5rem" class="mb-2">
                         <RadzenColumn Size="4" class="text-end pt-2">

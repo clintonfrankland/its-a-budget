@@ -16,16 +16,23 @@ public sealed class PayeeSummaryViewModel
     public string DuplicateHint { get; set; } = string.Empty;
 }
 
-public sealed record PayeeMergePreview(
-    int KeepPayeeId,
-    string KeepPayeeName,
-    int RemovePayeeId,
-    string RemovePayeeName,
+public sealed record PayeeMergeSourcePreview(
+    int PayeeId,
+    string PayeeName,
     int TransactionCount,
     int BudgetCount);
 
+public sealed record PayeeMergePreview(
+    int KeepPayeeId,
+    string KeepPayeeName,
+    IReadOnlyList<PayeeMergeSourcePreview> RemovedPayees)
+{
+    public int TransactionCount => RemovedPayees.Sum(p => p.TransactionCount);
+    public int BudgetCount => RemovedPayees.Sum(p => p.BudgetCount);
+}
+
 public sealed record PayeeMergeResult(
     int KeepPayeeId,
-    int RemovePayeeId,
+    IReadOnlyList<int> RemovedPayeeIds,
     int TransactionsUpdated,
     int BudgetsUpdated);

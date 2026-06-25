@@ -31,16 +31,20 @@ public partial class Payees
     private int editPayeeId = -1;
     private string editPayeeName = string.Empty;
     private int keepPayeeId;
-    private int removePayeeId;
     private string mergeConfirmationName = string.Empty;
     private PayeeMergePreview? mergePreview;
     private RadzenDataGrid<PayeeSummaryViewModel>? payeesGrid;
     private List<PayeeSummaryViewModel> payees = new();
     private List<PayeeSummaryViewModel> activePayees = new();
+    private readonly HashSet<int> selectedPayeeIds = new();
 
     private int CurrentPayeesUserId => ResolvePayeesUserId(AuthService.CurrentUser, SiteInfoService.DefaultUserId);
 
     private IEnumerable<PayeeSummaryViewModel> filteredPayees => FilterPayees();
+    private List<PayeeSummaryViewModel> selectedPayees => activePayees
+        .Where(p => selectedPayeeIds.Contains(p.PayeeId))
+        .OrderBy(p => p.PayeeName)
+        .ToList();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -65,8 +69,8 @@ public partial class Payees
             errorMessage = string.Empty;
             payees = await PayeesData.GetPayeeSummariesAsync(CurrentPayeesUserId, includeDeleted, DateOnly.FromDateTime(DateTime.Today));
             activePayees = payees.Where(p => !p.IsDeleted).OrderBy(p => p.PayeeName).ToList();
-            keepPayeeId = activePayees.FirstOrDefault()?.PayeeId ?? 0;
-            removePayeeId = activePayees.Skip(1).FirstOrDefault()?.PayeeId ?? 0;
+            selectedPayeeIds.IntersectWith(activePayees.Select(p => p.PayeeId));
+            keepPayeeId = selectedPayees.FirstOrDefault()?.PayeeId ?? 0;
             ClearMergePreview();
         }
         catch (Exception ex)
@@ -101,6 +105,13 @@ public partial class Payees
     {
         mergeErrorMessage = string.Empty;
         ClearMergePreview();
+        if (selectedPayeeIds.Count < 2)
+        {
+            mergeErrorMessage = "Select at least two active payees to merge.";
+            return;
+        }
+
+        keepPayeeId = selectedPayees.First().PayeeId;
         currentView = ViewMode.Merge;
     }
 
@@ -125,7 +136,7 @@ public partial class Payees
         {
             mergeErrorMessage = string.Empty;
             mergeConfirmationName = string.Empty;
-            mergePreview = await PayeesData.PreviewMergeAsync(CurrentPayeesUserId, keepPayeeId, removePayeeId);
+            mergePreview = await PayeesData.PreviewMergeAsync(CurrentPayeesUserId, keepPayeeId, selectedPayeeIds);
         }
         catch (Exception ex)
         {
@@ -139,7 +150,8 @@ public partial class Payees
         try
         {
             mergeErrorMessage = string.Empty;
-            await PayeesData.MergePayeesAsync(CurrentPayeesUserId, keepPayeeId, removePayeeId, mergeConfirmationName);
+            await PayeesData.MergePayeesAsync(CurrentPayeesUserId, keepPayeeId, selectedPayeeIds, mergeConfirmationName);
+            selectedPayeeIds.Clear();
             currentView = ViewMode.List;
             await LoadDataAsync();
         }
@@ -160,6 +172,22 @@ public partial class Payees
     {
         mergePreview = null;
         mergeConfirmationName = string.Empty;
+    }
+
+    private void TogglePayeeSelection(int payeeId, bool selected)
+    {
+        if (!activePayees.Any(p => p.PayeeId == payeeId))
+            return;
+
+        if (selected)
+            selectedPayeeIds.Add(payeeId);
+        else
+            selectedPayeeIds.Remove(payeeId);
+
+        if (!selectedPayeeIds.Contains(keepPayeeId))
+            keepPayeeId = selectedPayees.FirstOrDefault()?.PayeeId ?? 0;
+
+        ClearMergePreview();
     }
 
     private void OpenTransactions(string payeeName)
