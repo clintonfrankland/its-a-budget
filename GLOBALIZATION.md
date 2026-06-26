@@ -1,22 +1,25 @@
-# Globalization & Culture Strategy
+# Globalization and Culture Strategy
 
 ## Overview
-The Budget App intentionally pins culture to **en-US** (United States - English) for all server-side rendering and formatting operations. This strategy is implemented consistently across environments to ensure predictable currency formatting and user experience.
+The Budget App intentionally pins culture to **en-US** (United States - English) for all server-side rendering and formatting operations. This is a product policy, not an environment setting. Development, review/dispatch, and production should all format values the same way.
 
 ## Rationale for en-US Culture
 
 ### Primary Reason: Currency Formatting
 The primary driver for choosing `en-US` culture is **currency formatting requirements**:
 - **Symbol**: `en-US` uses the `$` symbol (e.g., `$1,234.56`)
-- **Generic symbol**: Most cultures use a generic currency symbol like `¤` (e.g., `¤1,234.56` or `1 234,56¤`)
-- **Number formatting**: `en-US` uses comma separators for thousands and period for decimals
+- **Decimal separator**: `en-US` uses a period for decimals (e.g., `1234.56`)
+- **Thousands separator**: `en-US` uses commas for grouped numbers (e.g., `1,234.56`)
+- **Predictable parsing and display**: financial workflows should not change separators or currency symbols when the server, container, browser, or reviewer locale changes
 
 ### Why Not Use Server-Side Localization?
 While Blazor Server supports localization, this app:
-1. Primarily serves US-based users
-2. Uses currency formatting as a core UX requirement
-3. Avoids the complexity of supporting multiple languages/cultures
+1. Serves US currency workflows
+2. Uses `$` currency formatting as a core UX requirement
+3. Relies on predictable decimal and thousands separators in displays and exports
 4. Prioritizes consistency over flexibility
+
+Culture is not configurable through `appsettings`, environment variables, Docker compose, or per-review settings today. Any future move to configurable cultures must be deliberate, tested, and documented because it changes user-facing money formatting.
 
 ## Implementation
 
@@ -33,34 +36,37 @@ CultureInfo.CurrentUICulture = usCulture;
 
 **When**: At the very beginning of `Program.cs`, before any other code executes.
 
-**Why**: Ensures that all subsequent operations (including EF Core queries, string formatting, and JSON serialization) use en-US culture.
+**Why**: Ensures that all subsequent operations (including service setup, EF Core work, string formatting, and JSON serialization) use en-US culture.
 
 ### Program.cs: RequestLocalization Middleware
 ```csharp
-// Force request/circuit culture to en-US for consistent formatting in Blazor Server.
-var localizationOptions = new RequestLocalizationOptions()
-    .SetDefaultCulture("en-US")
-    .AddSupportedCultures("en-US")
-    .AddSupportedUICultures("en-US");
-app.UseRequestLocalization(localizationOptions);
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.SetDefaultCulture(usCulture.Name)
+        .AddSupportedCultures(usCulture.Name)
+        .AddSupportedUICultures(usCulture.Name);
+});
+
+app.UseRequestLocalization();
 ```
 
-**When**: After app construction, before the HTTP pipeline is configured.
+**When**: Options are registered during service setup, and middleware runs after app construction before endpoint/page handling.
 
-**Why**: Ensures that Blazor Server components and JavaScript interop receive en-US culture context for client-side formatting and i18n handling.
+**Why**: Ensures requests and Blazor Server circuits receive an en-US culture context even when browser `Accept-Language`, host locale, or container defaults differ.
 
 ## Environment Consistency
 
 ### Target Environments
 This strategy is designed to work consistently across:
-- Development (`~/src/budget-app`)
-- Production (`~/.openclaw/workspace/memory_system/deploy/.../repo`)
-- Review/Dispatch (`~/.openclaw/workspace/memory_system/dispatch/.../repo`)
+- Development checkouts
+- Review/dispatch checkouts and containers
+- Production deploy checkouts and containers
 
 ### Key Principles
-1. **No per-environment overrides** – The culture is hardcoded to en-US everywhere.
-2. **Single source of truth** – Localization configuration is in one place (`Program.cs`).
-3. **Fail fast on misconfiguration** – If the culture is not en-US, the app will not format currency correctly.
+1. **No per-environment overrides** - culture is hardcoded to en-US everywhere.
+2. **Single source of truth** - localization configuration is in `Program.cs`.
+3. **Review parity** - review and dispatch environments should not alter culture to match the worker, browser, container, or host locale.
+4. **Production parity** - production should use the same culture setup as development and review.
 
 ## Migration Considerations
 
@@ -81,16 +87,17 @@ If you have legacy data or configurations that expect a different culture:
 
 ### Verification Steps
 To verify that culture is correctly pinned:
-1. Run the app in any environment.
-2. Navigate to any page that displays currency (e.g., Transactions, Budget view).
-3. Confirm that currency is formatted with `$` (e.g., `$100.00`).
-4. Check the browser's Accept-Language header to ensure it does not affect server-side formatting.
-5. Run `dotnet ef database update` to ensure migrations apply correctly across environments.
+1. Run `dotnet test ClintonFrankland.Blazor.Tests/ClintonFrankland.Blazor.Tests.csproj --filter GlobalizationSourceTests`.
+2. Run the app in any environment.
+3. Navigate to any page that displays currency (e.g., Checkbook or Budget Forecast).
+4. Confirm that currency is formatted with `$`, comma thousands separators, and period decimals (e.g., `$1,234.56`).
+5. Check that the browser's `Accept-Language` header does not affect server-side formatting.
 
 ## Related Files
 - `Program.cs` – Contains the culture pinning and RequestLocalization configuration.
-- `Program.cs` – Contains EF Core migration execution logic.
-- `Startup.cs` – Legacy startup file (may contain additional culture-related code; update if exists).
+- `ClintonFrankland.Blazor.Tests/GlobalizationSourceTests.cs` - Guards the source-level culture pin.
+- `Services/BudgetItemsExportService.cs` - Uses en-US for budget export formatting.
+- `README.md` - Links future agents to this policy.
 
 ## References
 - [Microsoft.AspNetCore.Localization](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/localization)

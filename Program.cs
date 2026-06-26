@@ -38,6 +38,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.SetDefaultCulture(usCulture.Name)
+        .AddSupportedCultures(usCulture.Name)
+        .AddSupportedUICultures(usCulture.Name);
+});
 
 // Register Entity Framework Core DbContext
 builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
@@ -187,11 +193,7 @@ END");
 }
 
 // Force request/circuit culture to en-US for consistent formatting in Blazor Server.
-var localizationOptions = new RequestLocalizationOptions()
-    .SetDefaultCulture("en-US")
-    .AddSupportedCultures("en-US")
-    .AddSupportedUICultures("en-US");
-app.UseRequestLocalization(localizationOptions);
+app.UseRequestLocalization();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

@@ -4,6 +4,7 @@ A personal budget and checkbook management application. Keeps a running transact
 
 - **User Guide** → [docs/README.md](docs/README.md) (page-by-page walkthrough)
 - **Backups** → [docs/backups.md](docs/backups.md) (backup/restore commands)
+- **Globalization** → [GLOBALIZATION.md](GLOBALIZATION.md) (why culture is pinned to `en-US`)
 
 ---
 
@@ -268,7 +269,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 
 ## Known pitfalls
 
-- **Culture is pinned to `en-US`.** Currency formatting and decimal parsing depend on it. Do not remove the culture pin in `Program.cs`.
+- **Culture is pinned to `en-US`.** Currency formatting, `$` display, comma thousands separators, period decimals, and review/production parity depend on it. Do not remove the thread culture pin or `RequestLocalizationOptions` setup in `Program.cs`; see [GLOBALIZATION.md](GLOBALIZATION.md).
 - **Radzen grids need explicit reload after mutations.** After inserting, updating, or deleting grid data, call the grid's `Reload()` method — the component does not refresh automatically.
 - **SQL Server migration dialect.** EF Core migrations use SQL Server-specific syntax. Do not apply migrations generated for another provider.
 - **Background worker timezone handling.** The bill-due notification worker operates in each user's stored timezone, not the server timezone. Changes to notification logic must account for this.
