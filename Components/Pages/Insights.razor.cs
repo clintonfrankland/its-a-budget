@@ -81,4 +81,3 @@ public partial class Insights
             ? AuthService.CurrentUser.UserId
             : SiteInfoService.DefaultUserId;
 }
-

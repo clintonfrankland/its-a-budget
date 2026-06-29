@@ -10,4 +10,3 @@ public sealed record CategoryTrendRow(string CategoryName, IReadOnlyList<decimal
 }
 
 public sealed record TopPayeeSpending(string PayeeName, decimal Total, int TransactionCount);
-

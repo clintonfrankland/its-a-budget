@@ -21,4 +21,3 @@ Dates and currency follow the app-wide `en-US` formatting policy.
 ## Limitations
 
 Insights reports expenses only by default. Income, transfers, account-level filtering, custom date ranges, and charts are not included in this first simple reporting view.
-
