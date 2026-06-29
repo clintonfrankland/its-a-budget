@@ -3,7 +3,6 @@ using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.Hosting;
 using Radzen;
 using Radzen.Blazor;
 
@@ -27,7 +26,7 @@ public partial class Checkbook
     private CheckbookDataService CheckbookData { get; set; } = default!;
 
     [Inject]
-    private IWebHostEnvironment Environment { get; set; } = default!;
+    private ReceiptAttachmentStorageService ReceiptAttachmentStorage { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "search")]
     private string? InitialSearch { get; set; }
@@ -610,57 +609,69 @@ public partial class Checkbook
             var account = await CheckbookData.GetAccountForUserAsync(userId);
             var accountId = account?.AccountId ?? 1;
 
-            // Handle attachment file upload
             string? attachmentPath = editAttachmentPath;
+            string? previousAttachmentPath = editAttachmentPath;
+            string? newlySavedAttachmentPath = null;
             if (removeAttachment && !string.IsNullOrEmpty(editAttachmentPath))
             {
-                // Delete the old file
-                await DeleteAttachmentFileAsync(editAttachmentPath);
                 attachmentPath = null;
             }
             if (editAttachmentFile != null)
             {
-                // Delete old file if exists
-                if (!string.IsNullOrEmpty(editAttachmentPath))
+                var saveResult = await ReceiptAttachmentStorage.SaveAsync(editAttachmentFile, userId);
+                if (!saveResult.Succeeded)
                 {
-                    await DeleteAttachmentFileAsync(editAttachmentPath);
+                    errorMessage = saveResult.ErrorMessage ?? "The receipt could not be saved.";
+                    return;
                 }
-                // Save new file
-                attachmentPath = await SaveAttachmentFileAsync(editAttachmentFile, userId);
+
+                newlySavedAttachmentPath = saveResult.RelativePath;
+                attachmentPath = newlySavedAttachmentPath;
             }
 
-            if (editTransactionId == -1)
+            try
             {
-                // Insert new transaction
-                var newTransaction = new Transaction
+                if (editTransactionId == -1)
                 {
-                    UserId = userId,
-                    TransactionDate = DateOnly.FromDateTime(editDate),
-                    PayeeId = payeeId,
-                    CategoryId = categoryId,
-                    AccountId = accountId,
-                    Amount = finalAmount,
-                    Cleared = editCleared,
-                    Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim(),
-                    AttachmentPath = attachmentPath
-                };
-                await CheckbookData.SaveTransactionAsync(newTransaction, isNew: true);
-            }
-            else
-            {
-                // Update existing transaction
-                var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
-                if (transaction != null)
-                {
-                    transaction.TransactionDate = DateOnly.FromDateTime(editDate);
-                    transaction.PayeeId = payeeId;
-                    transaction.CategoryId = categoryId;
-                    transaction.Amount = finalAmount;
-                    transaction.Cleared = editCleared;
-                    transaction.Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim();
-                    transaction.AttachmentPath = attachmentPath;
-                    await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
+                    var newTransaction = new Transaction
+                    {
+                        UserId = userId,
+                        TransactionDate = DateOnly.FromDateTime(editDate),
+                        PayeeId = payeeId,
+                        CategoryId = categoryId,
+                        AccountId = accountId,
+                        Amount = finalAmount,
+                        Cleared = editCleared,
+                        Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim(),
+                        AttachmentPath = attachmentPath
+                    };
+                    await CheckbookData.SaveTransactionAsync(newTransaction, isNew: true);
                 }
+                else
+                {
+                    var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
+                    if (transaction != null)
+                    {
+                        transaction.TransactionDate = DateOnly.FromDateTime(editDate);
+                        transaction.PayeeId = payeeId;
+                        transaction.CategoryId = categoryId;
+                        transaction.Amount = finalAmount;
+                        transaction.Cleared = editCleared;
+                        transaction.Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim();
+                        transaction.AttachmentPath = attachmentPath;
+                        await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
+                    }
+                }
+            }
+            catch
+            {
+                await ReceiptAttachmentStorage.DeleteIfManagedAsync(newlySavedAttachmentPath);
+                throw;
+            }
+
+            if ((removeAttachment || editAttachmentFile != null) && !string.IsNullOrEmpty(previousAttachmentPath))
+            {
+                await ReceiptAttachmentStorage.DeleteIfManagedAsync(previousAttachmentPath);
             }
 
             // If this transaction was from a budget item, mark it as paid (EF Core)
@@ -678,35 +689,6 @@ public partial class Checkbook
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
-    }
-
-    private async Task<string> SaveAttachmentFileAsync(IBrowserFile file, int userId)
-    {
-        // Create uploads directory if it doesn't exist
-        var uploadsPath = Path.Combine(Environment.WebRootPath, "uploads", "receipts", userId.ToString());
-        Directory.CreateDirectory(uploadsPath);
-
-        // Generate unique filename
-        var extension = Path.GetExtension(file.Name);
-        var fileName = $"{Guid.NewGuid()}{extension}";
-        var filePath = Path.Combine(uploadsPath, fileName);
-
-        // Save file (limit to 5MB)
-        await using var stream = new FileStream(filePath, FileMode.Create);
-        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(stream);
-
-        // Return relative path for storage
-        return $"uploads/receipts/{userId}/{fileName}";
-    }
-
-    private Task DeleteAttachmentFileAsync(string relativePath)
-    {
-        var fullPath = Path.Combine(Environment.WebRootPath, relativePath);
-        if (File.Exists(fullPath))
-        {
-            File.Delete(fullPath);
-        }
-        return Task.CompletedTask;
     }
 
     private void OnAttachmentSelected(InputFileChangeEventArgs e)
@@ -747,7 +729,9 @@ public partial class Checkbook
             var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
             if (transaction != null)
             {
+                var attachmentPath = transaction.AttachmentPath;
                 await CheckbookData.DeleteTransactionAsync(editTransactionId);
+                await ReceiptAttachmentStorage.DeleteIfManagedAsync(attachmentPath);
             }
 
             currentView = ViewMode.List;

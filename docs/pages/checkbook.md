@@ -42,9 +42,15 @@ Sometimes you want proof or context, not just numbers.
 On a transaction you can add:
 
 - **Notes**: a short description (for example, “this was the annual renewal”)
-- **Attachment**: a file path/photo reference (for example, a receipt or confirmation)
+- **Attachment**: a PDF or image receipt/confirmation
 
 This is great for returns, reimbursements, and keeping a clean paper trail.
+
+Receipt uploads are limited to PDF and common image formats (JPG, PNG, GIF, WebP, BMP, and TIFF). The default maximum file size is 5 MB unless the administrator changes the `ReceiptAttachments:MaxFileSizeBytes` configuration value.
+
+The app validates the receipt before saving it, stores it with a generated safe filename, and records only an app-relative path on the transaction. A pluggable scan hook runs during upload; the default local/review scanner is no-op, but a production scanner can reject an upload before the transaction references it.
+
+When you replace, remove, or delete a receipt attachment, the app deletes only files inside its managed receipt upload folder. A cleanup worker also removes orphaned receipt files under that folder when no transaction references them.
 
 ## Editing or deleting a transaction
 

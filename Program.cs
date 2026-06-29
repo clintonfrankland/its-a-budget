@@ -1,5 +1,6 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
+using ClintonFrankland.Models.Attachments;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,10 @@ builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
+builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
+builder.Services.AddScoped<IAttachmentMalwareScanner, NoOpAttachmentMalwareScanner>();
+builder.Services.AddScoped<ReceiptAttachmentStorageService>();
+builder.Services.AddHostedService<ReceiptAttachmentCleanupWorker>();
 builder.Services.AddRadzenComponents();
 
 // CLI-style commands (backup/export + restore smoke test)
