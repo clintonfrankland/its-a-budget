@@ -77,9 +77,10 @@ flowchart TD
     F --> G[Checkbook\nenter & clear transactions]
     F --> H[Budget Items\nmanage recurring bills/income]
     F --> I[Budget Forecast\nview chart · mark paid · edit next]
-    F --> J[Accounts\nmanage balances & account details]
-    F --> K[Profile\nnotification prefs · timezone]
-    F --> L[Payees\nsearch · edit · select and merge duplicates]
+    F --> J[Insights\ncategory spend · trends · top payees]
+    F --> K[Accounts\nmanage balances & account details]
+    F --> L[Profile\nnotification prefs · timezone]
+    F --> P[Payees\nsearch · edit · select and merge duplicates]
     F --> M{Admin only}
     M --> N[Settings\nSMTP · bill-due notifications]
     M --> O[Users\nuser management]
@@ -88,7 +89,8 @@ flowchart TD
 **Typical daily use:**
 1. Open Home to check today's balance and upcoming bills
 2. Open Checkbook to record any new transactions and clear settled ones
-3. Optionally open Budget Forecast to see the shape of the next few weeks
+3. Open Insights to review this month's spending by category and payee
+4. Optionally open Budget Forecast to see the shape of the next few weeks
 
 **First-time setup:**
 1. Accounts → create your accounts
@@ -188,6 +190,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Transaction** | A ledger entry recording income or expenditure against an account. |
 | **Budget item** | A recurring income or expense rule that drives the forecast and optionally triggers bill-due notifications. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
+| **Insights** | Simple expense reports for the signed-in user: selected-month category totals, recent category trends, and top payees. |
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
 | **Payee** | A user-owned named entity representing who a payment is made to or received from. Active payees can be selected in bulk and merged into one kept payee while transactions and budget items are reassigned. |
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
@@ -230,6 +233,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Components/Pages/Login.razor(.cs)` | Dedicated sign-in page |
 | `Components/Pages/Checkbook.razor(.cs)` | Transaction ledger with running balance and budget panel |
 | `Components/Pages/Budget.razor(.cs)` | Budget forecast chart and upcoming items list |
+| `Components/Pages/Insights.razor(.cs)` | Authenticated spending reports by category, recent category trend, and top payees |
 | `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items |
 | `Components/Pages/Accounts.razor(.cs)` | Account list with balances and details |
 | `Components/Pages/Payees.razor(.cs)` | Payee search, edit, transaction drill-in, active/deleted filtering, and selected-row duplicate merge workflow |
@@ -245,6 +249,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/BillDueNotificationWorker.cs` | Hosted service — 15-min tick, sends bill-due emails per user timezone |
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
+| `Services/InsightsDataService.cs` | User-scoped expense reporting queries for the Insights page |
 | `Services/ReceiptAttachmentStorageService.cs` | Checkbook receipt validation, generated filenames, scanner hook, safe delete, and orphan cleanup |
 | `Services/IAttachmentMalwareScanner.cs` | Pluggable receipt attachment scan hook; default implementation is no-op |
 | `Services/BudgetDataService.cs` | Budget CRUD and forecast projection logic |

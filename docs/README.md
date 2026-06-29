@@ -18,6 +18,7 @@ This app is designed to be simple, fast, and practical. It helps you:
 | Home | The landing page after opening the app | [Home](pages/home.md) |
 | Checkbook | Your day-to-day transactions and running balance | [Checkbook](pages/checkbook.md) |
 | Budget Forecast | Plan ahead and see your projected balance | [Budget Forecast](pages/budget-forecast.md) |
+| Insights | Simple spending reports by category, trend, and payee | [Insights](pages/insights.md) |
 | Budget Items | Manage your recurring bills/income list | [Budget Items](pages/budget-items.md) |
 | Accounts | Track accounts, balances, and key details | [Accounts](pages/accounts.md) |
 | Profile | Your personal settings, including bill-due notice preferences | [Profile](pages/profile.md) |

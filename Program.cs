@@ -73,6 +73,7 @@ builder.Services.AddScoped<PayeesDataService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();
+builder.Services.AddScoped<InsightsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.AddScoped<IAttachmentMalwareScanner, NoOpAttachmentMalwareScanner>();
