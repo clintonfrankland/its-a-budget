@@ -62,6 +62,26 @@ The app is a **Blazor Server** application — all rendering and logic runs on t
 | `dotnet run -- restore-smoketest --file ./backups/...` | Verify a backup file is readable |
 | `dotnet run -- restore --file ./backups/...` | Restore a backup |
 
+### Local configuration
+
+Committed settings files must not contain real SQL or fallback login secrets. `appsettings.Development.json` is intentionally safe to commit and leaves secret-bearing values empty. Use .NET user secrets for local development:
+
+```bash
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<sql-server-connection-string>"
+dotnet user-secrets set "AppSettings:LoginUser" "<fallback-login-user>"
+dotnet user-secrets set "AppSettings:LoginPassword" "<fallback-login-password>"
+```
+
+For Docker or production-style runs, provide the same values as environment variables:
+
+```bash
+ConnectionStrings__DefaultConnection="<sql-server-connection-string>"
+AppSettings__LoginUser="<fallback-login-user>"
+AppSettings__LoginPassword="<fallback-login-password>"
+```
+
+`appsettings.Development.example.json` shows the expected shape without real credentials. For machine-local JSON overrides, use an ignored `appsettings.Development.local.json` file and load it manually only in private workflows.
+
 ---
 
 ## User workflows
