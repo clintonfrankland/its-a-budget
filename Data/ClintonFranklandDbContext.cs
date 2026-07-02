@@ -17,6 +17,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountType> AccountTypes => Set<AccountType>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<CategoryBudgetTarget> CategoryBudgetTargets => Set<CategoryBudgetTarget>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Frequency> Frequencies => Set<Frequency>();
     public DbSet<Payee> Payees => Set<Payee>();
@@ -76,6 +77,24 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasOne(c => c.User)
                   .WithMany(u => u.Categories)
                   .HasForeignKey(c => c.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CategoryBudgetTarget>(entity =>
+        {
+            entity.HasKey(t => t.CategoryBudgetTargetId);
+            entity.Property(t => t.UpdatedAtUtc).IsRequired();
+
+            entity.HasIndex(t => new { t.UserId, t.CategoryId, t.BudgetMonth }).IsUnique();
+
+            entity.HasOne(t => t.User)
+                  .WithMany(u => u.CategoryBudgetTargets)
+                  .HasForeignKey(t => t.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(t => t.Category)
+                  .WithMany(c => c.CategoryBudgetTargets)
+                  .HasForeignKey(t => t.CategoryId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 

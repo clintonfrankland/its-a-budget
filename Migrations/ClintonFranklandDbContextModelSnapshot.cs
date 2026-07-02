@@ -268,6 +268,45 @@ namespace ClintonFrankland.Migrations
                     b.ToTable("cfBudgets");
                 });
 
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.CategoryBudgetTarget", b =>
+                {
+                    b.Property<int>("CategoryBudgetTargetId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("CategoryBudgetTargetId");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CategoryBudgetTargetId"));
+
+                    b.Property<DateOnly>("BudgetMonth")
+                        .HasColumnType("date")
+                        .HasColumnName("BudgetMonth");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int")
+                        .HasColumnName("CategoryId");
+
+                    b.Property<decimal>("PlannedAmount")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("PlannedAmount");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UpdatedAtUtc");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("UserId");
+
+                    b.HasKey("CategoryBudgetTargetId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "CategoryId", "BudgetMonth")
+                        .IsUnique();
+
+                    b.ToTable("cfCategoryBudgetTargets");
+                });
+
             modelBuilder.Entity("ClintonFrankland.Models.Entities.Category", b =>
                 {
                     b.Property<int>("CategoryId")
@@ -705,6 +744,25 @@ namespace ClintonFrankland.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.CategoryBudgetTarget", b =>
+                {
+                    b.HasOne("ClintonFrankland.Models.Entities.Category", "Category")
+                        .WithMany("CategoryBudgetTargets")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ClintonFrankland.Models.Entities.User", "User")
+                        .WithMany("CategoryBudgetTargets")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ClintonFrankland.Models.Entities.Payee", b =>
                 {
                     b.HasOne("ClintonFrankland.Models.Entities.User", "User")
@@ -764,6 +822,8 @@ namespace ClintonFrankland.Migrations
                 {
                     b.Navigation("Budgets");
 
+                    b.Navigation("CategoryBudgetTargets");
+
                     b.Navigation("Transactions");
                 });
 
@@ -784,6 +844,8 @@ namespace ClintonFrankland.Migrations
                     b.Navigation("Accounts");
 
                     b.Navigation("Budgets");
+
+                    b.Navigation("CategoryBudgetTargets");
 
                     b.Navigation("Categories");
 

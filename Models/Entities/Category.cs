@@ -26,5 +26,6 @@ public class Category
     public virtual User? User { get; set; }
 
     public virtual ICollection<Budget> Budgets { get; set; } = [];
+    public virtual ICollection<CategoryBudgetTarget> CategoryBudgetTargets { get; set; } = [];
     public virtual ICollection<Transaction> Transactions { get; set; } = [];
 }
