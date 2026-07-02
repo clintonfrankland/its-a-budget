@@ -1,5 +1,4 @@
 using ClintonFrankland.Models;
-using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -24,6 +23,9 @@ public partial class Checkbook
 
     [Inject]
     private CheckbookDataService CheckbookData { get; set; } = default!;
+
+    [Inject]
+    private BudgetScheduleService BudgetSchedule { get; set; } = default!;
 
     [Inject]
     private ReceiptAttachmentStorageService ReceiptAttachmentStorage { get; set; } = default!;
@@ -178,7 +180,6 @@ public partial class Checkbook
                 };
             }).ToList();
 
-            // Load payees and categories for autocomplete (EF Core)
             await LoadPayeesAndCategoriesAsync();
 
             // Get forecast if needed
@@ -223,7 +224,7 @@ public partial class Checkbook
         {
             var userId = SiteInfoService.DefaultUserId;
             // Always check for bills due today (independent of budget panel settings)
-            var allForecast = await GenerateBudgetForecastAsync(userId, DateTime.Today.AddDays(Math.Max(budgetDays + 1, 1)));
+            var allForecast = await BudgetSchedule.GetForecastAsync(userId, DateTime.Today.AddDays(Math.Max(budgetDays + 1, 1)));
 
             var billsDueToday = allForecast
                 .Where(b => b.DueDate <= DateTime.Today && b.IsBill)
@@ -245,91 +246,6 @@ public partial class Checkbook
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
-    }
-
-    private async Task<List<BudgetItemViewModel>> GenerateBudgetForecastAsync(int userId, DateTime endDate)
-    {
-        // Get starting balance from account
-        var account = await CheckbookData.GetAccountForUserAsync(userId);
-        var startingBalance = account?.BeginningBalance ?? 0m;
-
-        // Add sum of all transactions to starting balance
-        var transactionSum = await CheckbookData.GetTransactionSumAsync(userId);
-        startingBalance += transactionSum;
-
-        // Get all budgets for the user
-        var budgets = await CheckbookData.GetBudgetsForUserAsync(userId);
-
-        // Extend end date if there's income scheduled after it
-        var incomeBudget = budgets
-            .Where(b => b.BudgetTypeId == 0)
-            .OrderBy(b => b.NextDueDate)
-            .FirstOrDefault();
-        if (incomeBudget?.NextDueDate > endDate)
-            endDate = incomeBudget.NextDueDate.Value;
-
-        // Project all budget items forward through time
-        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int BudgetTypeId, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee)>();
-
-        foreach (var budget in budgets)
-        {
-            var nextDue = budget.NextDueDate ?? DateTime.Today;
-            var budgetEndDate = (budget.EndDate == null || budget.EndDate == DateTime.Parse("1970-01-01")) 
-                ? endDate 
-                : budget.EndDate.Value;
-            var frequencyId = budget.FrequencyId ?? 0;
-
-            // Project this budget forward until end date
-            while (nextDue < endDate && nextDue < budgetEndDate)
-            {
-                var amount = budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
-                projectedItems.Add((
-                    budget.BudgetId,
-                    budget.BudgetName ?? string.Empty,
-                    budget.Category?.CategoryName ?? string.Empty,
-                    nextDue,
-                    amount,
-                    budget.BudgetTypeId,
-                    frequencyId,
-                    budget.Frequency?.FrequencyName ?? string.Empty,
-                    budget.IsAutomatic ?? false,
-                    budget.IsBill ?? false,
-                    budget.IsLate ?? false,
-                    budget.Payee?.PayeeName ?? string.Empty
-                ));
-
-                // Calculate next due date
-                if (frequencyId == 0) break; // One-time
-                nextDue = CalculateNextDueDate(nextDue, frequencyId);
-            }
-        }
-
-        // Sort by date, then by amount (descending for income first)
-        var sortedItems = projectedItems.OrderBy(i => i.DueDate).ThenByDescending(i => i.Amount).ToList();
-
-        // Calculate running balance
-        var runningBalance = startingBalance;
-        var result = new List<BudgetItemViewModel>();
-        foreach (var item in sortedItems)
-        {
-            runningBalance += item.Amount;
-            result.Add(new BudgetItemViewModel
-            {
-                BudgetId = item.BudgetId,
-                BudgetName = item.BudgetName,
-                Category = item.Category,
-                DueDate = item.DueDate,
-                Amount = item.Amount,
-                Balance = runningBalance,
-                FrequencyName = item.FrequencyName,
-                IsAuto = item.IsAuto,
-                IsBill = item.IsBill,
-                IsLate = item.IsLate,
-                Payee = item.Payee
-            });
-        }
-
-        return result;
     }
 
     private async Task OnBudgetDaysChangedAsync(ChangeEventArgs e)
@@ -400,55 +316,8 @@ public partial class Checkbook
     }
     private async Task MarkBudgetPaidAsync(int budgetId)
     {
-        var budget = await CheckbookData.FindBudgetAsync(budgetId);
-        if (budget == null) return;
-
-        // Calculate new NextDueDate based on frequency
-        var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
-        budget.NextDueDate = newNextDueDate;
-        await CheckbookData.SaveBudgetAsync(budget);
-
-        // Delete if one-time (FrequencyId = 0)
-        if (budget.FrequencyId == 0)
-        {
-            await CheckbookData.DeleteBudgetAsync(budget);
-        }
-        // Delete if past end date
-        else if (budget.EndDate.HasValue && budget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > budget.EndDate)
-        {
-            await CheckbookData.DeleteBudgetAsync(budget);
-        }
-    }
-
-    private static DateTime CalculateNextDueDate(DateTime currentDate, int frequencyId)
-    {
-        return frequencyId switch
-        {
-            0 => currentDate, // One-time - no change
-            1 => currentDate.AddDays(7), // Weekly
-            2 => currentDate.AddDays(14), // Bi-weekly
-            4 => currentDate.AddMonths(1), // Monthly
-            5 => currentDate.AddMonths(2), // Bi-monthly
-            6 => currentDate.AddMonths(3), // Quarterly
-            7 => currentDate.AddDays(35), // 5 weeks
-            8 => CalculateSemiMonthly(currentDate), // Semi-monthly (1st and 15th)
-            9 => currentDate.AddYears(1), // Yearly
-            10 => currentDate.AddDays(5), // Every 5 days
-            11 => currentDate.AddDays(42), // 6 weeks
-            12 => currentDate.AddDays(21), // 3 weeks
-            13 => currentDate.AddDays(28), // 4 weeks
-            14 => currentDate.AddMonths(6), // Semi-annually
-            _ => currentDate
-        };
-    }
-
-    private static DateTime CalculateSemiMonthly(DateTime currentDate)
-    {
-        // If on 1st, go to 15th; otherwise go to 1st of next month
-        if (currentDate.Day == 1)
-            return currentDate.AddDays(14);
-        else
-            return new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1);
+        var userId = SiteInfoService.DefaultUserId;
+        await BudgetSchedule.MarkBudgetPaidAsync(userId, budgetId);
     }
 
     // Save the current grid state (filters, sorts, page)
@@ -545,7 +414,8 @@ public partial class Checkbook
         try
         {
             SaveGridState();
-            var transaction = await CheckbookData.GetTransactionByIdAsync(transactionId);
+            var userId = SiteInfoService.DefaultUserId;
+            var transaction = await CheckbookData.GetTransactionByIdAsync(userId, transactionId);
 
             if (transaction != null)
             {
@@ -597,18 +467,6 @@ public partial class Checkbook
             var userId = SiteInfoService.DefaultUserId;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
             finalAmount = CurrencyPolicy.Round(finalAmount);
-            // Get or create Category and Payee (ensure they exist for required FK)
-            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
-            var payeeId = await GetOrCreatePayeeAsync(editPayee, userId);
-
-            // Default to -1 if not found (matching the stored procedure behavior)
-            if (categoryId <= 0) categoryId = await GetOrCreateCategoryAsync("Uncategorized", userId);
-            if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
-
-            // Get default account
-            var account = await CheckbookData.GetAccountForUserAsync(userId);
-            var accountId = account?.AccountId ?? 1;
-
             string? attachmentPath = editAttachmentPath;
             string? previousAttachmentPath = editAttachmentPath;
             string? newlySavedAttachmentPath = null;
@@ -631,37 +489,16 @@ public partial class Checkbook
 
             try
             {
-                if (editTransactionId == -1)
-                {
-                    var newTransaction = new Transaction
-                    {
-                        UserId = userId,
-                        TransactionDate = DateOnly.FromDateTime(editDate),
-                        PayeeId = payeeId,
-                        CategoryId = categoryId,
-                        AccountId = accountId,
-                        Amount = finalAmount,
-                        Cleared = editCleared,
-                        Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim(),
-                        AttachmentPath = attachmentPath
-                    };
-                    await CheckbookData.SaveTransactionAsync(newTransaction, isNew: true);
-                }
-                else
-                {
-                    var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
-                    if (transaction != null)
-                    {
-                        transaction.TransactionDate = DateOnly.FromDateTime(editDate);
-                        transaction.PayeeId = payeeId;
-                        transaction.CategoryId = categoryId;
-                        transaction.Amount = finalAmount;
-                        transaction.Cleared = editCleared;
-                        transaction.Notes = string.IsNullOrWhiteSpace(editNotes) ? null : editNotes.Trim();
-                        transaction.AttachmentPath = attachmentPath;
-                        await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
-                    }
-                }
+                await CheckbookData.SaveTransactionAsync(
+                    userId,
+                    editTransactionId,
+                    DateOnly.FromDateTime(editDate),
+                    editPayee,
+                    editCategory,
+                    finalAmount,
+                    editCleared,
+                    editNotes,
+                    attachmentPath);
             }
             catch
             {
@@ -674,7 +511,7 @@ public partial class Checkbook
                 await ReceiptAttachmentStorage.DeleteIfManagedAsync(previousAttachmentPath);
             }
 
-            // If this transaction was from a budget item, mark it as paid (EF Core)
+            // If this transaction was from a budget item, mark it as paid.
             if (editBudgetId != -1)
             {
                 await MarkBudgetPaidAsync(editBudgetId);
@@ -703,12 +540,6 @@ public partial class Checkbook
         removeAttachment = true;
     }
 
-    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-        => CheckbookData.GetOrCreateCategoryAsync(categoryName, userId);
-
-    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-        => CheckbookData.GetOrCreatePayeeAsync(payeeName, userId);
-
     private async Task DeleteTransactionAsync()
     {
         var confirmed = await DialogService.Confirm(
@@ -726,11 +557,12 @@ public partial class Checkbook
 
         try
         {
-            var transaction = await CheckbookData.FindTransactionAsync(editTransactionId);
+            var userId = SiteInfoService.DefaultUserId;
+            var transaction = await CheckbookData.GetTransactionByIdAsync(userId, editTransactionId);
             if (transaction != null)
             {
                 var attachmentPath = transaction.AttachmentPath;
-                await CheckbookData.DeleteTransactionAsync(editTransactionId);
+                await CheckbookData.DeleteTransactionAsync(userId, editTransactionId);
                 await ReceiptAttachmentStorage.DeleteIfManagedAsync(attachmentPath);
             }
 
@@ -748,12 +580,8 @@ public partial class Checkbook
     {
         try
         {
-            var transaction = await CheckbookData.FindTransactionAsync(transactionId);
-            if (transaction != null)
-            {
-                transaction.Cleared = true;
-                await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
-            }
+            var userId = SiteInfoService.DefaultUserId;
+            await CheckbookData.SetTransactionClearedAsync(userId, transactionId, true);
 
             // Update the item in place to preserve grid filter state
             var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
@@ -776,12 +604,8 @@ public partial class Checkbook
     {
         try
         {
-            var transaction = await CheckbookData.FindTransactionAsync(transactionId);
-            if (transaction != null)
-            {
-                transaction.Cleared = false;
-                await CheckbookData.SaveTransactionAsync(transaction, isNew: false);
-            }
+            var userId = SiteInfoService.DefaultUserId;
+            await CheckbookData.SetTransactionClearedAsync(userId, transactionId, false);
 
             // Update the item in place to preserve grid filter state
             var viewModel = transactions.FirstOrDefault(t => t.TransactionId == transactionId);

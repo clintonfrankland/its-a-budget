@@ -70,33 +70,68 @@ public class CheckbookDataService
             .ToList();
     }
 
-    public Task<Transaction?> GetTransactionByIdAsync(int id) => _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category).FirstOrDefaultAsync(t => t.TransactionId == id);
-    public Task<Transaction?> FindTransactionAsync(int id) => _db.Transactions.FindAsync(id).AsTask();
-    public Task<Budget?> FindBudgetAsync(int id) => _db.Budgets.FindAsync(id).AsTask();
+    public Task<Transaction?> GetTransactionByIdAsync(int userId, int id) =>
+        _db.Transactions
+            .AsNoTracking()
+            .Include(t => t.Payee)
+            .Include(t => t.Category)
+            .FirstOrDefaultAsync(t => t.TransactionId == id && t.UserId == userId);
 
-    public async Task SaveTransactionAsync(Transaction txn, bool isNew)
+    public async Task SaveTransactionAsync(
+        int userId,
+        int transactionId,
+        DateOnly transactionDate,
+        string payeeName,
+        string categoryName,
+        decimal amount,
+        bool cleared,
+        string? notes,
+        string? attachmentPath)
     {
-        txn.Amount = CurrencyPolicy.Round(txn.Amount);
+        var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
+        var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
+
+        if (categoryId <= 0) categoryId = await GetOrCreateCategoryAsync("Uncategorized", userId);
+        if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
+
+        var account = await GetAccountForUserAsync(userId);
+        var accountId = account?.AccountId ?? 1;
+        var isNew = transactionId == -1;
+        var txn = isNew
+            ? new Transaction { UserId = userId, AccountId = accountId }
+            : await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.UserId == userId);
+
+        if (txn is null)
+            return;
+
+        txn.TransactionDate = transactionDate;
+        txn.PayeeId = payeeId;
+        txn.CategoryId = categoryId;
+        txn.AccountId = accountId;
+        txn.Amount = CurrencyPolicy.Round(amount);
+        txn.Cleared = cleared;
+        txn.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        txn.AttachmentPath = attachmentPath;
+
         if (isNew) _db.Transactions.Add(txn);
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteTransactionAsync(int id)
+    public async Task DeleteTransactionAsync(int userId, int id)
     {
-        var txn = await _db.Transactions.FindAsync(id);
+        var txn = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == id && t.UserId == userId);
         if (txn is null) return;
         _db.Transactions.Remove(txn);
         await _db.SaveChangesAsync();
     }
 
-    public async Task SaveBudgetAsync(Budget budget)
+    public async Task SetTransactionClearedAsync(int userId, int transactionId, bool cleared)
     {
-        await _db.SaveChangesAsync();
-    }
+        var transaction = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.UserId == userId);
+        if (transaction is null)
+            return;
 
-    public async Task DeleteBudgetAsync(Budget budget)
-    {
-        _db.Budgets.Remove(budget);
+        transaction.Cleared = cleared;
         await _db.SaveChangesAsync();
     }
 

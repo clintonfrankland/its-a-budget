@@ -27,14 +27,55 @@ public class BudgetItemsDataService
     public Task<List<Frequency>> GetFrequenciesAsync() =>
         _db.Frequencies.AsNoTracking().OrderBy(f => f.Sort).ToListAsync();
 
-    public Task<Budget?> GetBudgetByIdAsync(int budgetId) =>
-        _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Payee).FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+    public Task<Budget?> GetBudgetByIdAsync(int userId, int budgetId) =>
+        _db.Budgets
+            .AsNoTracking()
+            .Include(b => b.Category)
+            .Include(b => b.Payee)
+            .FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
 
-    public Task<Budget?> FindBudgetAsync(int budgetId) => _db.Budgets.FindAsync(budgetId).AsTask();
-
-    public async Task SaveBudgetAsync(Budget budget, bool isNew)
+    public async Task SaveBudgetAsync(
+        int userId,
+        int budgetId,
+        string budgetName,
+        int budgetTypeId,
+        int frequencyId,
+        DateTime nextDueDate,
+        DateTime endDate,
+        decimal amount,
+        string categoryName,
+        string payeeName,
+        bool isAutomatic,
+        bool isBill,
+        bool isLate)
     {
+        var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
+        if (categoryId <= 0)
+            throw new InvalidOperationException("Category is required.");
+
+        var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
+        var isNew = budgetId == -1;
+        var budget = isNew
+            ? new Budget { UserId = userId }
+            : await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
+
+        if (budget is null)
+            return;
+
+        budget.BudgetName = budgetName;
+        budget.BudgetTypeId = budgetTypeId;
+        budget.FrequencyId = frequencyId;
+        budget.NextDueDate = nextDueDate;
+        budget.EndDate = endDate;
+        budget.Amount = amount;
+        budget.CategoryId = categoryId;
+        budget.UserId = userId;
+        budget.IsAutomatic = isAutomatic;
+        budget.IsBill = isBill;
+        budget.IsLate = isLate;
+        budget.PayeeId = payeeId > 0 ? payeeId : null;
         budget.Amount = CurrencyPolicy.Round(budget.Amount);
+
         if (isNew) _db.Budgets.Add(budget);
         await _db.SaveChangesAsync();
     }
@@ -61,9 +102,9 @@ public class BudgetItemsDataService
         return newPayee.PayeeId;
     }
 
-    public async Task DeleteBudgetAsync(int budgetId)
+    public async Task DeleteBudgetAsync(int userId, int budgetId)
     {
-        var budget = await _db.Budgets.FindAsync(budgetId);
+        var budget = await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
         if (budget is null) return;
         _db.Budgets.Remove(budget);
         await _db.SaveChangesAsync();

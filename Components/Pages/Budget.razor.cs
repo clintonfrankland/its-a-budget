@@ -1,5 +1,4 @@
 using ClintonFrankland.Models;
-using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Radzen;
@@ -23,6 +22,9 @@ public partial class Budget
 
     [Inject]
     private BudgetDataService BudgetData { get; set; } = default!;
+
+    [Inject]
+    private BudgetScheduleService BudgetSchedule { get; set; } = default!;
 
     private enum ViewMode { List, Edit, EditNext }
     private ViewMode currentView = ViewMode.List;
@@ -67,11 +69,6 @@ public partial class Budget
     private DateTime editEndDate = DateTime.Today;
     private string editErrorMessage = string.Empty;
 
-    // Edit Next fields (stores original budget data for creating one-time budget)
-    private int editNextOriginalBudgetTypeId = 1;
-    private bool editNextOriginalIsBill = false;
-    private string editNextOriginalPayee = string.Empty;
-
     // Frequency dropdown option
     private record FrequencyOption(int FrequencyId, string FrequencyName);
 
@@ -96,102 +93,16 @@ public partial class Budget
         {
             var userId = SiteInfoService.DefaultUserId;
             var endDate = DateTime.Today.AddMonths(6);
-            var forecastItems = await GenerateBudgetForecastAsync(userId, endDate);
+            var forecastItems = await BudgetSchedule.GetForecastAsync(userId, endDate);
             budgetItems = forecastItems;
             chartData = GenerateChartData(forecastItems);
 
-            // Load autocomplete data (EF Core)
             await LoadCategoriesAndPayeesAsync();
         }
         catch (Exception ex)
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
-    }
-
-    private async Task<List<BudgetItemViewModel>> GenerateBudgetForecastAsync(int userId, DateTime endDate)
-    {
-        // Get starting balance from account
-        var account = await BudgetData.GetAccountForUserAsync(userId);
-        var startingBalance = account?.BeginningBalance ?? 0m;
-
-        // Add sum of all transactions to starting balance
-        var transactionSum = await BudgetData.GetTransactionSumAsync(userId);
-        startingBalance += transactionSum;
-
-        // Get all budgets for the user
-        var budgets = await BudgetData.GetBudgetsForUserAsync(userId);
-
-        // Extend end date if there's income scheduled after it
-        var incomeBudget = budgets
-            .Where(b => b.BudgetTypeId == 0)
-            .OrderBy(b => b.NextDueDate)
-            .FirstOrDefault();
-        if (incomeBudget?.NextDueDate > endDate)
-            endDate = incomeBudget.NextDueDate.Value;
-
-        // Project all budget items forward through time
-        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int BudgetTypeId, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee)>();
-
-        foreach (var budget in budgets)
-        {
-            var nextDue = budget.NextDueDate ?? DateTime.Today;
-            var budgetEndDate = (budget.EndDate == null || budget.EndDate == DateTime.Parse("1970-01-01")) 
-                ? endDate 
-                : budget.EndDate.Value;
-            var frequencyId = budget.FrequencyId ?? 0;
-
-            // Project this budget forward until end date
-            while (nextDue < endDate && nextDue < budgetEndDate)
-            {
-                var amount = budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
-                projectedItems.Add((
-                    budget.BudgetId,
-                    budget.BudgetName ?? string.Empty,
-                    budget.Category?.CategoryName ?? string.Empty,
-                    nextDue,
-                    amount,
-                    budget.BudgetTypeId,
-                    frequencyId,
-                    budget.Frequency?.FrequencyName ?? string.Empty,
-                    budget.IsAutomatic ?? false,
-                    budget.IsBill ?? false,
-                    budget.IsLate ?? false,
-                    budget.Payee?.PayeeName ?? string.Empty
-                ));
-
-                // Calculate next due date
-                if (frequencyId == 0) break; // One-time
-                nextDue = CalculateNextDueDate(nextDue, frequencyId);
-            }
-        }
-
-        // Sort by date, then by amount (descending for income first)
-        var sortedItems = projectedItems.OrderBy(i => i.DueDate).ThenByDescending(i => i.Amount).ToList();
-
-        // Calculate running balance
-        var runningBalance = startingBalance;
-        var result = new List<BudgetItemViewModel>();
-        foreach (var item in sortedItems)
-        {
-            runningBalance += item.Amount;
-            result.Add(new BudgetItemViewModel
-            {
-                BudgetId = item.BudgetId,
-                BudgetName = item.BudgetName,
-                Category = item.Category,
-                DueDate = item.DueDate,
-                Amount = item.Amount,
-                Balance = runningBalance,
-                FrequencyName = item.FrequencyName,
-                IsAuto = item.IsAuto,
-                IsBill = item.IsBill,
-                IsLate = item.IsLate,
-                Payee = item.Payee
-            });
-        }
-
-        return result;
     }
 
     private static List<ChartDataPoint> GenerateChartData(List<BudgetItemViewModel> forecastItems)
@@ -254,7 +165,8 @@ public partial class Budget
         try
         {
             await LoadFrequenciesAsync();
-            var budget = await BudgetData.GetBudgetByIdAsync(budgetId);
+            var userId = SiteInfoService.DefaultUserId;
+            var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
 
             if (budget != null)
             {
@@ -362,57 +274,20 @@ public partial class Budget
             var isAuto = editIsBill && editIsAuto;
             var budgetName = editBudgetName.Trim();
             var categoryName = editCategory.Trim();
-            var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
-            if (categoryId <= 0)
-            {
-                editErrorMessage = "Category is required.";
-                return;
-            }
-
-            // Get or create Payee
-            var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
-
-            if (editBudgetId == -1)
-            {
-                // Insert new budget
-                var newBudget = new Models.Entities.Budget
-                {
-                    BudgetName = budgetName,
-                    BudgetTypeId = budgetTypeId,
-                    FrequencyId = editFrequencyId,
-                    NextDueDate = editNextDueDate,
-                    EndDate = endDate,
-                    Amount = roundedAmount,
-                    CategoryId = categoryId,
-                    UserId = userId,
-                    IsAutomatic = isAuto,
-                    IsBill = editIsBill,
-                    IsLate = editIsLate,
-                    PayeeId = payeeId > 0 ? payeeId : null
-                };
-                await BudgetData.SaveBudgetAsync(newBudget, isNew: true);
-            }
-            else
-            {
-                // Update existing budget
-                var budget = await BudgetData.FindBudgetAsync(editBudgetId);
-                if (budget != null)
-                {
-                    budget.BudgetName = budgetName;
-                    budget.BudgetTypeId = budgetTypeId;
-                    budget.FrequencyId = editFrequencyId;
-                    budget.NextDueDate = editNextDueDate;
-                    budget.EndDate = endDate;
-                    budget.Amount = roundedAmount;
-                    budget.CategoryId = categoryId;
-                    budget.UserId = userId;
-                    budget.IsAutomatic = isAuto;
-                    budget.IsBill = editIsBill;
-                    budget.IsLate = editIsLate;
-                    budget.PayeeId = payeeId > 0 ? payeeId : null;
-                    await BudgetData.SaveBudgetAsync(budget, isNew: false);
-                }
-            }
+            await BudgetData.SaveBudgetAsync(
+                userId,
+                editBudgetId,
+                budgetName,
+                budgetTypeId,
+                editFrequencyId,
+                editNextDueDate,
+                endDate,
+                roundedAmount,
+                categoryName,
+                payeeName,
+                isAuto,
+                editIsBill,
+                editIsLate);
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -422,12 +297,6 @@ public partial class Budget
             editErrorMessage = $"Save failed: {ex.Message}";
         }
     }
-
-    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-        => BudgetData.GetOrCreateCategoryAsync(categoryName, userId);
-
-    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-        => BudgetData.GetOrCreatePayeeAsync(payeeName, userId);
 
     private async Task DeleteBudgetAsync()
     {
@@ -446,11 +315,8 @@ public partial class Budget
 
         try
         {
-            var budget = await BudgetData.FindBudgetAsync(editBudgetId);
-            if (budget != null)
-            {
-                await BudgetData.DeleteBudgetAsync(budget);
-            }
+            var userId = SiteInfoService.DefaultUserId;
+            await BudgetData.DeleteBudgetAsync(userId, editBudgetId);
 
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -465,24 +331,8 @@ public partial class Budget
     {
         try
         {
-            var budget = await BudgetData.FindBudgetAsync(budgetId);
-            if (budget == null) return;
-
-            // Calculate new NextDueDate based on frequency
-            var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
-            budget.NextDueDate = newNextDueDate;
-            await BudgetData.SaveBudgetAsync(budget, isNew: false);
-
-            // Delete if one-time (FrequencyId = 0)
-            if (budget.FrequencyId == 0)
-            {
-                await BudgetData.DeleteBudgetAsync(budget);
-            }
-            // Delete if past end date
-            else if (budget.EndDate.HasValue && budget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > budget.EndDate)
-            {
-                await BudgetData.DeleteBudgetAsync(budget);
-            }
+            var userId = SiteInfoService.DefaultUserId;
+            await BudgetSchedule.MarkBudgetPaidAsync(userId, budgetId);
 
             await LoadDataAsync();
         }
@@ -492,42 +342,12 @@ public partial class Budget
         }
     }
 
-    private static DateTime CalculateNextDueDate(DateTime currentDate, int frequencyId)
-    {
-        return frequencyId switch
-        {
-            0 => currentDate, // One-time - no change
-            1 => currentDate.AddDays(7), // Weekly
-            2 => currentDate.AddDays(14), // Bi-weekly
-            4 => currentDate.AddMonths(1), // Monthly
-            5 => currentDate.AddMonths(2), // Bi-monthly
-            6 => currentDate.AddMonths(3), // Quarterly
-            7 => currentDate.AddDays(35), // 5 weeks
-            8 => CalculateSemiMonthly(currentDate), // Semi-monthly (1st and 15th)
-            9 => currentDate.AddYears(1), // Yearly
-            10 => currentDate.AddDays(5), // Every 5 days
-            11 => currentDate.AddDays(42), // 6 weeks
-            12 => currentDate.AddDays(21), // 3 weeks
-            13 => currentDate.AddDays(28), // 4 weeks
-            14 => currentDate.AddMonths(6), // Semi-annually
-            _ => currentDate
-        };
-    }
-
-    private static DateTime CalculateSemiMonthly(DateTime currentDate)
-    {
-        // If on 1st, go to 15th; otherwise go to 1st of next month
-        if (currentDate.Day == 1)
-            return currentDate.AddDays(14);
-        else
-            return new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1);
-    }
-
     private async Task ShowEditNextAsync(int budgetId)
     {
         try
         {
-            var budget = await BudgetData.GetBudgetByIdAsync(budgetId);
+            var userId = SiteInfoService.DefaultUserId;
+            var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
 
             if (budget != null)
             {
@@ -538,11 +358,6 @@ public partial class Budget
                 editCategory = budget.Category?.CategoryName ?? string.Empty;
                 editIsAuto = budget.IsAutomatic ?? false;
                 editIsLate = budget.IsLate ?? false;
-
-                // Store original values needed for creating the one-time budget
-                editNextOriginalBudgetTypeId = budget.BudgetTypeId;
-                editNextOriginalIsBill = budget.IsBill ?? false;
-                editNextOriginalPayee = budget.Payee?.PayeeName ?? string.Empty;
 
                 currentView = ViewMode.EditNext;
             }
@@ -587,48 +402,15 @@ public partial class Budget
             var budgetName = editBudgetName.Trim();
             var categoryName = editCategory.Trim();
 
-            // 1. Mark the original budget as paid (EF Core)
-            var originalBudget = await BudgetData.FindBudgetAsync(editBudgetId);
-            if (originalBudget != null)
-            {
-                var newNextDueDate = CalculateNextDueDate(originalBudget.NextDueDate ?? DateTime.Today, originalBudget.FrequencyId ?? 0);
-                originalBudget.NextDueDate = newNextDueDate;
-                await BudgetData.SaveBudgetAsync(originalBudget, isNew: false);
-
-                // Delete if one-time or past end date
-                if (originalBudget.FrequencyId == 0 ||
-                    (originalBudget.EndDate.HasValue && originalBudget.EndDate != DateTime.Parse("1970-01-01") && newNextDueDate > originalBudget.EndDate))
-                {
-                    await BudgetData.DeleteBudgetAsync(originalBudget);
-                }
-            }
-
-            // 2. Create a new one-time budget (FrequencyId = 0)
-            var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
-            if (categoryId <= 0)
-            {
-                editErrorMessage = "Category is required.";
-                return;
-            }
-
-            var payeeId = await GetOrCreatePayeeAsync(editNextOriginalPayee, userId);
-
-            var newBudget = new Models.Entities.Budget
-            {
-                BudgetName = budgetName,
-                BudgetTypeId = editNextOriginalBudgetTypeId,
-                FrequencyId = 0,  // 0 = One-time
-                NextDueDate = editNextDueDate,
-                EndDate = DateTime.Parse("1970-01-01"),
-                Amount = editAmount,
-                CategoryId = categoryId,
-                UserId = userId,
-                IsAutomatic = editIsAuto,
-                IsBill = editNextOriginalIsBill,
-                IsLate = editIsLate,
-                PayeeId = payeeId > 0 ? payeeId : null
-            };
-            await BudgetData.SaveBudgetAsync(newBudget, isNew: true);
+            await BudgetSchedule.CreateEditedNextOccurrenceAsync(
+                userId,
+                editBudgetId,
+                budgetName,
+                editNextDueDate,
+                editAmount,
+                categoryName,
+                editIsAuto,
+                editIsLate);
 
             currentView = ViewMode.List;
             await LoadDataAsync();

@@ -1,5 +1,4 @@
 using ClintonFrankland.Models;
-using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Radzen;
@@ -123,7 +122,8 @@ public partial class Accounts
     {
         try
         {
-            var account = await AccountsData.GetAccountByIdAsync(accountId);
+            var userId = SiteInfoService.DefaultUserId;
+            var account = await AccountsData.GetAccountByIdAsync(userId, accountId);
 
             if (account != null)
             {
@@ -164,54 +164,20 @@ public partial class Accounts
 
             var userId = SiteInfoService.DefaultUserId;
             var now = DateTime.UtcNow;
-            var roundedBalance = CurrencyPolicy.Round(editBalance);
-            var roundedCreditLimit = CurrencyPolicy.Round(editCreditLimit);
-            var roundedAvailableCredit = CurrencyPolicy.Round(editAvailableCredit);
-            var roundedMinimumPayment = CurrencyPolicy.Round(editMinimumPayment);
-            var roundedInterestRate = CurrencyPolicy.Round(editInterestRate);
-            if (editAccountId == -1)
-            {
-                // Insert new account
-                var newAccount = new Account
-                {
-                    AccountName = editAccountName,
-                    AccountNumber = editAccountNumber,
-                    AccountTypeId = editAccountType,
-                    Balance = roundedBalance,
-                    CreditLimit = roundedCreditLimit,
-                    AvailableCredit = roundedAvailableCredit,
-                    DueDate = editDueDate,
-                    MinimumPayment = roundedMinimumPayment,
-                    InterestRate = roundedInterestRate,
-                    WebUrl = editWebUrl,
-                    BeginningBalance = 0m,
-                    ClearedBalance = 0m,
-                    IsDefault = false,
-                    UserId = userId,
-                    LastUpdated = now
-                };
-                await AccountsData.SaveAccountAsync(newAccount, isNew: true);
-            }
-            else
-            {
-                // Update existing account
-                var account = await AccountsData.GetAccountByIdAsync(editAccountId);
-                if (account != null)
-                {
-                    account.AccountName = editAccountName;
-                    account.AccountNumber = editAccountNumber;
-                    account.AccountTypeId = editAccountType;
-                    account.Balance = roundedBalance;
-                    account.CreditLimit = roundedCreditLimit;
-                    account.AvailableCredit = roundedAvailableCredit;
-                    account.DueDate = editDueDate;
-                    account.MinimumPayment = roundedMinimumPayment;
-                    account.InterestRate = roundedInterestRate;
-                    account.WebUrl = editWebUrl;
-                    account.LastUpdated = now;
-                    await AccountsData.SaveAccountAsync(account, isNew: false);
-                }
-            }
+            await AccountsData.SaveAccountAsync(
+                userId,
+                editAccountId,
+                editAccountName,
+                editAccountNumber,
+                editAccountType,
+                editBalance,
+                editCreditLimit,
+                editAvailableCredit,
+                editDueDate,
+                editMinimumPayment,
+                editInterestRate,
+                editWebUrl,
+                now);
             currentView = ViewMode.List;
             await LoadDataAsync();
         }
@@ -238,7 +204,8 @@ public partial class Accounts
 
         try
         {
-            await AccountsData.DeleteAccountAsync(editAccountId);
+            var userId = SiteInfoService.DefaultUserId;
+            await AccountsData.DeleteAccountAsync(userId, editAccountId);
             currentView = ViewMode.List;
             await LoadDataAsync();
         }
@@ -293,4 +260,3 @@ public partial class Accounts
         searchText = value ?? string.Empty;
     }
 }
-

@@ -1,5 +1,4 @@
 using ClintonFrankland.Models;
-using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -119,7 +118,6 @@ public partial class BudgetItems
                 SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : []
             }).ToList();
 
-            // Load autocomplete data (EF Core)
             await LoadCategoriesAndPayeesAsync();
         }
         catch (Exception ex)
@@ -220,7 +218,8 @@ public partial class BudgetItems
         try
         {
             await LoadFrequenciesAsync();
-            var budget = await BudgetItemsData.GetBudgetByIdAsync(budgetId);
+            var userId = CurrentBudgetItemsUserId;
+            var budget = await BudgetItemsData.GetBudgetByIdAsync(userId, budgetId);
 
             if (budget != null)
             {
@@ -286,53 +285,20 @@ public partial class BudgetItems
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
             var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
-            // Get or create Category
-            var categoryId = await GetOrCreateCategoryAsync(editCategory, userId);
-
-            // Get or create Payee
-            var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
-
-            if (editBudgetId == -1)
-            {
-                // Insert new budget
-                var newBudget = new Models.Entities.Budget
-                {
-                    BudgetName = editBudgetName,
-                    BudgetTypeId = budgetTypeId,
-                    FrequencyId = editFrequencyId,
-                    NextDueDate = editNextDueDate,
-                    EndDate = endDate,
-                    Amount = roundedAmount,
-                    CategoryId = categoryId,
-                    UserId = userId,
-                    IsAutomatic = isAuto,
-                    IsBill = editIsBill,
-                    IsLate = editIsLate,
-                    PayeeId = payeeId > 0 ? payeeId : null
-                };
-                await BudgetItemsData.SaveBudgetAsync(newBudget, isNew: true);
-            }
-            else
-            {
-                // Update existing budget
-                var budget = await BudgetItemsData.FindBudgetAsync(editBudgetId);
-                if (budget != null)
-                {
-                    budget.BudgetName = editBudgetName;
-                    budget.BudgetTypeId = budgetTypeId;
-                    budget.FrequencyId = editFrequencyId;
-                    budget.NextDueDate = editNextDueDate;
-                    budget.EndDate = endDate;
-                    budget.Amount = roundedAmount;
-                    budget.CategoryId = categoryId;
-                    budget.UserId = userId;
-                    budget.IsAutomatic = isAuto;
-                    budget.IsBill = editIsBill;
-                    budget.IsLate = editIsLate;
-                    budget.PayeeId = payeeId > 0 ? payeeId : null;
-                    await BudgetItemsData.SaveBudgetAsync(budget, isNew: false);
-                }
-            }
+            await BudgetItemsData.SaveBudgetAsync(
+                userId,
+                editBudgetId,
+                editBudgetName,
+                budgetTypeId,
+                editFrequencyId,
+                editNextDueDate,
+                endDate,
+                roundedAmount,
+                editCategory,
+                payeeName,
+                isAuto,
+                editIsBill,
+                editIsLate);
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -342,12 +308,6 @@ public partial class BudgetItems
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
     }
-
-    private Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
-        => BudgetItemsData.GetOrCreateCategoryAsync(categoryName, userId);
-
-    private Task<int> GetOrCreatePayeeAsync(string payeeName, int userId)
-        => BudgetItemsData.GetOrCreatePayeeAsync(payeeName, userId);
 
     internal static int ResolveBudgetItemsUserId(UserInfo currentUser, int fallbackDefaultUserId)
         => currentUser.UserId > 0 ? currentUser.UserId : fallbackDefaultUserId;
@@ -369,7 +329,8 @@ public partial class BudgetItems
 
         try
         {
-            await BudgetItemsData.DeleteBudgetAsync(editBudgetId);
+            var userId = CurrentBudgetItemsUserId;
+            await BudgetItemsData.DeleteBudgetAsync(userId, editBudgetId);
             currentView = ViewMode.List;
             await LoadDataAsync();
         }
