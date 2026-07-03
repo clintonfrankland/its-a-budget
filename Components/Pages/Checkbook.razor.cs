@@ -452,15 +452,15 @@ public partial class Checkbook
     {
         try
         {
-            if (editAmount < 0)
+            if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(editAmount, out var amountMessage, CurrencyPolicy.TransactionPrecision))
             {
-                errorMessage = "Amount must be a non-negative value.";
+                errorMessage = amountMessage;
                 return;
             }
 
             if (editDate == DateTime.MinValue)
             {
-                errorMessage = "Please enter a valid transaction date.";
+                errorMessage = "Transaction date is required.";
                 return;
             }
 

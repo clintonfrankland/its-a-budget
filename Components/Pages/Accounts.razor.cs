@@ -156,9 +156,9 @@ public partial class Accounts
     {
         try
         {
-            if (editBalance < 0 || editCreditLimit < 0 || editAvailableCredit < 0 || editMinimumPayment < 0 || editInterestRate < 0)
+            if (!TryValidateAccountAmounts(out var amountMessage))
             {
-                errorMessage = "Amounts and rates must be non-negative values.";
+                errorMessage = amountMessage;
                 return;
             }
 
@@ -185,6 +185,19 @@ public partial class Accounts
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
+    }
+
+    private bool TryValidateAccountAmounts(out string message)
+    {
+        var values = new[] { editBalance, editCreditLimit, editAvailableCredit, editMinimumPayment, editInterestRate };
+        foreach (var value in values)
+        {
+            if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(value, out message))
+                return false;
+        }
+
+        message = string.Empty;
+        return true;
     }
 
     private async Task DeleteAccountAsync()

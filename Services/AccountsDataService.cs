@@ -42,6 +42,11 @@ public class AccountsDataService
         string webUrl,
         DateTime lastUpdated)
     {
+        var roundedBalance = CurrencyPolicy.RoundNonNegativeSqlAmount(balance);
+        var roundedCreditLimit = CurrencyPolicy.RoundNonNegativeSqlAmount(creditLimit);
+        var roundedAvailableCredit = CurrencyPolicy.RoundNonNegativeSqlAmount(availableCredit);
+        var roundedMinimumPayment = CurrencyPolicy.RoundNonNegativeSqlAmount(minimumPayment);
+        var roundedInterestRate = CurrencyPolicy.RoundNonNegativeSqlAmount(interestRate);
         var isNew = accountId == -1;
         var account = isNew
             ? new Account
@@ -59,12 +64,12 @@ public class AccountsDataService
         account.AccountName = accountName;
         account.AccountNumber = accountNumber;
         account.AccountTypeId = accountTypeId;
-        account.Balance = balance;
-        account.CreditLimit = creditLimit;
-        account.AvailableCredit = availableCredit;
+        account.Balance = roundedBalance;
+        account.CreditLimit = roundedCreditLimit;
+        account.AvailableCredit = roundedAvailableCredit;
         account.DueDate = dueDate;
-        account.MinimumPayment = minimumPayment;
-        account.InterestRate = interestRate;
+        account.MinimumPayment = roundedMinimumPayment;
+        account.InterestRate = roundedInterestRate;
         account.WebUrl = webUrl;
         account.LastUpdated = lastUpdated;
 

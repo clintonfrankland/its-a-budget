@@ -221,22 +221,27 @@ public partial class Budget
     {
         editErrorMessage = string.Empty;
 
-        // Validate end date must be after due date
         if (editHasEndDate && editEndDate < editNextDueDate)
         {
-            editErrorMessage = "The end date must be after the next due date.";
+            editErrorMessage = "End date cannot be before the next due date.";
             return;
         }
 
-        if (editAmount < 0)
+        if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(editAmount, out var amountMessage))
         {
-            editErrorMessage = "Amount must be a non-negative value.";
+            editErrorMessage = amountMessage;
             return;
         }
 
-        if (editNextDueDate == DateTime.MinValue || (editHasEndDate && editEndDate == DateTime.MinValue))
+        if (editNextDueDate == DateTime.MinValue)
         {
-            editErrorMessage = "Please enter valid dates.";
+            editErrorMessage = "Next due date is required.";
+            return;
+        }
+
+        if (editHasEndDate && editEndDate == DateTime.MinValue)
+        {
+            editErrorMessage = "End date is required.";
             return;
         }
 
@@ -380,13 +385,13 @@ public partial class Budget
 
         if (editNextDueDate == DateTime.MinValue)
         {
-            editErrorMessage = "Please enter a valid due date.";
+            editErrorMessage = "Due date is required.";
             return;
         }
 
-        if (editAmount < 0)
+        if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(editAmount, out var amountMessage))
         {
-            editErrorMessage = "Amount must be a non-negative value.";
+            editErrorMessage = amountMessage;
             return;
         }
 
@@ -407,7 +412,7 @@ public partial class Budget
                 editBudgetId,
                 budgetName,
                 editNextDueDate,
-                editAmount,
+                CurrencyPolicy.Round(editAmount),
                 categoryName,
                 editIsAuto,
                 editIsLate);

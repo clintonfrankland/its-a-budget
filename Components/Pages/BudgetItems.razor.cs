@@ -149,7 +149,7 @@ public partial class BudgetItems
             _ => 0m                        // One-time or unknown
         };
 
-        return Math.Round(monthly * multiplier, 2);
+        return CurrencyPolicy.Round(monthly * multiplier);
     }
 
     private async Task LoadCategoriesAndPayeesAsync()
@@ -258,22 +258,52 @@ public partial class BudgetItems
     {
         editErrorMessage = string.Empty;
 
-        // Validate end date must be after due date
         if (editHasEndDate && editEndDate < editNextDueDate)
         {
-            editErrorMessage = "The end date must be after the next due date.";
+            editErrorMessage = "End date cannot be before the next due date.";
             return;
         }
 
-        if (editAmount < 0)
+        if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(editAmount, out var amountMessage))
         {
-            editErrorMessage = "Amount must be a non-negative value.";
+            editErrorMessage = amountMessage;
             return;
         }
 
-        if (editNextDueDate == DateTime.MinValue || (editHasEndDate && editEndDate == DateTime.MinValue))
+        if (editNextDueDate == DateTime.MinValue)
         {
-            editErrorMessage = "Please enter valid dates.";
+            editErrorMessage = "Next due date is required.";
+            return;
+        }
+
+        if (editHasEndDate && editEndDate == DateTime.MinValue)
+        {
+            editErrorMessage = "End date is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editBudgetName))
+        {
+            editErrorMessage = "Budget name is required.";
+            return;
+        }
+
+        if (!frequencyOptions.Any(f => f.FrequencyId == editFrequencyId))
+        {
+            editErrorMessage = "Frequency is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editCategory))
+        {
+            editErrorMessage = "Category is required.";
+            return;
+        }
+
+        var payeeName = editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
+        if (editIsBill && string.IsNullOrWhiteSpace(payeeName))
+        {
+            editErrorMessage = "Payee is required for bill items.";
             return;
         }
 
@@ -283,18 +313,17 @@ public partial class BudgetItems
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
-            var payeeName = editIsBill ? editPayee : string.Empty;
             var isAuto = editIsBill && editIsAuto;
             await BudgetItemsData.SaveBudgetAsync(
                 userId,
                 editBudgetId,
-                editBudgetName,
+                editBudgetName.Trim(),
                 budgetTypeId,
                 editFrequencyId,
                 editNextDueDate,
                 endDate,
                 roundedAmount,
-                editCategory,
+                editCategory.Trim(),
                 payeeName,
                 isAuto,
                 editIsBill,

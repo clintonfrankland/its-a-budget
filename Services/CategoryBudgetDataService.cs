@@ -102,9 +102,7 @@ public class CategoryBudgetDataService
     public async Task SaveTargetAsync(int userId, CategoryBudgetSaveRequest request)
     {
         var monthStart = FirstOfMonth(request.BudgetMonth);
-        var plannedAmount = CurrencyPolicy.Round(request.PlannedAmount);
-        if (plannedAmount < 0)
-            throw new InvalidOperationException("Budget amount cannot be negative.");
+        var plannedAmount = CurrencyPolicy.RoundNonNegativeSqlAmount(request.PlannedAmount);
 
         var categoryExists = await _db.Categories
             .AnyAsync(c => c.CategoryId == request.CategoryId && c.UserId == userId);

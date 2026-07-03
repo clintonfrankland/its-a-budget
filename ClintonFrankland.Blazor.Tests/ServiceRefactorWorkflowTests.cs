@@ -45,6 +45,75 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
+    public async Task BudgetDataService_SaveBudget_RoundsAndValidatesAmountsAndDates()
+    {
+        await using var db = CreateDbContext();
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Bills", UserId = 42 });
+        db.Frequencies.Add(new Frequency { FrequencyId = 4, FrequencyName = "Monthly", Sort = 1 });
+        await db.SaveChangesAsync();
+        var service = new BudgetDataService(db);
+
+        await service.SaveBudgetAsync(
+            42,
+            -1,
+            "Electric",
+            1,
+            4,
+            new DateTime(2026, 7, 3, 15, 30, 0),
+            new DateTime(1970, 1, 1),
+            123.455m,
+            "Bills",
+            "",
+            false,
+            false,
+            false);
+
+        var saved = Assert.Single(await db.Budgets.Where(b => b.UserId == 42).ToListAsync());
+        Assert.Equal(123.46m, saved.Amount);
+        Assert.Equal(new DateTime(2026, 7, 3, 15, 30, 0), saved.NextDueDate);
+
+        var dateException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveBudgetAsync(42, -1, "Bad", 1, 4, new DateTime(2026, 7, 3), new DateTime(2026, 7, 2), 1m, "Bills", "", false, false, false));
+        Assert.Equal("End date cannot be before the next due date.", dateException.Message);
+
+        var amountException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveBudgetAsync(42, -1, "Bad", 1, 4, new DateTime(2026, 7, 3), new DateTime(1970, 1, 1), -1m, "Bills", "", false, false, false));
+        Assert.Equal(CurrencyPolicy.NonNegativeAmountMessage, amountException.Message);
+    }
+
+    [Fact]
+    public async Task BudgetItemsDataService_SaveBudget_RoundsAndValidatesAmountsAndDates()
+    {
+        await using var db = CreateDbContext();
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Bills", UserId = 42 });
+        db.Frequencies.Add(new Frequency { FrequencyId = 4, FrequencyName = "Monthly", Sort = 1 });
+        await db.SaveChangesAsync();
+        var service = new BudgetItemsDataService(db);
+
+        await service.SaveBudgetAsync(
+            42,
+            -1,
+            "Rent",
+            1,
+            4,
+            new DateTime(2026, 7, 3),
+            new DateTime(1970, 1, 1),
+            1.005m,
+            "Bills",
+            "",
+            false,
+            false,
+            false);
+
+        var saved = Assert.Single(await db.Budgets.Where(b => b.UserId == 42).ToListAsync());
+        Assert.Equal(1.01m, saved.Amount);
+
+        var dateException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveBudgetAsync(42, -1, "Bad", 1, 4, DateTime.MinValue, new DateTime(1970, 1, 1), 1m, "Bills", "", false, false, false));
+        Assert.Equal("Next due date is required.", dateException.Message);
+    }
+
+    [Fact]
     public async Task MarkBudgetPaidAsync_DeletesOneTimeAndTerminalBudgets()
     {
         await using var db = CreateDbContext();
@@ -84,6 +153,10 @@ public class ServiceRefactorWorkflowTests
         await service.SaveAccountAsync(99, created.AccountId, "Nope", "", 1, 1m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
         Assert.Equal("Checking", (await db.Accounts.FindAsync(created.AccountId))!.AccountName);
 
+        var amountException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveAccountAsync(42, created.AccountId, "Checking", "123", 1, -1m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow));
+        Assert.Equal(CurrencyPolicy.NonNegativeAmountMessage, amountException.Message);
+
         await service.DeleteAccountAsync(99, created.AccountId);
         Assert.NotNull(await db.Accounts.FindAsync(created.AccountId));
 
@@ -119,11 +192,43 @@ public class ServiceRefactorWorkflowTests
         Assert.Equal(20m, edited.Amount);
         Assert.True(edited.Cleared);
 
+        var amountException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveTransactionAsync(42, created.TransactionId, new DateOnly(2026, 7, 3), "Power", "Utilities", 10_000_000m, true, null, null));
+        Assert.Equal(CurrencyPolicy.AmountTooLargeMessage, amountException.Message);
+
+        var dateException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveTransactionAsync(42, created.TransactionId, DateOnly.MinValue, "Power", "Utilities", 1m, true, null, null));
+        Assert.Equal("Transaction date is required.", dateException.Message);
+
         await service.DeleteTransactionAsync(99, created.TransactionId);
         Assert.NotNull(await db.Transactions.FindAsync(created.TransactionId));
 
         await service.DeleteTransactionAsync(42, created.TransactionId);
         Assert.Null(await db.Transactions.FindAsync(created.TransactionId));
+    }
+
+    [Fact]
+    public async Task BudgetScheduleService_CreateEditedNextOccurrence_RoundsAndValidatesAmountAndDate()
+    {
+        await using var db = CreateDbContext();
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Bills", UserId = 42 });
+        db.Budgets.Add(Budget(1, 42, "Electric", 1, 1, new DateTime(2026, 7, 2), 25m, frequencyId: 1, endDate: new DateTime(2026, 7, 30)));
+        await db.SaveChangesAsync();
+        var service = new BudgetScheduleService(db);
+
+        await service.CreateEditedNextOccurrenceAsync(42, 1, "Electric special", new DateTime(2026, 7, 2), 12.345m, "Bills", false, false);
+
+        var editedNext = await db.Budgets.SingleAsync(b => b.BudgetName == "Electric special");
+        Assert.Equal(12.35m, editedNext.Amount);
+        Assert.Equal(new DateTime(2026, 7, 9), (await db.Budgets.FindAsync(1))!.NextDueDate);
+
+        var amountException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateEditedNextOccurrenceAsync(42, 1, "Bad", new DateTime(2026, 7, 9), -1m, "Bills", false, false));
+        Assert.Equal(CurrencyPolicy.NonNegativeAmountMessage, amountException.Message);
+
+        var dateException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateEditedNextOccurrenceAsync(42, 1, "Bad", DateTime.MinValue, 1m, "Bills", false, false));
+        Assert.Equal("Due date is required.", dateException.Message);
     }
 
     [Fact]

@@ -88,6 +88,10 @@ public class CheckbookDataService
         string? notes,
         string? attachmentPath)
     {
+        if (transactionDate == DateOnly.MinValue)
+            throw new InvalidOperationException("Transaction date is required.");
+
+        var roundedAmount = CurrencyPolicy.RoundSignedSqlAmount(amount, CurrencyPolicy.TransactionPrecision);
         var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
         var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
 
@@ -108,7 +112,7 @@ public class CheckbookDataService
         txn.PayeeId = payeeId;
         txn.CategoryId = categoryId;
         txn.AccountId = accountId;
-        txn.Amount = CurrencyPolicy.Round(amount);
+        txn.Amount = roundedAmount;
         txn.Cleared = cleared;
         txn.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         txn.AttachmentPath = attachmentPath;

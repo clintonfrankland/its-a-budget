@@ -49,6 +49,8 @@ public class BudgetItemsDataService
         bool isBill,
         bool isLate)
     {
+        ValidateBudgetSave(nextDueDate, endDate, amount);
+        var roundedAmount = CurrencyPolicy.RoundNonNegativeSqlAmount(amount);
         var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
         if (categoryId <= 0)
             throw new InvalidOperationException("Category is required.");
@@ -67,17 +69,30 @@ public class BudgetItemsDataService
         budget.FrequencyId = frequencyId;
         budget.NextDueDate = nextDueDate;
         budget.EndDate = endDate;
-        budget.Amount = amount;
+        budget.Amount = roundedAmount;
         budget.CategoryId = categoryId;
         budget.UserId = userId;
         budget.IsAutomatic = isAutomatic;
         budget.IsBill = isBill;
         budget.IsLate = isLate;
         budget.PayeeId = payeeId > 0 ? payeeId : null;
-        budget.Amount = CurrencyPolicy.Round(budget.Amount);
 
         if (isNew) _db.Budgets.Add(budget);
         await _db.SaveChangesAsync();
+    }
+
+    private static void ValidateBudgetSave(DateTime nextDueDate, DateTime endDate, decimal amount)
+    {
+        if (nextDueDate == DateTime.MinValue)
+            throw new InvalidOperationException("Next due date is required.");
+
+        if (endDate == DateTime.MinValue)
+            throw new InvalidOperationException("End date is required.");
+
+        if (endDate != new DateTime(1970, 1, 1) && endDate < nextDueDate)
+            throw new InvalidOperationException("End date cannot be before the next due date.");
+
+        CurrencyPolicy.RoundNonNegativeSqlAmount(amount);
     }
 
     public async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)

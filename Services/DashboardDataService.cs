@@ -74,7 +74,7 @@ public class DashboardDataService
             .GroupBy(b => b.Category?.CategoryName ?? "Uncategorized")
             .ToDictionary(
                 g => g.Key,
-                g => g.Sum(b => Math.Round((b.Amount ?? 0m) * GetMonthlyMultiplier(b.FrequencyId ?? 4), 2)));
+                g => g.Sum(b => CurrencyPolicy.Round((b.Amount ?? 0m) * GetMonthlyMultiplier(b.FrequencyId ?? 4))));
 
         snapshot.CategorySpend = monthlyExpenses
             .Select(c =>

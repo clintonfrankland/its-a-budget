@@ -88,6 +88,11 @@ public class BudgetScheduleService
         if (string.IsNullOrWhiteSpace(categoryName))
             throw new InvalidOperationException("Category is required.");
 
+        if (dueDate == DateTime.MinValue)
+            throw new InvalidOperationException("Due date is required.");
+
+        var roundedAmount = CurrencyPolicy.RoundNonNegativeSqlAmount(amount);
+
         var originalBudget = await _db.Budgets
             .Include(b => b.Payee)
             .FirstOrDefaultAsync(b => b.BudgetId == originalBudgetId && b.UserId == userId);
@@ -115,7 +120,7 @@ public class BudgetScheduleService
             FrequencyId = 0,
             NextDueDate = dueDate,
             EndDate = NoEndDate,
-            Amount = CurrencyPolicy.Round(amount),
+            Amount = roundedAmount,
             CategoryId = categoryId,
             UserId = userId,
             IsAutomatic = isAutomatic,

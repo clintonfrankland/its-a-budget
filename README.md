@@ -217,6 +217,12 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Safe to spend** | The lowest projected balance between today and the next paydate — used as a guardrail for discretionary spending. |
 | **Cleared** | A flag on a transaction indicating it has settled in the bank. The cleared balance is the sum of cleared transactions only. |
 
+### Money and date policy
+
+All persisted currency values are rounded through `Services/CurrencyPolicy.cs` to two decimal places with `MidpointRounding.AwayFromZero` before save and before derived money totals are displayed. Transaction entry stores a signed amount from the expense/income selector, but user-entered amount fields stay non-negative and must fit the mapped SQL decimal precision after rounding.
+
+Transaction dates are stored as SQL `date` values through `DateOnly`. Budget next due dates are required, and an optional recurring end date cannot be before the next due date.
+
 ---
 
 ## Checkbook receipt attachments
@@ -279,7 +285,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/DatabaseBackupService.cs` | `BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION` via ADO.NET |
 | `Services/DatabaseBackupWorker.cs` | Hosted service — scheduled automated SQL backups |
 | `Services/PasswordUtility.cs` | Salt generation and password hashing/verification |
-| `Services/CurrencyPolicy.cs` | Decimal rounding helpers for currency values |
+| `Services/CurrencyPolicy.cs` | Currency rounding, SQL precision validation, and shared amount validation messages |
 | `Services/StartupDiagnosticsState.cs` | Holds DB connectivity and pending-migration results for the admin banner |
 | `Migrations/` | EF Core SQL Server migrations; applied automatically on startup |
 | `wwwroot/css/app.css` | Global CSS overrides |
@@ -296,6 +302,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 - Never abbreviate variable or method names; keep names fully spelled out and human-readable.
 - Keep component logic in `.razor.cs` code-behind files; keep `.razor` files markup-only.
 - Use `IDbContextFactory<ClintonFranklandDbContext>` for per-operation contexts; never hold a `DbContext` across renders.
+- Use `CurrencyPolicy` for all currency rounding, SQL decimal fit checks, and user-entered money validation messages.
 - The project version is a four-part field (`major.minor.patch.build`) in `ClintonFrankland.Blazor.csproj` — bump it in every task.
 
 ---
@@ -313,6 +320,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 ## Known pitfalls
 
 - **Culture is pinned to `en-US`.** Currency formatting, `$` display, comma thousands separators, period decimals, and review/production parity depend on it. Do not remove the thread culture pin or `RequestLocalizationOptions` setup in `Program.cs`; see [GLOBALIZATION.md](GLOBALIZATION.md).
+- **Currency is rounded before persistence.** Use `CurrencyPolicy.Round` or its validation helpers instead of direct `Math.Round` for money; transaction amounts are limited by `decimal(9, 2)` and budget/account values by `decimal(18, 2)`.
 - **Radzen grids need explicit reload after mutations.** After inserting, updating, or deleting grid data, call the grid's `Reload()` method — the component does not refresh automatically.
 - **SQL Server migration dialect.** EF Core migrations use SQL Server-specific syntax. Do not apply migrations generated for another provider.
 - **Background worker timezone handling.** The bill-due notification worker operates in each user's stored timezone, not the server timezone. Changes to notification logic must account for this.
