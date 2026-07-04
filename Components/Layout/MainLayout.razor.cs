@@ -77,7 +77,7 @@ public partial class MainLayout : IDisposable
         if (AuthService.IsAuthenticated)
         {
             await AuthService.LogoutAsync();
-            Navigation.NavigateTo("/", forceLoad: true);
+            Navigation.NavigateTo($"/auth/logout?returnUrl={Uri.EscapeDataString("/")}", forceLoad: true);
         }
     }
 

@@ -3,6 +3,7 @@ using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClintonFrankland.Services;
@@ -85,6 +86,11 @@ public class AuthService
         catch
         {
             // Session storage not available during prerendering
+        }
+
+        if (_currentUser is null || !_currentUser.IsLoggedIn)
+        {
+            await InitializeFromAuthenticatedPrincipalAsync();
         }
 
         _isInitialized = true;
@@ -175,6 +181,15 @@ public class AuthService
         await _sessionStorage.SetAsync(AuthStorageKey, _currentUser);
     }
 
+    public async Task<bool> LoginExternalUserAsync(User user)
+    {
+        user.LastLogin = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await WriteAuditAsync(user.UserName, true, "Authentik OIDC login success");
+        await LoginAsync(user);
+        return true;
+    }
+
     public async Task LoginAsync(string username)
     {
         _currentUser = new UserInfo
@@ -211,6 +226,26 @@ public class AuthService
     {
         _currentUser = null;
         await _sessionStorage.DeleteAsync(AuthStorageKey);
+    }
+
+    private async Task InitializeFromAuthenticatedPrincipalAsync()
+    {
+        var principal = _httpContextAccessor.HttpContext?.User;
+        if (principal?.Identity?.IsAuthenticated != true)
+            return;
+
+        var userIdClaim = principal.FindFirst(AuthentikOidcDefaults.BudgetUserIdClaim)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId) || userId <= 0)
+            return;
+
+        var user = await _db.Users.FirstOrDefaultAsync(user => user.UserId == userId && !user.IsDeleted);
+        if (user is null)
+        {
+            await _httpContextAccessor.HttpContext!.SignOutAsync(AuthentikOidcDefaults.CookieScheme);
+            return;
+        }
+
+        await LoginAsync(user);
     }
 
     private int MaxFailedAttempts => Math.Max(1, _configuration.GetValue<int?>("AuthSecurity:MaxFailedAttempts") ?? 5);

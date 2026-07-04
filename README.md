@@ -82,6 +82,29 @@ AppSettings__LoginPassword="<fallback-login-password>"
 
 `appsettings.Development.example.json` shows the expected shape without real credentials. For machine-local JSON overrides, use an ignored `appsettings.Development.local.json` file and load it manually only in private workflows.
 
+### Optional Authentik OIDC login
+
+Authentik/OpenID Connect login is disabled by default. The local database login and `AppSettings` fallback login remain available as the break-glass path during rollout.
+
+Enable Authentik only when all required settings are present:
+
+```bash
+Authentication__Authentik__Enabled=true
+Authentication__Authentik__Authority="https://auth.example.com/application/o/budget-app/"
+Authentication__Authentik__ClientId="<authentik-client-id>"
+Authentication__Authentik__ClientSecret="<authentik-client-secret>"
+Authentication__Authentik__AllowedGroups__0="budget-users"
+```
+
+The OIDC client must request the `openid`, `profile`, and `email` scopes. Budget App reads the stable `sub` claim and only grants access when that Authentik subject is already linked to an active `cfUsers` row. Group claims are captured when Authentik provides them; set `Authentication:Authentik:AllowedGroups` to require membership in one or more groups, or leave it empty to allow any linked Authentik user.
+
+For nginx or other reverse-proxy deployments:
+
+- Forward `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host`.
+- Keep the app on the query response mode callback; this avoids Blazor/OIDC correlation failures caused by cross-site POST callbacks.
+- Auth, correlation, and nonce cookies use `SameSite=Lax` with `SecurePolicy=SameAsRequest`, so the proxy must forward the original HTTPS scheme.
+- Set `proxy_buffer_size 16k;` for the app location because OIDC callback responses can include large encrypted auth cookies.
+
 ---
 
 ## Identity ownership
@@ -98,6 +121,8 @@ External identity mapping is stored directly on active `cfUsers` rows:
 `ExternalProvider` + `ExternalSubject` has a filtered unique index for active users so one Authentik account cannot map to multiple Budget users. Email is intentionally not a permanent identity key; it may only be used later for guarded first-link or admin-confirmed matching before saving the provider subject.
 
 Existing database-backed username/password login and the `AppSettings` fallback login remain supported during this phase.
+
+When optional Authentik login is enabled, `/login` displays **Sign in with Authentik** first and keeps the local username/password form underneath as **Local fallback**. Return URLs are accepted only when they are rooted local paths; unsafe absolute or protocol-relative URLs are ignored for both login and logout redirects.
 
 ---
 

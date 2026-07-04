@@ -20,6 +20,25 @@
                 </RadzenAlert>
             }
 
+            @if (!string.IsNullOrWhiteSpace(externalError))
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
+                             AllowClose="false" class="mb-3">
+                    @externalError
+                </RadzenAlert>
+            }
+
+            @if (IsAuthentikEnabled)
+            {
+                <a class="btn btn-primary btn-lg authentik-login-button" href="@AuthentikLoginUrl">
+                    <i class="fa fa-shield-alt"></i>&nbsp;&nbsp;Sign in with Authentik
+                </a>
+
+                <div class="fallback-divider">
+                    <span>Local fallback</span>
+                </div>
+            }
+
             <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="loginForm">
                 <div class="mb-4">
                     <RadzenLabel Text="Username" Component="username" class="d-block mb-1" />
@@ -108,6 +127,30 @@
         font-weight: 600;
         padding: 12px;
     }
-</style>
 
+    .authentik-login-button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 12px;
+        margin-bottom: 18px;
+    }
+
+    .fallback-divider {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--rz-text-secondary-color);
+        font-size: 0.85rem;
+        margin-bottom: 18px;
+    }
+
+    .fallback-divider::before,
+    .fallback-divider::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+        background: var(--rz-border-color);
+    }
+</style>
 

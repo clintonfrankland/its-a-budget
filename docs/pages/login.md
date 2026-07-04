@@ -8,6 +8,7 @@ It’s intentionally simple: no clutter, no distractions, just a quick “let me
 
 ## What you’ll see
 
+- **Sign in with Authentik** button, when Authentik login is enabled
 - **Username** field
 - **Password** field
 - **Sign In** button
@@ -27,10 +28,13 @@ If everything matches, you’ll be taken into the app and you’ll be able to us
 - Budget Items
 - Accounts
 
+When Authentik is enabled, use **Sign in with Authentik** first. The username/password form remains available as the local fallback during rollout and emergency access.
+
 ## Tips
 
 - If you’re on your own device, your browser may remember your username for faster sign-ins.
 - If you keep getting the invalid login message, double-check spelling and capitalization.
+- If Authentik says your account is not linked, an admin needs to link your Authentik subject to an active Budget App user before external login can grant access.
 
 ## Why it matters
 

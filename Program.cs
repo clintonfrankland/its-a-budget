@@ -2,10 +2,15 @@ using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Attachments;
 using ClintonFrankland.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Radzen;
 using System.Globalization;
+using System.Security.Claims;
 
 static string? GetArgValue(string[] args, string name)
 {
@@ -34,6 +39,9 @@ CultureInfo.CurrentCulture = usCulture;
 CultureInfo.CurrentUICulture = usCulture;
 
 var builder = WebApplication.CreateBuilder(args);
+var authentikOidcOptions = builder.Configuration
+    .GetSection(AuthentikOidcOptions.SectionName)
+    .Get<AuthentikOidcOptions>() ?? new AuthentikOidcOptions();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -46,6 +54,96 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
         .AddSupportedCultures(usCulture.Name)
         .AddSupportedUICultures(usCulture.Name);
 });
+builder.Services.Configure<AuthentikOidcOptions>(builder.Configuration.GetSection(AuthentikOidcOptions.SectionName));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("0.0.0.0/0"));
+});
+
+if (authentikOidcOptions.IsUsable)
+{
+    builder.Services
+        .AddAuthentication(options =>
+        {
+            options.DefaultScheme = AuthentikOidcDefaults.CookieScheme;
+            options.DefaultChallengeScheme = AuthentikOidcDefaults.OpenIdConnectScheme;
+        })
+        .AddCookie(AuthentikOidcDefaults.CookieScheme, options =>
+        {
+            options.Cookie.Name = authentikOidcOptions.CookieName;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.SlidingExpiration = true;
+        })
+        .AddOpenIdConnect(AuthentikOidcDefaults.OpenIdConnectScheme, options =>
+        {
+            options.Authority = authentikOidcOptions.Authority;
+            options.ClientId = authentikOidcOptions.ClientId;
+            options.ClientSecret = authentikOidcOptions.ClientSecret;
+            options.CallbackPath = authentikOidcOptions.CallbackPath;
+            options.SignedOutCallbackPath = authentikOidcOptions.SignedOutCallbackPath;
+            options.ResponseType = "code";
+            options.ResponseMode = "query";
+            options.SaveTokens = false;
+            options.GetClaimsFromUserInfoEndpoint = true;
+            options.Scope.Clear();
+            options.Scope.Add("openid");
+            options.Scope.Add("profile");
+            options.Scope.Add("email");
+            options.ClaimActions.MapJsonKey("groups", "groups");
+            options.TokenValidationParameters.NameClaimType = "name";
+            options.TokenValidationParameters.RoleClaimType = "groups";
+            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.NonceCookie.SameSite = SameSiteMode.Lax;
+            options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.Events.OnTokenValidated = async context =>
+            {
+                var settings = context.HttpContext.RequestServices
+                    .GetRequiredService<IOptions<AuthentikOidcOptions>>()
+                    .Value;
+
+                if (!AuthentikOidcClaims.IsInAllowedGroup(context.Principal!, settings.AllowedGroups))
+                {
+                    context.Fail("Authentik user is not in an allowed Budget App group.");
+                    return;
+                }
+
+                var profile = AuthentikOidcClaims.BuildExternalProfile(context.Principal!, settings.NormalizedProviderName);
+                if (profile is null)
+                {
+                    context.Fail("Authentik login did not include a stable subject claim.");
+                    return;
+                }
+
+                var linker = context.HttpContext.RequestServices.GetRequiredService<ExternalIdentityLinkService>();
+                var user = await linker.RecordExternalLoginAsync(profile);
+                if (user is null)
+                {
+                    context.Fail("Authentik user is not linked to an active Budget App user.");
+                    return;
+                }
+
+                var identity = context.Principal!.Identity as ClaimsIdentity;
+                identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetUserIdClaim, user.UserId.ToString(CultureInfo.InvariantCulture)));
+                foreach (var group in AuthentikOidcClaims.GetGroups(context.Principal!))
+                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
+            };
+            options.Events.OnRemoteFailure = context =>
+            {
+                var message = Uri.EscapeDataString(context.Failure?.Message ?? "Authentik sign-in failed.");
+                context.Response.Redirect($"/login?externalError={message}");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            };
+        });
+
+    builder.Services.AddAuthorization();
+}
 
 // Register Entity Framework Core DbContext
 builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
@@ -204,6 +302,7 @@ END");
 }
 
 // Force request/circuit culture to en-US for consistent formatting in Blazor Server.
+app.UseForwardedHeaders();
 app.UseRequestLocalization();
 
 // Configure the HTTP request pipeline.
@@ -215,7 +314,23 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+if (authentikOidcOptions.IsUsable)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 app.UseAntiforgery();
+
+app.MapGet("/auth/authentik/login", (IOptions<AuthentikOidcOptions> options, string? returnUrl) =>
+    AuthentikOidcEndpoints.ChallengeLogin(options.Value, returnUrl));
+
+app.MapGet("/auth/logout", async (HttpContext context, string? returnUrl) =>
+{
+    if (authentikOidcOptions.IsUsable && context.User.Identity?.IsAuthenticated == true)
+        await context.SignOutAsync(AuthentikOidcDefaults.CookieScheme);
+
+    return AuthentikOidcEndpoints.LocalLogout(returnUrl);
+});
 
 app.MapPost("/api/home-dashboard-summary", async (
     HomeDashboardSummaryAuthRequest request,
