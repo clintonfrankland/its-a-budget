@@ -1,6 +1,11 @@
 using System.Security.Claims;
+using ClintonFrankland.Data;
+using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -81,6 +86,45 @@ public class AuthentikOidcTests
         Assert.Contains(AuthentikOidcDefaults.OpenIdConnectScheme, result.AuthenticationSchemes);
     }
 
+    [Theory]
+    [InlineData("/checkbook", "/checkbook")]
+    [InlineData("https://evil.example.com/signout", "/")]
+    [InlineData("//evil.example.com/signout", "/")]
+    public void LocalLogout_UsesSafeReturnUrl(string? returnUrl, string expectedRedirect)
+    {
+        var result = Assert.IsType<RedirectHttpResult>(AuthentikOidcEndpoints.LocalLogout(returnUrl));
+
+        Assert.Equal(expectedRedirect, result.Url);
+    }
+
+    [Fact]
+    public async Task ValidateApiCredentialsAsync_AllowsDbUserLoginWhenAuthentikIsEnabled()
+    {
+        await using var db = CreateDbContext();
+        var salt = PasswordUtility.CreateSalt();
+        db.Users.Add(User(7, "clinton", salt, PasswordUtility.HashPassword("db-password", salt)));
+        await db.SaveChangesAsync();
+        var service = CreateAuthService(db);
+
+        var userId = await service.ValidateApiCredentialsAsync("clinton", "db-password", fallbackUserId: 3);
+
+        Assert.Equal(7, userId);
+    }
+
+    [Fact]
+    public async Task ValidateApiCredentialsAsync_AllowsConfigFallbackWhenAuthentikIsEnabledAndDbUserExists()
+    {
+        await using var db = CreateDbContext();
+        var salt = PasswordUtility.CreateSalt();
+        db.Users.Add(User(7, "breakglass", salt, PasswordUtility.HashPassword("db-password", salt)));
+        await db.SaveChangesAsync();
+        var service = CreateAuthService(db);
+
+        var userId = await service.ValidateApiCredentialsAsync("breakglass", "config-password", fallbackUserId: 3);
+
+        Assert.Equal(3, userId);
+    }
+
     [Fact]
     public void BuildExternalProfile_UsesStableSubjectAndProviderMetadata()
     {
@@ -117,4 +161,50 @@ public class AuthentikOidcTests
 
     private static ClaimsPrincipal Principal(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
+
+    private static ClintonFranklandDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ClintonFranklandDbContext(options);
+    }
+
+    private static AuthService CreateAuthService(ClintonFranklandDbContext db)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AppSettings:LoginUser"] = "breakglass",
+                ["AppSettings:LoginPassword"] = "config-password",
+                ["Authentication:Authentik:Enabled"] = "true",
+                ["Authentication:Authentik:Authority"] = "https://auth.example.com/application/o/budget-app/",
+                ["Authentication:Authentik:ClientId"] = "client",
+                ["Authentication:Authentik:ClientSecret"] = "secret"
+            })
+            .Build();
+
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+
+        return new AuthService(configuration, sessionStorage: null!, db, httpContextAccessor);
+    }
+
+    private static User User(int userId, string userName, string salt, string passwordHash) => new()
+    {
+        UserId = userId,
+        SiteId = 1,
+        UserName = userName,
+        DisplayName = userName,
+        IsAdmin = false,
+        ListButtonsRight = true,
+        Salt = salt,
+        PasswordHash = passwordHash,
+        IsDeleted = false,
+        FirstLogin = DateTime.UtcNow,
+        LastLogin = DateTime.UtcNow
+    };
 }
