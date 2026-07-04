@@ -84,6 +84,23 @@ AppSettings__LoginPassword="<fallback-login-password>"
 
 ---
 
+## Identity ownership
+
+Budget App keeps `cfUsers` as the durable application profile, permission, preference, and financial data-ownership record. A future Authentik/OIDC login can prove who signed in, but it must resolve to an active Budget user before the app grants access to Budget-owned data.
+
+External identity mapping is stored directly on active `cfUsers` rows:
+
+- `ExternalProvider` identifies the trusted identity provider, for example `authentik`.
+- `ExternalSubject` stores the stable OIDC `sub` claim and is the canonical external identity key.
+- `ExternalEmail` and `ExternalDisplayName` are provider metadata for display/audit help only.
+- `LastExternalLoginUtc` records the last successful subject-based external login.
+
+`ExternalProvider` + `ExternalSubject` has a filtered unique index for active users so one Authentik account cannot map to multiple Budget users. Email is intentionally not a permanent identity key; it may only be used later for guarded first-link or admin-confirmed matching before saving the provider subject.
+
+Existing database-backed username/password login and the `AppSettings` fallback login remain supported during this phase.
+
+---
+
 ## User workflows
 
 ```mermaid
@@ -270,6 +287,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Models/Entities/` | EF Core entity classes (one per table) |
 | `Models/ViewModels/` | UI projection types returned by data services |
 | `Services/AuthService.cs` | Login, logout, lockout (5 attempts / 15-min window), session storage, audit logging |
+| `Services/ExternalIdentityLinkService.cs` | Subject-first Authentik/OIDC identity mapping for active Budget users |
 | `Services/SiteInfoService.cs` | Reads `AppSettings` config block (site name, base URL, icon) |
 | `Services/EmailSenderService.cs` | SMTP dispatch via MailKit |
 | `Services/BillDueNotificationWorker.cs` | Hosted service — 15-min tick, sends bill-due emails per user timezone |
@@ -335,7 +353,7 @@ All tables use the `cf` prefix.
 
 | Table | Description |
 |---|---|
-| `cfUsers` | App users. Manually-assigned IDs, salt+hash passwords, `IsAdmin` flag, notification preferences (opt-in, timezone, delivery time). |
+| `cfUsers` | App users. Manually-assigned IDs, salt+hash passwords, `IsAdmin` flag, notification preferences, and optional Authentik/OIDC provider+subject mapping. |
 | `cfAccounts` | Financial accounts (checking, credit card, etc.). Tracks balance, cleared balance, credit limit, min payment, interest rate, due day. |
 | `cfTransactions` | Ledger entries. Date, amount, payee, category, account, cleared flag, optional notes and attachment path. |
 | `cfBudgets` | Recurring income/expense items. Frequency, next due date, end date, `IsBill`, `IsAutomatic`, `IsLate`, optional payee. |

@@ -181,6 +181,10 @@ public class ClintonFranklandDbContext : DbContext
         // Configure User notification preferences with defaults
         modelBuilder.Entity<User>(entity =>
         {
+            entity.HasIndex(u => new { u.ExternalProvider, u.ExternalSubject })
+                  .IsUnique()
+                  .HasFilter("[IsDeleted] = 0 AND [ExternalProvider] IS NOT NULL AND [ExternalSubject] IS NOT NULL");
+
             entity.Property(u => u.ReceiveBillDueNotices).HasDefaultValue(false);
             entity.Property(u => u.NotificationTimezone).HasDefaultValue("America/New_York");
             entity.Property(u => u.NotificationDeliveryTime).HasDefaultValue(new TimeOnly(8, 0));

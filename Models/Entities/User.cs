@@ -72,6 +72,25 @@ public class User
     [Column("PasswordResetRequestOn")]
     public DateTime? PasswordResetRequestOn { get; set; }
 
+    [Column("ExternalProvider")]
+    [StringLength(64)]
+    public string? ExternalProvider { get; set; }
+
+    [Column("ExternalSubject")]
+    [StringLength(256)]
+    public string? ExternalSubject { get; set; }
+
+    [Column("ExternalEmail")]
+    [StringLength(256)]
+    public string? ExternalEmail { get; set; }
+
+    [Column("ExternalDisplayName")]
+    [StringLength(128)]
+    public string? ExternalDisplayName { get; set; }
+
+    [Column("LastExternalLoginUtc")]
+    public DateTime? LastExternalLoginUtc { get; set; }
+
     // Notification Preferences
     [Column("ReceiveBillDueNotices")]
     public bool ReceiveBillDueNotices { get; set; } = false;

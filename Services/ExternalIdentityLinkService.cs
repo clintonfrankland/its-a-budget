@@ -1,0 +1,99 @@
+using ClintonFrankland.Data;
+using ClintonFrankland.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace ClintonFrankland.Services;
+
+public sealed record ExternalIdentityProfile(
+    string Provider,
+    string Subject,
+    string? Email = null,
+    string? DisplayName = null);
+
+public sealed class ExternalIdentityLinkService
+{
+    private readonly ClintonFranklandDbContext _db;
+    private readonly TimeProvider _timeProvider;
+
+    public ExternalIdentityLinkService(ClintonFranklandDbContext db, TimeProvider timeProvider)
+    {
+        _db = db;
+        _timeProvider = timeProvider;
+    }
+
+    public async Task<User?> FindLinkedUserAsync(string provider, string subject)
+    {
+        var normalizedProvider = NormalizeRequired(provider, nameof(provider));
+        var normalizedSubject = NormalizeRequired(subject, nameof(subject));
+
+        return await _db.Users.FirstOrDefaultAsync(user =>
+            !user.IsDeleted &&
+            user.ExternalProvider == normalizedProvider &&
+            user.ExternalSubject == normalizedSubject);
+    }
+
+    public async Task<User> LinkExternalIdentityAsync(int userId, ExternalIdentityProfile profile)
+    {
+        var normalizedProvider = NormalizeRequired(profile.Provider, nameof(profile.Provider));
+        var normalizedSubject = NormalizeRequired(profile.Subject, nameof(profile.Subject));
+
+        var duplicate = await _db.Users.FirstOrDefaultAsync(user =>
+            !user.IsDeleted &&
+            user.UserId != userId &&
+            user.ExternalProvider == normalizedProvider &&
+            user.ExternalSubject == normalizedSubject);
+
+        if (duplicate is not null)
+            throw new InvalidOperationException("External identity is already linked to another active Budget user.");
+
+        var user = await _db.Users.FirstOrDefaultAsync(user => user.UserId == userId && !user.IsDeleted)
+            ?? throw new InvalidOperationException("Active Budget user was not found.");
+
+        ApplyExternalIdentity(user, normalizedProvider, normalizedSubject, profile);
+        await _db.SaveChangesAsync();
+
+        return user;
+    }
+
+    public async Task<User?> RecordExternalLoginAsync(ExternalIdentityProfile profile)
+    {
+        var user = await FindLinkedUserAsync(profile.Provider, profile.Subject);
+        if (user is null)
+            return null;
+
+        ApplyExternalIdentity(user, user.ExternalProvider!, user.ExternalSubject!, profile);
+        await _db.SaveChangesAsync();
+
+        return user;
+    }
+
+    private void ApplyExternalIdentity(
+        User user,
+        string normalizedProvider,
+        string normalizedSubject,
+        ExternalIdentityProfile profile)
+    {
+        user.ExternalProvider = normalizedProvider;
+        user.ExternalSubject = normalizedSubject;
+        user.ExternalEmail = NormalizeOptional(profile.Email);
+        user.ExternalDisplayName = NormalizeOptional(profile.DisplayName);
+        user.LastExternalLoginUtc = _timeProvider.GetUtcNow().UtcDateTime;
+    }
+
+    private static string NormalizeRequired(string value, string parameterName)
+    {
+        var normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new ArgumentException("External identity provider and subject are required.", parameterName);
+
+        return parameterName.Contains("Provider", StringComparison.OrdinalIgnoreCase)
+            ? normalized.ToLowerInvariant()
+            : normalized;
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+}

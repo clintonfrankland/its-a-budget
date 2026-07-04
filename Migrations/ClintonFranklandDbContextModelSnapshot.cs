@@ -604,6 +604,26 @@ namespace ClintonFrankland.Migrations
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("EmailAddress");
 
+                    b.Property<string>("ExternalDisplayName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("ExternalDisplayName");
+
+                    b.Property<string>("ExternalEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ExternalEmail");
+
+                    b.Property<string>("ExternalProvider")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("ExternalProvider");
+
+                    b.Property<string>("ExternalSubject")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ExternalSubject");
+
                     b.Property<DateTime>("FirstLogin")
                         .HasColumnType("datetime2")
                         .HasColumnName("FirstLogin");
@@ -624,6 +644,10 @@ namespace ClintonFrankland.Migrations
                     b.Property<DateTime>("LastLogin")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastLogin");
+
+                    b.Property<DateTime?>("LastExternalLoginUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastExternalLoginUtc");
 
                     b.Property<bool>("ListButtonsRight")
                         .HasColumnType("bit")
@@ -680,6 +704,10 @@ namespace ClintonFrankland.Migrations
                         .HasColumnName("UserName");
 
                     b.HasKey("UserId");
+
+                    b.HasIndex("ExternalProvider", "ExternalSubject")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [ExternalProvider] IS NOT NULL AND [ExternalSubject] IS NOT NULL");
 
                     b.ToTable("cfUsers");
                 });

@@ -39,6 +39,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     options.SetDefaultCulture(usCulture.Name)
@@ -57,6 +58,7 @@ builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
 // Register application services
 builder.Services.AddSingleton<StartupDiagnosticsState>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ExternalIdentityLinkService>();
 builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddScoped<MigrationErrorTracker>();
