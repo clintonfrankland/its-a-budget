@@ -58,6 +58,18 @@ public static class ReturnUrlUtility
     }
 }
 
+public static class AuthentikLoginLinks
+{
+    public static string BuildLoginUrl(AuthentikOidcOptions options, string? returnUrl)
+    {
+        if (!options.IsUsable)
+            return string.Empty;
+
+        var safeReturnUrl = ReturnUrlUtility.GetSafeLocalPath(returnUrl);
+        return $"/auth/authentik/login?returnUrl={Uri.EscapeDataString(safeReturnUrl)}";
+    }
+}
+
 public static class AuthentikOidcEndpoints
 {
     public static IResult ChallengeLogin(AuthentikOidcOptions options, string? returnUrl)

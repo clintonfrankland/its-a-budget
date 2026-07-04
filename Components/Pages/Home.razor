@@ -236,6 +236,17 @@ else
                             <p class="text-muted mb-0">Go straight to your Checkbook after login.</p>
                         </div>
 
+                        @if (IsAuthentikEnabled)
+                        {
+                            <a class="btn btn-primary btn-lg authentik-login-button" href="@AuthentikLoginUrl">
+                                <i class="fa fa-shield-alt"></i>&nbsp;&nbsp;Sign in with Authentik
+                            </a>
+
+                            <div class="fallback-divider">
+                                <span>Local fallback</span>
+                            </div>
+                        }
+
                         @if (ShowWarning)
                         {
                             <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
@@ -392,6 +403,31 @@ else
         border-radius: 14px;
         border: 1px solid var(--rz-border-color);
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.10);
+    }
+
+    .authentik-login-button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 12px;
+        margin-bottom: 18px;
+    }
+
+    .fallback-divider {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--rz-text-secondary-color);
+        font-size: 0.85rem;
+        margin-bottom: 18px;
+    }
+
+    .fallback-divider::before,
+    .fallback-divider::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+        background: var(--rz-border-color);
     }
 
     .snapshot-card {

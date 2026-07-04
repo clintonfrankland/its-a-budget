@@ -1,6 +1,7 @@
 using ClintonFrankland.Models;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace ClintonFrankland.Components.Pages;
 
@@ -10,6 +11,7 @@ public partial class Home
     [Inject] private SiteInfoService SiteInfoService { get; set; } = default!;
     [Inject] private DashboardDataService DashboardData { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IOptions<AuthentikOidcOptions> AuthentikOptions { get; set; } = default!;
 
     private bool ShowWarning { get; set; }
 
@@ -18,6 +20,8 @@ public partial class Home
     private DashboardSnapshotViewModel? Snapshot { get; set; }
     private string? SnapshotError { get; set; }
     private bool _showAllCategories;
+    private bool IsAuthentikEnabled => AuthentikOptions.Value.IsUsable;
+    private string AuthentikLoginUrl => AuthentikLoginLinks.BuildLoginUrl(AuthentikOptions.Value, "/");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

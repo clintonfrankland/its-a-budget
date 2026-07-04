@@ -122,7 +122,7 @@ External identity mapping is stored directly on active `cfUsers` rows:
 
 Existing database-backed username/password login and the `AppSettings` fallback login remain supported during this phase.
 
-When optional Authentik login is enabled, `/login` displays **Sign in with Authentik** first and keeps the local username/password form underneath as **Local fallback**. Return URLs are accepted only when they are rooted local paths; unsafe absolute or protocol-relative URLs are ignored for both login and logout redirects.
+When optional Authentik login is enabled, `/` and `/login` display **Sign in with Authentik** first and keep the local username/password form underneath as **Local fallback**. Return URLs are accepted only when they are rooted local paths; unsafe absolute or protocol-relative URLs are ignored for both login and logout redirects.
 
 ---
 

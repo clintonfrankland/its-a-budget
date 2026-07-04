@@ -86,6 +86,33 @@ public class AuthentikOidcTests
         Assert.Contains(AuthentikOidcDefaults.OpenIdConnectScheme, result.AuthenticationSchemes);
     }
 
+    [Fact]
+    public void BuildLoginUrl_ReturnsEmptyWhenAuthentikIsDisabled()
+    {
+        var result = AuthentikLoginLinks.BuildLoginUrl(new AuthentikOidcOptions(), "/");
+
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Theory]
+    [InlineData("/", "/auth/authentik/login?returnUrl=%2F")]
+    [InlineData("/checkbook?month=2026-07", "/auth/authentik/login?returnUrl=%2Fcheckbook%3Fmonth%3D2026-07")]
+    [InlineData("https://evil.example.com/", "/auth/authentik/login?returnUrl=%2F")]
+    public void BuildLoginUrl_UsesSafeReturnUrlWhenEnabled(string? returnUrl, string expected)
+    {
+        var options = new AuthentikOidcOptions
+        {
+            Enabled = true,
+            Authority = "https://auth.example.com/application/o/budget/",
+            ClientId = "client",
+            ClientSecret = "secret"
+        };
+
+        var result = AuthentikLoginLinks.BuildLoginUrl(options, returnUrl);
+
+        Assert.Equal(expected, result);
+    }
+
     [Theory]
     [InlineData("/checkbook", "/checkbook")]
     [InlineData("https://evil.example.com/signout", "/")]

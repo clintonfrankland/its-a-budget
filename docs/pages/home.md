@@ -9,7 +9,8 @@
 The page becomes a public landing page that:
 
 - Explains what the app is for
-- Shows a sign-in form so you can log in without navigating elsewhere
+- Shows **Sign in with Authentik** when Authentik login is enabled
+- Keeps the local sign-in form available as the fallback login
 
 Once you sign in from the landing page, you're taken straight to the Home dashboard.
 

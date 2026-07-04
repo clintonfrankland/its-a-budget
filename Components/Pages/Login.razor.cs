@@ -29,7 +29,7 @@ public partial class Login
 
     private string SafeReturnUrl => ReturnUrlUtility.GetSafeLocalPath(Return);
 
-    private string AuthentikLoginUrl => $"/auth/authentik/login?returnUrl={Uri.EscapeDataString(SafeReturnUrl)}";
+    private string AuthentikLoginUrl => AuthentikLoginLinks.BuildLoginUrl(AuthentikOptions.Value, SafeReturnUrl);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
