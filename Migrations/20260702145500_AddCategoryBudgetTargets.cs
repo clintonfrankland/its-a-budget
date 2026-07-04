@@ -1,10 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using ClintonFrankland.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace ClintonFrankland.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ClintonFranklandDbContext))]
+    [Migration("20260702145500_AddCategoryBudgetTargets")]
     public partial class AddCategoryBudgetTargets : Migration
     {
         /// <inheritdoc />
