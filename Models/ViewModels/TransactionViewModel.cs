@@ -11,4 +11,5 @@ public class TransactionViewModel
     public decimal Balance { get; set; }
     public string? Notes { get; set; }
     public bool HasAttachment { get; set; }
+    public bool CanManageFinancialData { get; set; }
 }

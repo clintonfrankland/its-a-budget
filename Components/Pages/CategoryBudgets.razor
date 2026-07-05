@@ -51,16 +51,16 @@ else
                         </RadzenAlert>
                     }
 
-                    @if (categoryOptions.Count == 0)
+                    @if (writableCategoryOptions.Count == 0)
                     {
-                        <p class="text-muted mb-0">Add categories before setting category budgets.</p>
+                        <p class="text-muted mb-0">Category budget targets are read-only for your current shared-budget role.</p>
                     }
                     else
                     {
                         <div class="mb-3">
                             <label class="form-label" for="categoryBudgetCategory">Category</label>
                             <RadzenDropDown @bind-Value="editCategoryId" TValue="int" Name="categoryBudgetCategory"
-                                            Data="@categoryOptions" TextProperty="CategoryName" ValueProperty="CategoryId"
+                                            Data="@writableCategoryOptions" TextProperty="CategoryName" ValueProperty="CategoryId"
                                             Style="width: 100%;" />
                         </div>
 
@@ -97,7 +97,10 @@ else
                                         <th class="text-end">Remaining</th>
                                         <th class="text-end">Used</th>
                                         <th>Status</th>
-                                        <th class="text-end">Actions</th>
+                                        @if (rows.Any(r => r.CanManageFinancialData))
+                                        {
+                                            <th class="text-end">Actions</th>
+                                        }
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -110,15 +113,21 @@ else
                                             <td class="text-end">@row.RemainingAmount.ToString("C")</td>
                                             <td class="text-end">@row.PercentUsed.ToString("0.##")%</td>
                                             <td><span class="badge @GetAlertBadgeCss(row.AlertStatus)">@GetAlertText(row.AlertStatus)</span></td>
-                                            <td class="text-end">
-                                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                              Click="@(() => EditRow(row))" title="Edit" />
-                                                @if (row.TargetId.HasValue)
-                                                {
-                                                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
-                                                                  Click="@(() => DeleteTargetAsync(row))" title="Delete" />
-                                                }
-                                            </td>
+                                            @if (rows.Any(r => r.CanManageFinancialData))
+                                            {
+                                                <td class="text-end">
+                                                    @if (row.CanManageFinancialData)
+                                                    {
+                                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                                      Click="@(() => EditRow(row))" title="Edit" />
+                                                    }
+                                                    @if (row.CanManageFinancialData && row.TargetId.HasValue)
+                                                    {
+                                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                                                      Click="@(() => DeleteTargetAsync(row))" title="Delete" />
+                                                    }
+                                                </td>
+                                            }
                                         </tr>
                                     }
                                 </tbody>

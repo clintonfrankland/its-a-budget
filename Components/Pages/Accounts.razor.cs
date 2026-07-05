@@ -23,11 +23,15 @@ public partial class Accounts
     [Inject]
     private AccountsDataService AccountsData { get; set; } = default!;
 
+    [Inject]
+    private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
+
     private enum ViewMode { List, Edit }
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
     private List<AccountViewModel> accounts = new();
+    private bool canCreateFinancialData;
     
     // Grid reference and search
     private RadzenDataGrid<AccountViewModel>? accountsGrid;
@@ -82,6 +86,8 @@ public partial class Accounts
         {
             var userId = CurrentUser.UserId;
             var accountsData = await AccountsData.GetAccountsForUserAsync(userId);
+            var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
+            canCreateFinancialData = writableSharedBudgetIds.Count > 0;
 
             accounts = accountsData.Select(a => new AccountViewModel
             {
@@ -93,7 +99,8 @@ public partial class Accounts
                 InterestRate = a.InterestRate ?? 0m,
                 MinimumPayment = a.MinimumPayment ?? 0m,
                 Balance = a.Balance,
-                Ratio = a.Balance == 0 ? null : Math.Round((a.MinimumPayment ?? 0) / a.Balance * 100, 2)
+                Ratio = a.Balance == 0 ? null : Math.Round((a.MinimumPayment ?? 0) / a.Balance * 100, 2),
+                CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, a.SharedBudgetId, a.UserId)
             }).ToList();
         }
         catch (Exception ex)
@@ -104,6 +111,9 @@ public partial class Accounts
 
     private void ShowAddAccount()
     {
+        if (!canCreateFinancialData)
+            return;
+
         editAccountId = -1;
         editAccountName = string.Empty;
         editAccountNumber = string.Empty;
@@ -124,6 +134,11 @@ public partial class Accounts
         {
             var userId = CurrentUser.UserId;
             var account = await AccountsData.GetAccountByIdAsync(userId, accountId);
+            if (account is not null &&
+                !await SharedBudgetData.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+            {
+                return;
+            }
 
             if (account != null)
             {
@@ -272,4 +287,13 @@ public partial class Accounts
     {
         searchText = value ?? string.Empty;
     }
+
+    private static bool CanManageFinancialData(
+        int userId,
+        IReadOnlyCollection<int> writableSharedBudgetIds,
+        int? sharedBudgetId,
+        int? ownerUserId) =>
+        sharedBudgetId.HasValue
+            ? writableSharedBudgetIds.Contains(sharedBudgetId.Value)
+            : ownerUserId == userId;
 }

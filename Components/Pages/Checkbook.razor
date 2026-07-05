@@ -32,9 +32,9 @@ else
 
         @if (showBillsDue)
         {
-            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" 
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
                          AllowClose="false" Icon="warning" class="mb-3">
-                <strong>@billsDueCount bill@(billsDueCount == 1 ? "" : "s") due today or past due!</strong> 
+                <strong>@billsDueCount bill@(billsDueCount == 1 ? "" : "s") due today or past due!</strong>
                 Click the <RadzenIcon Icon="expand_more" Style="vertical-align: middle;" /> Budgets button to view and pay them.
             </RadzenAlert>
         }
@@ -45,12 +45,15 @@ else
                     <h1>Checkbook</h1>
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
-                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Transaction" : "")" ButtonStyle="ButtonStyle.Primary" 
-                                  Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
-                    <RadzenButton Icon="@(showBudgetCollapse ? "expand_less" : "expand_more")" 
+                    @if (canCreateFinancialData)
+                    {
+                        <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Transaction" : "")" ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
+                    }
+                    <RadzenButton Icon="@(showBudgetCollapse ? "expand_less" : "expand_more")"
                                   Text="@(IsAtLeast(ScreenSize.Medium) ? $"Budgets ({budgetItems.Count})" : "")"
-                                  ButtonStyle="@(showBudgetCollapse ? ButtonStyle.Info : ButtonStyle.Secondary)" 
-                                  Size="ButtonSize.Medium" Click="ToggleBudgetItems" 
+                                  ButtonStyle="@(showBudgetCollapse ? ButtonStyle.Info : ButtonStyle.Secondary)"
+                                  Size="ButtonSize.Medium" Click="ToggleBudgetItems"
                                   title="@(showBudgetCollapse ? "Hide Budget Items" : "Show Budget Items")" />
                 </div>
             </div>
@@ -64,7 +67,7 @@ else
                         <RadzenText TextStyle="TextStyle.H6" class="mb-0">
                             <RadzenIcon Icon="event_note" class="me-1" /> Upcoming Budget Items
                         </RadzenText>
-                        <RadzenDropDown @bind-Value="budgetDays" TValue="int" 
+                        <RadzenDropDown @bind-Value="budgetDays" TValue="int"
                                         Data="@budgetDaysOptions" TextProperty="Text" ValueProperty="Value"
                                         Change="@(args => OnBudgetDaysChangedDropdownAsync())"
                                         Style="width: 120px;" />
@@ -72,23 +75,23 @@ else
 
                 @if (budgetItems.Count > 0)
                 {
-                    <RadzenDataGrid Data="@budgetItems" TItem="BudgetItemViewModel" 
+                    <RadzenDataGrid Data="@budgetItems" TItem="BudgetItemViewModel"
                                     Density="Density.Compact"
                                     AllowSorting="true"
                                     class="rz-datatable-striped">
                         <Columns>
-                            @if (!AuthService.CurrentUser.ListButtonsRight)
+                            @if (!AuthService.CurrentUser.ListButtonsRight && budgetItems.Any(i => i.CanManageFinancialData))
                             {
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
-                                        @if (IsAtLeast(ScreenSize.Small))
+                                        @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                         {
-                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
                                                           Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
-                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
+                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
                                                           Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
                                         }
-                                        else
+                                        else if (item.CanManageFinancialData)
                                         {
                                             <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
                                                                Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
@@ -112,18 +115,18 @@ else
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
 
-                            @if (AuthService.CurrentUser.ListButtonsRight)
+                            @if (AuthService.CurrentUser.ListButtonsRight && budgetItems.Any(i => i.CanManageFinancialData))
                             {
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
-                                        @if (IsAtLeast(ScreenSize.Small))
+                                        @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                         {
-                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                            <RadzenButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
                                                           Click="() => ShowAddFromBudget(item)" title="Record to Checkbook" />
-                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" 
+                                            <RadzenButton Icon="skip_next" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
                                                           Click="() => SkipBudgetAsync(item.BudgetId)" title="Skip (Mark Paid without Transaction)" />
                                         }
-                                        else
+                                        else if (item.CanManageFinancialData)
                                         {
                                             <RadzenSplitButton Icon="add_task" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
                                                                Click="@((RadzenSplitButtonItem args) => OnBudgetActionSelectedOrDefaultAsync(args, item))">
@@ -152,7 +155,7 @@ else
         <div class="container mt-3">
             <RadzenDataGrid @ref="checkbookGrid" Data="@filteredTransactions" TItem="TransactionViewModel"
                             Density="Density.Compact"
-                            AllowFiltering="true" AllowSorting="true" AllowPaging="true" 
+                            AllowFiltering="true" AllowSorting="true" AllowPaging="true"
                             PageSize="25" PageSizeOptions="@(new int[] { 25, 50, 100, 200 })"
                             ShowPagingSummary="true" PagingSummaryFormat="Showing {0} to {1} of {2} items"
                             PagerHorizontalAlign="HorizontalAlign.Left"
@@ -161,32 +164,32 @@ else
                             class="rz-datatable-striped">
                 <HeaderTemplate>
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2">
-                        <RadzenTextBox @bind-Value="@transactionSearchText" Placeholder="Search..." 
-                                       Style="width: 250px;" 
+                        <RadzenTextBox @bind-Value="@transactionSearchText" Placeholder="Search..."
+                                       Style="width: 250px;"
                                        @oninput="@(args => OnTransactionSearch(args.Value?.ToString()))" />
                         @if (!string.IsNullOrEmpty(transactionSearchText))
                         {
-                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                           Click="@(() => OnTransactionSearch(string.Empty))" title="Clear search" />
                         }
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
-                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    @if (!AuthService.CurrentUser.ListButtonsRight && filteredTransactions.Any(t => t.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="txn">
-                                @if (IsAtLeast(ScreenSize.Small))
+                                @if (txn.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                 {
-                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                   Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
-                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
+                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")"
                                                   ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
-                                                  Size="ButtonSize.Small" 
-                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
+                                                  Size="ButtonSize.Small"
+                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)"
                                                   title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
                                 }
-                                else
+                                else if (txn.CanManageFinancialData)
                                 {
                                     <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                        Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
@@ -238,21 +241,21 @@ else
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                     <RadzenDataGridColumn TItem="TransactionViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
 
-                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    @if (AuthService.CurrentUser.ListButtonsRight && filteredTransactions.Any(t => t.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="TransactionViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Small) ? "70px" : "75px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="txn">
-                                @if (IsAtLeast(ScreenSize.Small))
+                                @if (txn.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                 {
-                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                   Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
-                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")" 
+                                    <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")"
                                                   ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
-                                                  Size="ButtonSize.Small" 
-                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)" 
+                                                  Size="ButtonSize.Small"
+                                                  Click="() => OnClearedChanged(txn.TransactionId, !txn.IsCleared)"
                                                   title="@(txn.IsCleared ? "Mark Uncleared" : "Mark Cleared")" />
                                 }
-                                else
+                                else if (txn.CanManageFinancialData)
                                 {
                                     <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                        Click="@((RadzenSplitButtonItem args) => OnTransactionActionSelectedOrDefault(args, txn))">
@@ -296,8 +299,8 @@ else
                         <RadzenLabel Text="Payee:" Component="editPayeeAutoComplete" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete" 
-                                            Placeholder="Type to search..." Style="width: 100%;" 
+                        <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete"
+                                            Placeholder="Type to search..." Style="width: 100%;"
                                             FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -331,8 +334,8 @@ else
                         <RadzenLabel Text="Category:" Component="editCategoryAutoComplete" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete" 
-                                            Placeholder="Type to search..." Style="width: 100%;" 
+                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete"
+                                            Placeholder="Type to search..." Style="width: 100%;"
                                             FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -351,7 +354,7 @@ else
                         <RadzenLabel Text="Notes:" Component="editNotesTextArea" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenTextArea @bind-Value="editNotes" Name="editNotesTextArea" 
+                        <RadzenTextArea @bind-Value="editNotes" Name="editNotesTextArea"
                                         Placeholder="Optional notes..." Style="width: 100%;" Rows="3" MaxLength="500" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -365,7 +368,7 @@ else
                         {
                             <div class="d-flex align-items-center gap-2 mb-2">
                                 <RadzenLink Path="@editAttachmentPath" Target="_blank" Text="View current attachment" />
-                                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall" 
+                                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
                                               Variant="Variant.Text" Click="RemoveAttachment" title="Remove attachment" />
                             </div>
                         }
@@ -380,11 +383,11 @@ else
                     </RadzenColumn>
                 </RadzenRow>
 
-                @if (editTransactionId != -1)
+                @if (canManageEditFinancialData && editTransactionId != -1)
                 {
                     <RadzenRow class="mb-3">
                         <RadzenColumn Size="12">
-                            <RadzenButton Text="Delete this Transaction" Icon="delete" 
+                            <RadzenButton Text="Delete this Transaction" Icon="delete"
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                           Click="DeleteTransactionAsync" />
                         </RadzenColumn>
@@ -393,7 +396,7 @@ else
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransactionAsync" class="me-2" />
+                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransactionAsync" class="me-2" Disabled="@(!canManageEditFinancialData)" />
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>

@@ -22,6 +22,7 @@ public class BudgetScheduleService
     {
         var startingBalance = await GetCurrentBalanceAsync(userId);
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
 
         var incomeBudget = budgets
             .Where(b => b.BudgetTypeId == 0)
@@ -31,7 +32,7 @@ public class BudgetScheduleService
         if (incomeBudget?.NextDueDate > endDate)
             endDate = incomeBudget.NextDueDate.Value;
 
-        return ProjectForecast(startingBalance, budgets, DateTime.Today, endDate, includeEndDate);
+        return ProjectForecast(startingBalance, budgets, DateTime.Today, endDate, includeEndDate, userId, writableSharedBudgetIds);
     }
 
     public async Task<(decimal LowestBalance, DateTime LowestDate)> GetLowestProjectedBalanceAsync(
@@ -41,7 +42,8 @@ public class BudgetScheduleService
     {
         var currentBalance = await GetCurrentBalanceAsync(userId);
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
-        var forecast = ProjectForecast(currentBalance, budgets, startDate, endDate, includeEndDate: true);
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
+        var forecast = ProjectForecast(currentBalance, budgets, startDate, endDate, includeEndDate: true, userId, writableSharedBudgetIds);
 
         var lowest = forecast
             .OrderBy(i => i.Balance)
@@ -203,9 +205,11 @@ public class BudgetScheduleService
         IEnumerable<Budget> budgets,
         DateTime startDate,
         DateTime endDate,
-        bool includeEndDate)
+        bool includeEndDate,
+        int userId,
+        IReadOnlyCollection<int> writableSharedBudgetIds)
     {
-        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee)>();
+        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee, bool CanManageFinancialData)>();
 
         foreach (var budget in budgets)
         {
@@ -227,7 +231,8 @@ public class BudgetScheduleService
                     budget.IsAutomatic ?? false,
                     budget.IsBill ?? false,
                     budget.IsLate ?? false,
-                    budget.Payee?.PayeeName ?? string.Empty));
+                    budget.Payee?.PayeeName ?? string.Empty,
+                    CanManageFinancialData(userId, writableSharedBudgetIds, budget.SharedBudgetId, budget.UserId)));
 
                 if (frequencyId == 0)
                     break;
@@ -253,12 +258,22 @@ public class BudgetScheduleService
                 IsAuto = item.IsAuto,
                 IsBill = item.IsBill,
                 IsLate = item.IsLate,
-                Payee = item.Payee
+                Payee = item.Payee,
+                CanManageFinancialData = item.CanManageFinancialData
             });
         }
 
         return result;
     }
+
+    private static bool CanManageFinancialData(
+        int userId,
+        IReadOnlyCollection<int> writableSharedBudgetIds,
+        int? sharedBudgetId,
+        int? ownerUserId) =>
+        sharedBudgetId.HasValue
+            ? writableSharedBudgetIds.Contains(sharedBudgetId.Value)
+            : ownerUserId == userId;
 
     private static bool ShouldDeleteAfterAdvance(Budget budget, DateTime newNextDueDate)
     {

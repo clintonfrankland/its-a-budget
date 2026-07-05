@@ -31,8 +31,11 @@ else
                     <h1>Budget Items</h1>
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
-                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary"
-                                  Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
+                    @if (canCreateFinancialData)
+                    {
+                        <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
+                    }
                 </div>
             </div>
         </div>
@@ -45,12 +48,12 @@ else
                             class="rz-datatable-striped">
                 <HeaderTemplate>
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2">
-                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..." 
-                                       Style="width: 250px;" 
+                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..."
+                                       Style="width: 250px;"
                                        @oninput="@(args => OnSearch(args.Value?.ToString()))" />
                         @if (!string.IsNullOrEmpty(searchText))
                         {
-                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                           Click="@(() => OnSearch(string.Empty))" title="Clear search" />
                         }
                         <RadzenButton Icon="description" Text="CSV" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
@@ -61,12 +64,15 @@ else
                 </HeaderTemplate>
                 <Columns>
                     @* Actions column (moveable left/right based on profile setting) *@
-                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    @if (!AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                @if (item.CanManageFinancialData)
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                  Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                }
                             </Template>
                         </RadzenDataGridColumn>
                     }
@@ -103,12 +109,15 @@ else
                         </Template>
                     </RadzenDataGridColumn>
 
-                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    @if (AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                @if (item.CanManageFinancialData)
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                  Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
+                                }
                             </Template>
                         </RadzenDataGridColumn>
                     }
@@ -124,7 +133,7 @@ else
 
                 @if (!string.IsNullOrEmpty(editErrorMessage))
                 {
-                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" 
+                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter"
                                  AllowClose="true" Close="@(() => editErrorMessage = string.Empty)" class="mb-3">
                         @editErrorMessage
                     </RadzenAlert>
@@ -188,8 +197,8 @@ else
                         <RadzenLabel Text="Category:" Component="editCategoryAutoComplete" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete" 
-                                            Placeholder="Type to search..." Style="width: 100%;" 
+                        <RadzenAutoComplete @bind-Value="editCategory" Data="@categoriesList" Name="editCategoryAutoComplete"
+                                            Placeholder="Type to search..." Style="width: 100%;"
                                             FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -210,8 +219,8 @@ else
                             <RadzenLabel Text="Payee:" Component="editPayeeAutoComplete" />
                         </RadzenColumn>
                         <RadzenColumn Size="8">
-                            <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete" 
-                                                Placeholder="Type to search..." Style="width: 100%;" 
+                            <RadzenAutoComplete @bind-Value="editPayee" Data="@payeesList" Name="editPayeeAutoComplete"
+                                                Placeholder="Type to search..." Style="width: 100%;"
                                                 FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" />
                         </RadzenColumn>
                     </RadzenRow>
@@ -260,7 +269,7 @@ else
                 {
                     <RadzenRow class="mb-3">
                         <RadzenColumn Size="12">
-                            <RadzenButton Text="Delete this Budget" Icon="delete" 
+                            <RadzenButton Text="Delete this Budget" Icon="delete"
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                           Click="DeleteBudgetAsync" />
                         </RadzenColumn>
@@ -277,4 +286,3 @@ else
         </div>
     }
 }
-

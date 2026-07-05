@@ -28,13 +28,14 @@ public partial class CategoryBudgets
     private DateOnly selectedMonth = DateOnly.FromDateTime(DateTime.Today);
     private List<CategoryBudgetMonthRow> rows = new();
     private List<CategoryBudgetCategoryOption> categoryOptions = new();
+    private List<CategoryBudgetCategoryOption> writableCategoryOptions = new();
     private int? editTargetId;
     private int editCategoryId;
     private decimal editPlannedAmount;
 
     private string SelectedMonthInput => selectedMonth.ToString("yyyy-MM");
     private string SelectedMonthLabel => selectedMonth.ToString("MMMM yyyy");
-    private bool CanSave => editCategoryId > 0;
+    private bool CanSave => editCategoryId > 0 && writableCategoryOptions.Any(c => c.CategoryId == editCategoryId);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -74,10 +75,11 @@ public partial class CategoryBudgets
             errorMessage = string.Empty;
             var userId = CurrentUser.UserId;
             categoryOptions = await CategoryBudgetData.GetCategoryOptionsAsync(userId);
+            writableCategoryOptions = categoryOptions.Where(c => c.CanManageFinancialData).ToList();
             rows = await CategoryBudgetData.GetMonthRowsAsync(userId, selectedMonth);
 
-            if (editCategoryId == 0 && categoryOptions.Count > 0)
-                editCategoryId = categoryOptions[0].CategoryId;
+            if (editCategoryId == 0 && writableCategoryOptions.Count > 0)
+                editCategoryId = writableCategoryOptions[0].CategoryId;
         }
         catch (Exception ex)
         {
@@ -87,6 +89,9 @@ public partial class CategoryBudgets
 
     private void EditRow(CategoryBudgetMonthRow row)
     {
+        if (!row.CanManageFinancialData)
+            return;
+
         editErrorMessage = string.Empty;
         editTargetId = row.TargetId;
         editCategoryId = row.CategoryId;
@@ -100,6 +105,12 @@ public partial class CategoryBudgets
         if (editCategoryId <= 0)
         {
             editErrorMessage = "Choose a category.";
+            return;
+        }
+
+        if (!writableCategoryOptions.Any(c => c.CategoryId == editCategoryId))
+        {
+            editErrorMessage = "You can view this category budget, but your current role cannot change it.";
             return;
         }
 
@@ -161,7 +172,7 @@ public partial class CategoryBudgets
     {
         editErrorMessage = string.Empty;
         editTargetId = null;
-        editCategoryId = categoryOptions.FirstOrDefault()?.CategoryId ?? 0;
+        editCategoryId = writableCategoryOptions.FirstOrDefault()?.CategoryId ?? 0;
         editPlannedAmount = 0m;
     }
 

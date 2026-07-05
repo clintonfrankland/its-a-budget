@@ -31,6 +31,9 @@ public partial class BudgetItems
     private BudgetItemsExportService BudgetItemsExport { get; set; } = default!;
 
     [Inject]
+    private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
+
+    [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
     private enum ViewMode { List, Edit }
@@ -40,6 +43,7 @@ public partial class BudgetItems
     private List<BudgetItemViewModel> budgetItems = new();
     private Dictionary<string, decimal[]> _sparklineData = new();
     private List<FrequencyOption> frequencyOptions = new();
+    private bool canCreateFinancialData;
     
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetItemsGrid;
@@ -95,6 +99,8 @@ public partial class BudgetItems
         {
             var userId = CurrentBudgetItemsUserId;
             var budgetsData = await BudgetItemsData.GetBudgetsForUserAsync(userId);
+            var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
+            canCreateFinancialData = writableSharedBudgetIds.Count > 0;
             _sparklineData = await CheckbookData.GetMonthlyCategoryTotalsAsync(userId, 3);
 
             // Convert to view models for RadzenDataGrid
@@ -115,7 +121,8 @@ public partial class BudgetItems
                 IsAuto = b.IsAutomatic ?? false,
                 IsLate = b.IsLate ?? false,
                 Payee = b.Payee?.PayeeName ?? string.Empty,
-                SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : []
+                SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : [],
+                CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, b.SharedBudgetId, b.UserId)
             }).ToList();
 
             await LoadCategoriesAndPayeesAsync();
@@ -196,6 +203,9 @@ public partial class BudgetItems
 
     private async Task ShowAddBudgetAsync()
     {
+        if (!canCreateFinancialData)
+            return;
+
         await LoadFrequenciesAsync();
         editBudgetId = -1;
         editBudgetName = string.Empty;
@@ -220,6 +230,11 @@ public partial class BudgetItems
             await LoadFrequenciesAsync();
             var userId = CurrentBudgetItemsUserId;
             var budget = await BudgetItemsData.GetBudgetByIdAsync(userId, budgetId);
+            if (budget is not null &&
+                !await SharedBudgetData.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
+            {
+                return;
+            }
 
             if (budget != null)
             {
@@ -441,6 +456,15 @@ public partial class BudgetItems
         searchText = value ?? string.Empty;
         budgetItemsGrid?.GoToPage(0);
     }
+
+    private static bool CanManageFinancialData(
+        int userId,
+        IReadOnlyCollection<int> writableSharedBudgetIds,
+        int? sharedBudgetId,
+        int? ownerUserId) =>
+        sharedBudgetId.HasValue
+            ? writableSharedBudgetIds.Contains(sharedBudgetId.Value)
+            : ownerUserId == userId;
 
     private MarkupString RenderSparkline(BudgetItemViewModel item)
     {

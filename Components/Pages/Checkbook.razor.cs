@@ -30,6 +30,9 @@ public partial class Checkbook
     [Inject]
     private ReceiptAttachmentStorageService ReceiptAttachmentStorage { get; set; } = default!;
 
+    [Inject]
+    private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
+
     [SupplyParameterFromQuery(Name = "search")]
     private string? InitialSearch { get; set; }
 
@@ -43,6 +46,7 @@ public partial class Checkbook
     private int billsDueCount = 0;
     private bool showBudgetCollapse = false;
     private int budgetDays = 3;
+    private bool canCreateFinancialData;
 
     // Budget days dropdown options
     private static readonly List<BudgetDaysOption> budgetDaysOptions = new()
@@ -104,6 +108,7 @@ public partial class Checkbook
     private string? editAttachmentPath = null;
     private IBrowserFile? editAttachmentFile = null;
     private bool removeAttachment = false;
+    private bool canManageEditFinancialData;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -151,6 +156,8 @@ public partial class Checkbook
         try
         {
             var userId = CurrentUser.UserId;
+            var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
+            canCreateFinancialData = writableSharedBudgetIds.Count > 0;
             var account = await CheckbookData.GetAccountForUserAsync(userId);
             var startingBalance = account?.BeginningBalance ?? 0m;
 
@@ -176,7 +183,8 @@ public partial class Checkbook
                     Amount = t.Amount,
                     Balance = runningBalance,
                     Notes = t.Notes,
-                    HasAttachment = !string.IsNullOrEmpty(t.AttachmentPath)
+                    HasAttachment = !string.IsNullOrEmpty(t.AttachmentPath),
+                    CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, t.SharedBudgetId, t.UserId)
                 };
             }).ToList();
 
@@ -269,6 +277,8 @@ public partial class Checkbook
     private async Task OnBudgetActionSelectedOrDefaultAsync(RadzenSplitButtonItem? args, BudgetItemViewModel item)
     {
         var action = args?.Value?.ToString() ?? "record";  // Default to record when main button clicked
+        if (!item.CanManageFinancialData)
+            return;
 
         switch (action)
         {
@@ -286,6 +296,8 @@ public partial class Checkbook
     private async Task OnTransactionActionSelectedOrDefault(RadzenSplitButtonItem? args, TransactionViewModel txn)
     {
         var action = args?.Value?.ToString() ?? "edit";  // Default to edit when main button clicked
+        if (!txn.CanManageFinancialData)
+            return;
 
         switch (action)
         {
@@ -374,6 +386,9 @@ public partial class Checkbook
 
     private void ShowAddTransaction()
     {
+        if (!canCreateFinancialData)
+            return;
+
         SaveGridState();
         editTransactionId = -1;
         editBudgetId = -1;  // Not from a budget item
@@ -387,12 +402,16 @@ public partial class Checkbook
         editAttachmentPath = null;
         editAttachmentFile = null;
         removeAttachment = false;
+        canManageEditFinancialData = true;
         currentView = ViewMode.Edit;
     }
 
     // Load a budget item into the edit form for recording as a transaction
     private void ShowAddFromBudget(BudgetItemViewModel budgetItem)
     {
+        if (!budgetItem.CanManageFinancialData)
+            return;
+
         SaveGridState();
         editTransactionId = -1;  // New transaction
         editBudgetId = budgetItem.BudgetId;  // Track the budget item
@@ -406,6 +425,7 @@ public partial class Checkbook
         editAttachmentPath = null;
         editAttachmentFile = null;
         removeAttachment = false;
+        canManageEditFinancialData = true;
         currentView = ViewMode.Edit;
     }
 
@@ -416,6 +436,11 @@ public partial class Checkbook
             SaveGridState();
             var userId = CurrentUser.UserId;
             var transaction = await CheckbookData.GetTransactionByIdAsync(userId, transactionId);
+            if (transaction is not null &&
+                !await SharedBudgetData.CanManageFinancialDataAsync(userId, transaction.SharedBudgetId, transaction.UserId))
+            {
+                return;
+            }
 
             if (transaction != null)
             {
@@ -432,6 +457,7 @@ public partial class Checkbook
                 editAttachmentPath = transaction.AttachmentPath;
                 editAttachmentFile = null;
                 removeAttachment = false;
+                canManageEditFinancialData = true;
                 currentView = ViewMode.Edit;
             }
         }
@@ -444,6 +470,7 @@ public partial class Checkbook
     private void CancelEdit()
     {
         editBudgetId = -1;  // Clear the budget tracking
+        canManageEditFinancialData = false;
         currentView = ViewMode.List;
         shouldRestoreGridState = true;
     }
@@ -452,6 +479,9 @@ public partial class Checkbook
     {
         try
         {
+            if (!canManageEditFinancialData)
+                return;
+
             if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(editAmount, out var amountMessage, CurrencyPolicy.TransactionPrecision))
             {
                 errorMessage = amountMessage;
@@ -542,6 +572,9 @@ public partial class Checkbook
 
     private async Task DeleteTransactionAsync()
     {
+        if (!canManageEditFinancialData)
+            return;
+
         var confirmed = await DialogService.Confirm(
             "Are you sure you want to delete this transaction?", 
             "Confirm Delete",
@@ -626,6 +659,10 @@ public partial class Checkbook
 
     private async Task OnClearedChanged(int transactionId, bool isCleared)
     {
+        var transaction = transactions.FirstOrDefault(t => t.TransactionId == transactionId);
+        if (transaction?.CanManageFinancialData != true)
+            return;
+
         if (isCleared)
         {
             await MarkCleared(transactionId);
@@ -688,4 +725,13 @@ public partial class Checkbook
         transactionSearchText = value ?? string.Empty;
         checkbookGrid?.GoToPage(0);
     }
+
+    private static bool CanManageFinancialData(
+        int userId,
+        IReadOnlyCollection<int> writableSharedBudgetIds,
+        int? sharedBudgetId,
+        int? ownerUserId) =>
+        sharedBudgetId.HasValue
+            ? writableSharedBudgetIds.Contains(sharedBudgetId.Value)
+            : ownerUserId == userId;
 }

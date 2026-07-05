@@ -31,8 +31,11 @@ else
                     <h1>Accounts</h1>
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
-                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Account" : "")" ButtonStyle="ButtonStyle.Primary"
-                                  Size="ButtonSize.Medium" Click="ShowAddAccount" />
+                    @if (canCreateFinancialData)
+                    {
+                        <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Account" : "")" ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Medium" Click="ShowAddAccount" />
+                    }
                 </div>
             </div>
         </div>
@@ -45,23 +48,26 @@ else
                             class="rz-datatable-striped">
                 <HeaderTemplate>
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" class="mb-2">
-                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..." 
-                                       Style="width: 250px;" 
+                        <RadzenTextBox @bind-Value="@searchText" Placeholder="Search..."
+                                       Style="width: 250px;"
                                        @oninput="@(args => OnSearch(args.Value?.ToString()))" />
                         @if (!string.IsNullOrEmpty(searchText))
                         {
-                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                            <RadzenButton Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                           Click="@(() => OnSearch(string.Empty))" title="Clear search" />
                         }
                     </RadzenStack>
                 </HeaderTemplate>
                 <Columns>
-                    @if (!AuthService.CurrentUser.ListButtonsRight)
+                    @if (!AuthService.CurrentUser.ListButtonsRight && filteredAccounts.Any(a => a.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                                @if (item.CanManageFinancialData)
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                  Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                                }
                             </Template>
                         </RadzenDataGridColumn>
                     }
@@ -79,12 +85,15 @@ else
                         </Template>
                     </RadzenDataGridColumn>
 
-                    @if (AuthService.CurrentUser.ListButtonsRight)
+                    @if (AuthService.CurrentUser.ListButtonsRight && filteredAccounts.Any(a => a.CanManageFinancialData))
                     {
                         <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                              Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                                @if (item.CanManageFinancialData)
+                                {
+                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                  Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
+                                }
                             </Template>
                         </RadzenDataGridColumn>
                     }
@@ -103,7 +112,7 @@ else
                         <RadzenLabel Text="Name:" Component="editAccountNameTextBox" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenTextBox @bind-Value="editAccountName" Name="editAccountNameTextBox" 
+                        <RadzenTextBox @bind-Value="editAccountName" Name="editAccountNameTextBox"
                                        MaxLength="255" Style="width: 100%;" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -113,7 +122,7 @@ else
                         <RadzenLabel Text="Account #:" Component="editAccountNumberTextBox" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenTextBox @bind-Value="editAccountNumber" Name="editAccountNumberTextBox" 
+                        <RadzenTextBox @bind-Value="editAccountNumber" Name="editAccountNumberTextBox"
                                        MaxLength="16" Style="width: 150px;" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -196,7 +205,7 @@ else
                         <RadzenLabel Text="Web URL:" Component="editWebUrlTextBox" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
-                        <RadzenTextBox @bind-Value="editWebUrl" Name="editWebUrlTextBox" 
+                        <RadzenTextBox @bind-Value="editWebUrl" Name="editWebUrlTextBox"
                                        MaxLength="1024" Style="width: 100%;" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -205,7 +214,7 @@ else
                 {
                     <RadzenRow class="mb-3">
                         <RadzenColumn Size="12">
-                            <RadzenButton Text="Delete this Account" Icon="delete" 
+                            <RadzenButton Text="Delete this Account" Icon="delete"
                                           ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                           Click="DeleteAccountAsync" />
                         </RadzenColumn>
@@ -222,4 +231,3 @@ else
         </div>
     }
 }
-

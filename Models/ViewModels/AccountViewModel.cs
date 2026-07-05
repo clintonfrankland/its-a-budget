@@ -11,4 +11,5 @@ public class AccountViewModel
     public decimal MinimumPayment { get; set; }
     public decimal Balance { get; set; }
     public decimal? Ratio { get; set; }
+    public bool CanManageFinancialData { get; set; }
 }

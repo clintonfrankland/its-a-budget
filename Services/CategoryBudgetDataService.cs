@@ -35,19 +35,21 @@ public class CategoryBudgetDataService
     public async Task<List<CategoryBudgetCategoryOption>> GetCategoryOptionsAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
         var categories = await _db.Categories
             .AsNoTracking()
             .Where(c => c.SharedBudgetId.HasValue
                 ? sharedBudgetIds.Contains(c.SharedBudgetId.Value)
                 : c.UserId == userId)
             .OrderBy(c => c.CategoryName)
-            .Select(c => new { c.CategoryId, c.CategoryName })
+            .Select(c => new { c.CategoryId, c.CategoryName, c.SharedBudgetId, c.UserId })
             .ToListAsync();
 
         return categories
             .Select(c => new CategoryBudgetCategoryOption(
                 c.CategoryId,
-                string.IsNullOrWhiteSpace(c.CategoryName) ? InsightsDataService.UncategorizedCategoryName : c.CategoryName.Trim()))
+                string.IsNullOrWhiteSpace(c.CategoryName) ? InsightsDataService.UncategorizedCategoryName : c.CategoryName.Trim(),
+                c.SharedBudgetId.HasValue ? writableSharedBudgetIds.Contains(c.SharedBudgetId.Value) : c.UserId == userId))
             .ToList();
     }
 
@@ -56,6 +58,7 @@ public class CategoryBudgetDataService
         var monthStart = FirstOfMonth(selectedMonth);
         var monthEnd = monthStart.AddMonths(1);
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
 
         var targets = await _db.CategoryBudgetTargets
             .AsNoTracking()
@@ -112,14 +115,16 @@ public class CategoryBudgetDataService
             t.CategoryId,
             GetCategoryName(t.Category),
             t.PlannedAmount,
-            spendingByCategory.GetValueOrDefault(t.CategoryId)));
+            spendingByCategory.GetValueOrDefault(t.CategoryId),
+            t.SharedBudgetId.HasValue ? writableSharedBudgetIds.Contains(t.SharedBudgetId.Value) : t.UserId == userId));
 
         var spentOnlyRows = spentOnlyCategories.Select(c => CreateRow(
             null,
             c.CategoryId,
             GetCategoryName(c),
             0m,
-            spendingByCategory.GetValueOrDefault(c.CategoryId)));
+            spendingByCategory.GetValueOrDefault(c.CategoryId),
+            c.SharedBudgetId.HasValue ? writableSharedBudgetIds.Contains(c.SharedBudgetId.Value) : c.UserId == userId));
 
         return budgetedRows
             .Concat(spentOnlyRows)
@@ -211,7 +216,8 @@ public class CategoryBudgetDataService
         int categoryId,
         string categoryName,
         decimal plannedAmount,
-        decimal actualAmount)
+        decimal actualAmount,
+        bool canManageFinancialData)
     {
         plannedAmount = CurrencyPolicy.Round(plannedAmount);
         actualAmount = CurrencyPolicy.Round(actualAmount);
@@ -233,7 +239,8 @@ public class CategoryBudgetDataService
             actualAmount,
             remaining,
             percentUsed,
-            status);
+            status,
+            canManageFinancialData);
     }
 
     private static DateOnly FirstOfMonth(DateOnly date) => new(date.Year, date.Month, 1);

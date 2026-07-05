@@ -20,7 +20,10 @@ public sealed record CategoryBudgetThresholds(int WarningPercent)
     }
 }
 
-public sealed record CategoryBudgetCategoryOption(int CategoryId, string CategoryName);
+public sealed record CategoryBudgetCategoryOption(
+    int CategoryId,
+    string CategoryName,
+    bool CanManageFinancialData);
 
 public sealed record CategoryBudgetMonthRow(
     int? TargetId,
@@ -30,7 +33,8 @@ public sealed record CategoryBudgetMonthRow(
     decimal ActualAmount,
     decimal RemainingAmount,
     decimal PercentUsed,
-    CategoryBudgetAlertStatus AlertStatus)
+    CategoryBudgetAlertStatus AlertStatus,
+    bool CanManageFinancialData)
 {
     public bool IsBudgeted => TargetId.HasValue;
 }

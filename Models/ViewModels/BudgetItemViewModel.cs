@@ -14,6 +14,7 @@ public class BudgetItemViewModel
     public bool IsBill { get; set; }
     public bool IsAuto { get; set; }
     public bool IsLate { get; set; }
+    public bool CanManageFinancialData { get; set; }
 
     // Additional fields for BudgetItems page
     public string EndDateName { get; set; } = string.Empty;
