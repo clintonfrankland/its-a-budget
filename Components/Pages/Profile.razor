@@ -78,6 +78,55 @@ else
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-header">Authentik Account</div>
+        <div class="card-body">
+            @if (!IsAuthentikEnabled)
+            {
+                <div class="text-muted">Authentik linking is not enabled.</div>
+            }
+            else if (CurrentDbUser is null)
+            {
+                <div class="text-muted">Profile not loaded.</div>
+            }
+            else
+            {
+                <div class="mb-3">
+                    <div class="fw-semibold">@ExternalIdentityStatus</div>
+                    @if (HasExternalIdentity)
+                    {
+                        <div class="text-muted small">
+                            @if (!string.IsNullOrWhiteSpace(CurrentDbUser.ExternalDisplayName))
+                            {
+                                <span>@CurrentDbUser.ExternalDisplayName</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(CurrentDbUser.ExternalEmail))
+                            {
+                                <span>@(string.IsNullOrWhiteSpace(CurrentDbUser.ExternalDisplayName) ? "" : " - ")@CurrentDbUser.ExternalEmail</span>
+                            }
+                            @if (CurrentDbUser.LastExternalLoginUtc.HasValue)
+                            {
+                                <span> - Last sign-in @CurrentDbUser.LastExternalLoginUtc.Value.ToLocalTime().ToString("g")</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    @if (HasExternalIdentity)
+                    {
+                        <a class="btn btn-outline-primary" href="@AuthentikLinkUrl">Relink Authentik Account</a>
+                        <button class="btn btn-outline-danger" @onclick="UnlinkAuthentikAsync">Unlink Authentik Account</button>
+                    }
+                    else
+                    {
+                        <a class="btn btn-primary" href="@AuthentikLinkUrl">Link Authentik Account</a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">Reset Password</div>
         <div class="card-body">

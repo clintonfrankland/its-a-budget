@@ -35,6 +35,25 @@ You can set:
 
 Tip: If you travel a lot, keeping your timezone correct prevents reminders from showing up at weird hours.
 
+### Authentik Account
+
+When Authentik login is enabled, Profile shows your current Authentik account status.
+
+You can:
+
+- **Link Authentik Account**
+  - Starts Authentik sign-in with an account-link intent.
+  - After Authentik returns, Budget App shows a confirmation page with the Authentik display name/email and your current Budget username.
+  - The link is saved only after you confirm.
+
+- **Relink Authentik Account**
+  - Starts the same confirmation flow for replacing the linked Authentik account.
+
+- **Unlink Authentik Account**
+  - Requires confirmation and clears only your own linked Authentik identity.
+
+Budget App never links by email alone. The stable Authentik subject is stored only after confirmation, and duplicate Authentik subjects are rejected if they already belong to another active Budget user.
+
 ## Saving changes
 
 After making edits, choose the save/update option on the page to store your changes.

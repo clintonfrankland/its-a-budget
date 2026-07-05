@@ -130,6 +130,27 @@ if (authentikOidcOptions.IsUsable)
                     return;
                 }
 
+                var identity = context.Principal!.Identity as ClaimsIdentity;
+                var isLinkIntent = string.Equals(
+                    context.Properties?.RedirectUri,
+                    AuthentikOidcDefaults.LinkConfirmationPath,
+                    StringComparison.Ordinal);
+                if (isLinkIntent)
+                {
+                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.LinkIntentClaim, "true"));
+                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalProviderClaim, profile.Provider));
+                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalSubjectClaim, profile.Subject));
+                    if (!string.IsNullOrWhiteSpace(profile.Email))
+                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalEmailClaim, profile.Email));
+                    if (!string.IsNullOrWhiteSpace(profile.DisplayName))
+                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalDisplayNameClaim, profile.DisplayName));
+                    foreach (var group in receivedGroups)
+                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
+
+                    AuthentikOidcDiagnostics.LogLinkIntentSuccess(logger, profile, receivedGroups);
+                    return;
+                }
+
                 var linker = context.HttpContext.RequestServices.GetRequiredService<ExternalIdentityLinkService>();
                 var user = await linker.RecordExternalLoginAsync(profile);
                 if (user is null)
@@ -139,7 +160,6 @@ if (authentikOidcOptions.IsUsable)
                     return;
                 }
 
-                var identity = context.Principal!.Identity as ClaimsIdentity;
                 identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetUserIdClaim, user.UserId.ToString(CultureInfo.InvariantCulture)));
                 foreach (var group in receivedGroups)
                     identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
@@ -341,6 +361,9 @@ app.UseAntiforgery();
 
 app.MapGet("/auth/authentik/login", (IOptions<AuthentikOidcOptions> options, string? returnUrl) =>
     AuthentikOidcEndpoints.ChallengeLogin(options.Value, returnUrl));
+
+app.MapGet("/auth/authentik/link", (IOptions<AuthentikOidcOptions> options) =>
+    AuthentikOidcEndpoints.ChallengeLink(options.Value));
 
 app.MapGet("/auth/logout", async (HttpContext context, string? returnUrl) =>
 {

@@ -113,6 +113,47 @@ public class AuthentikOidcTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void BuildLinkUrl_ReturnsEmptyWhenAuthentikIsDisabled()
+    {
+        var result = AuthentikLoginLinks.BuildLinkUrl(new AuthentikOidcOptions());
+
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Fact]
+    public void BuildLinkUrl_ReturnsLinkEndpointWhenEnabled()
+    {
+        var options = new AuthentikOidcOptions
+        {
+            Enabled = true,
+            Authority = "https://auth.example.com/application/o/budget/",
+            ClientId = "client",
+            ClientSecret = "secret"
+        };
+
+        var result = AuthentikLoginLinks.BuildLinkUrl(options);
+
+        Assert.Equal("/auth/authentik/link", result);
+    }
+
+    [Fact]
+    public void ChallengeLink_UsesConfirmationRedirectAndOidcScheme()
+    {
+        var options = new AuthentikOidcOptions
+        {
+            Enabled = true,
+            Authority = "https://auth.example.com/application/o/budget/",
+            ClientId = "client",
+            ClientSecret = "secret"
+        };
+
+        var result = Assert.IsType<ChallengeHttpResult>(AuthentikOidcEndpoints.ChallengeLink(options));
+
+        Assert.Equal(AuthentikOidcDefaults.LinkConfirmationPath, result.Properties?.RedirectUri);
+        Assert.Contains(AuthentikOidcDefaults.OpenIdConnectScheme, result.AuthenticationSchemes);
+    }
+
     [Theory]
     [InlineData("/checkbook", "/checkbook")]
     [InlineData("https://evil.example.com/signout", "/")]

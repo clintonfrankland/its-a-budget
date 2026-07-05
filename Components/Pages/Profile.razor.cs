@@ -1,7 +1,9 @@
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.JSInterop;
 
 namespace ClintonFrankland.Components.Pages;
 
@@ -9,7 +11,10 @@ public partial class Profile
 {
     [Inject] private AuthService AuthService { get; set; } = default!;
     [Inject] private ClintonFrankland.Data.ClintonFranklandDbContext DbContext { get; set; } = default!;
+    [Inject] private ExternalIdentityLinkService ExternalIdentityLinks { get; set; } = default!;
+    [Inject] private IOptions<AuthentikOidcOptions> AuthentikOptions { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private User? CurrentDbUser { get; set; }
     private string DisplayName { get; set; } = string.Empty;
@@ -25,6 +30,13 @@ public partial class Profile
 
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private bool IsAuthentikEnabled => AuthentikOptions.Value.IsUsable;
+    private bool HasExternalIdentity => CurrentDbUser is not null && ExternalIdentityLinkService.HasExternalIdentity(CurrentDbUser);
+    private string AuthentikLinkUrl => AuthentikLoginLinks.BuildLinkUrl(AuthentikOptions.Value);
+    private string ExternalIdentityStatus =>
+        HasExternalIdentity
+            ? $"{CurrentDbUser!.ExternalProvider} account linked"
+            : "No Authentik account linked";
 
     // Available timezones for dropdown
     private static readonly List<TimezoneOption> AvailableTimezones = GetAvailableTimezones();
@@ -214,5 +226,40 @@ public partial class Profile
 
         NewPassword = string.Empty;
         SuccessMessage = "Password reset successful.";
+    }
+
+    private async Task UnlinkAuthentikAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        if (CurrentDbUser is null)
+        {
+            ErrorMessage = "Profile not loaded.";
+            return;
+        }
+
+        if (!HasExternalIdentity)
+        {
+            ErrorMessage = "No Authentik account is linked.";
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Unlink Authentik account from {CurrentDbUser.UserName}?");
+        if (!confirmed)
+            return;
+
+        try
+        {
+            CurrentDbUser = await ExternalIdentityLinks.UnlinkExternalIdentityForCurrentUserAsync(AuthService.CurrentUser);
+            await AuthService.RefreshCurrentUserAsync(CurrentDbUser);
+            SuccessMessage = "Authentik account unlinked.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            ErrorMessage = ex.Message;
+        }
     }
 }

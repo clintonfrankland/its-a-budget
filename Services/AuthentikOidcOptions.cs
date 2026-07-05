@@ -31,8 +31,14 @@ public static class AuthentikOidcDefaults
 {
     public const string CookieScheme = "BudgetApp.Authentik.Cookie";
     public const string OpenIdConnectScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    public const string LinkConfirmationPath = "/profile/authentik-link/confirm";
     public const string BudgetUserIdClaim = "budget:user_id";
     public const string BudgetGroupClaim = "budget:authentik_group";
+    public const string LinkIntentClaim = "budget:authentik_link_intent";
+    public const string ExternalProviderClaim = "budget:external_provider";
+    public const string ExternalSubjectClaim = "budget:external_subject";
+    public const string ExternalEmailClaim = "budget:external_email";
+    public const string ExternalDisplayNameClaim = "budget:external_display_name";
 }
 
 public static class ReturnUrlUtility
@@ -68,6 +74,14 @@ public static class AuthentikLoginLinks
         var safeReturnUrl = ReturnUrlUtility.GetSafeLocalPath(returnUrl);
         return $"/auth/authentik/login?returnUrl={Uri.EscapeDataString(safeReturnUrl)}";
     }
+
+    public static string BuildLinkUrl(AuthentikOidcOptions options)
+    {
+        if (!options.IsUsable)
+            return string.Empty;
+
+        return "/auth/authentik/link";
+    }
 }
 
 public static class AuthentikOidcEndpoints
@@ -82,6 +96,19 @@ public static class AuthentikOidcEndpoints
             new Microsoft.AspNetCore.Authentication.AuthenticationProperties
             {
                 RedirectUri = safeReturnUrl
+            },
+            [AuthentikOidcDefaults.OpenIdConnectScheme]);
+    }
+
+    public static IResult ChallengeLink(AuthentikOidcOptions options)
+    {
+        if (!options.IsUsable)
+            return Results.NotFound();
+
+        return Results.Challenge(
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+            {
+                RedirectUri = AuthentikOidcDefaults.LinkConfirmationPath
             },
             [AuthentikOidcDefaults.OpenIdConnectScheme]);
     }

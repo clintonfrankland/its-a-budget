@@ -1,0 +1,122 @@
+@page "/profile/authentik-link/confirm"
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using ClintonFrankland.Services
+@inject AuthService AuthService
+@inject ExternalIdentityLinkService ExternalIdentityLinks
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navigation
+
+<PageTitle>Confirm Authentik Link</PageTitle>
+
+@if (!Ready)
+{
+    <p>Loading...</p>
+}
+else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <h1 class="mb-3">Confirm Authentik Account</h1>
+    <div class="alert alert-danger">@ErrorMessage</div>
+    <a class="btn btn-outline-secondary" href="/profile">Back to Profile</a>
+}
+else
+{
+    <h1 class="mb-3">Confirm Authentik Account</h1>
+
+    @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+    {
+        <div class="alert alert-success">@SuccessMessage</div>
+        <a class="btn btn-primary" href="/profile">Back to Profile</a>
+    }
+    else if (PendingProfile is not null)
+    {
+        <div class="card">
+            <div class="card-header">Link Confirmation</div>
+            <div class="card-body">
+                <p class="mb-3">
+                    Link this Authentik account to Budget user <strong>@AuthService.CurrentUser.UserName</strong>?
+                </p>
+                <dl class="row mb-3">
+                    <dt class="col-sm-3">Authentik name</dt>
+                    <dd class="col-sm-9">@(PendingProfile.DisplayName ?? "Not provided")</dd>
+                    <dt class="col-sm-3">Authentik email</dt>
+                    <dd class="col-sm-9">@(PendingProfile.Email ?? "Not provided")</dd>
+                </dl>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="ConfirmLinkAsync">Confirm Link</button>
+                    <a class="btn btn-outline-secondary" href="/profile">Cancel</a>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool Ready { get; set; }
+    private ExternalIdentityProfile? PendingProfile { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await AuthService.InitializeAsync();
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser.UserId <= 0)
+        {
+            Navigation.NavigateTo($"/login?Return={Uri.EscapeDataString("/profile")}");
+            return;
+        }
+
+        PendingProfile = BuildPendingProfile(HttpContextAccessor.HttpContext?.User);
+        if (PendingProfile is null)
+            ErrorMessage = "Authentik returned without a valid account-link confirmation.";
+
+        Ready = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmLinkAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        if (PendingProfile is null)
+        {
+            ErrorMessage = "Authentik account details are no longer available. Start linking again from Profile.";
+            return;
+        }
+
+        try
+        {
+            var user = await ExternalIdentityLinks.LinkExternalIdentityForCurrentUserAsync(AuthService.CurrentUser, PendingProfile);
+            await AuthService.RefreshCurrentUserAsync(user);
+            SuccessMessage = "Authentik account linked.";
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private static ExternalIdentityProfile? BuildPendingProfile(ClaimsPrincipal? principal)
+    {
+        if (principal?.Identity?.IsAuthenticated != true ||
+            principal.FindFirstValue(AuthentikOidcDefaults.LinkIntentClaim) != "true")
+        {
+            return null;
+        }
+
+        var provider = principal.FindFirstValue(AuthentikOidcDefaults.ExternalProviderClaim);
+        var subject = principal.FindFirstValue(AuthentikOidcDefaults.ExternalSubjectClaim);
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(subject))
+            return null;
+
+        return new ExternalIdentityProfile(
+            provider,
+            subject,
+            principal.FindFirstValue(AuthentikOidcDefaults.ExternalEmailClaim),
+            principal.FindFirstValue(AuthentikOidcDefaults.ExternalDisplayNameClaim));
+    }
+}

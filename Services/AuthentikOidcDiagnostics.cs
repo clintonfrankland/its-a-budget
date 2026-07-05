@@ -11,6 +11,7 @@ public static class AuthentikOidcDiagnostics
     public static readonly EventId UnknownLinkedUser = new(2103, nameof(UnknownLinkedUser));
     public static readonly EventId LinkedUserSuccess = new(2104, nameof(LinkedUserSuccess));
     public static readonly EventId RemoteFailure = new(2105, nameof(RemoteFailure));
+    public static readonly EventId LinkIntentSuccess = new(2106, nameof(LinkIntentSuccess));
 
     public static void LogMissingRequiredGroup(
         ILogger logger,
@@ -54,6 +55,19 @@ public static class AuthentikOidcDiagnostics
             profile.Provider,
             Fingerprint(profile.Subject),
             userId,
+            receivedGroups.Count);
+    }
+
+    public static void LogLinkIntentSuccess(
+        ILogger logger,
+        ExternalIdentityProfile profile,
+        IReadOnlyCollection<string> receivedGroups)
+    {
+        logger.LogInformation(
+            LinkIntentSuccess,
+            "Authentik link intent accepted for confirmation. Provider={Provider}; SubjectFingerprint={SubjectFingerprint}; ReceivedGroupCount={ReceivedGroupCount}",
+            profile.Provider,
+            Fingerprint(profile.Subject),
             receivedGroups.Count);
     }
 

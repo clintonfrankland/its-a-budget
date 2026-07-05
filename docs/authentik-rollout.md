@@ -45,7 +45,7 @@ Do not commit client IDs, client secrets, SQL connection strings, fallback login
 2. Configure the Authentik provider and Budget App environment variables.
 3. Deploy with `Authentication__Authentik__AllowedGroups__0="budget-users"`.
 4. Sign in locally with the fallback path.
-5. Link Clinton's active Budget user row to provider `authentik` and Clinton's stable Authentik `sub` from **Settings > Users**.
+5. Link Clinton's active Budget user row from **Profile > Link Authentik Account**, or use **Settings > Users** for admin-managed setup.
 6. Test Authentik login on desktop.
 7. Test Authentik login on mobile.
 8. Test logout, browser restart, and container restart behavior.
@@ -61,6 +61,7 @@ Production port `6080`:
 curl -I http://localhost:6080/
 curl -I http://localhost:6080/login
 curl -I http://localhost:6080/auth/authentik/login
+curl -I http://localhost:6080/auth/authentik/link
 ```
 
 Expected production results:
@@ -68,6 +69,7 @@ Expected production results:
 - `/` returns `200`.
 - `/login` returns `200`.
 - `/auth/authentik/login` returns `302` to Authentik when OIDC is enabled and configured.
+- `/auth/authentik/link` returns `302` to Authentik when OIDC is enabled and configured, then returns a local Budget user to `/profile/authentik-link/confirm` for explicit confirmation.
 - A browser login returns to `https://budget.clintandtara.com/signin-oidc`.
 - Logout returns through `/auth/logout` and lands on a rooted local path.
 
@@ -77,12 +79,14 @@ Review port `6075`:
 curl -I http://localhost:6075/
 curl -I http://localhost:6075/login
 curl -I http://localhost:6075/auth/authentik/login
+curl -I http://localhost:6075/auth/authentik/link
 ```
 
 Expected review results:
 
 - `/` and `/login` return `200` when the review app is running.
 - `/auth/authentik/login` returns `404` when Authentik is disabled in review, or `302` when review OIDC settings are intentionally configured against a non-production provider.
+- `/auth/authentik/link` follows the same disabled/enabled behavior as the login challenge.
 - Review must use a non-production SQL database.
 
 Reverse proxy checks:

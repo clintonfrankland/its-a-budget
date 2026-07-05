@@ -130,6 +130,37 @@ public class ExternalIdentityLinkServiceTests
     }
 
     [Fact]
+    public async Task LinkExternalIdentityForCurrentUserAsync_LinksOnlySignedInUser()
+    {
+        await using var db = CreateDbContext();
+        db.Users.AddRange(User(1, "clinton"), User(2, "tara"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var user = await service.LinkExternalIdentityForCurrentUserAsync(
+            CurrentUser(2, isAdmin: false),
+            new ExternalIdentityProfile("authentik", "self-subject", "tara@example.com", "Tara"));
+
+        Assert.Equal(2, user.UserId);
+        Assert.Equal("self-subject", user.ExternalSubject);
+        Assert.Null(db.Users.Single(candidate => candidate.UserId == 1).ExternalSubject);
+    }
+
+    [Fact]
+    public async Task LinkExternalIdentityForCurrentUserAsync_RejectsFallbackUserWithoutBudgetUserId()
+    {
+        await using var db = CreateDbContext();
+        var service = CreateService(db);
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.LinkExternalIdentityForCurrentUserAsync(
+                CurrentUser(0, isAdmin: true),
+                new ExternalIdentityProfile("authentik", "subject")));
+
+        Assert.Contains("Sign in with your Budget username", ex.Message);
+    }
+
+    [Fact]
     public async Task UnlinkExternalIdentityAsAdminAsync_ClearsLinkedIdentity()
     {
         await using var db = CreateDbContext();
@@ -144,6 +175,24 @@ public class ExternalIdentityLinkServiceTests
         Assert.Null(user.ExternalEmail);
         Assert.Null(user.ExternalDisplayName);
         Assert.Null(user.LastExternalLoginUtc);
+    }
+
+    [Fact]
+    public async Task UnlinkExternalIdentityForCurrentUserAsync_ClearsOnlySignedInUser()
+    {
+        await using var db = CreateDbContext();
+        db.Users.AddRange(
+            User(1, "clinton", "authentik", "subject-1"),
+            User(2, "tara", "authentik", "subject-2"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var user = await service.UnlinkExternalIdentityForCurrentUserAsync(CurrentUser(2, isAdmin: false));
+
+        Assert.Equal(2, user.UserId);
+        Assert.Null(user.ExternalProvider);
+        Assert.Null(user.ExternalSubject);
+        Assert.Equal("subject-1", db.Users.Single(candidate => candidate.UserId == 1).ExternalSubject);
     }
 
     [Fact]
