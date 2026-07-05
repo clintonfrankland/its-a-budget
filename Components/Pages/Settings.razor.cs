@@ -504,14 +504,12 @@ public partial class Settings
         }
 
         var wasLinked = HasExternalIdentity(LinkUser);
-        if (wasLinked)
-        {
-            var confirmed = await JS.InvokeAsync<bool>(
-                "confirm",
-                $"Relink {LinkUser.UserName} to this Authentik subject?");
-            if (!confirmed)
-                return;
-        }
+        var confirmationMessage = wasLinked
+            ? $"Relink {LinkUser.UserName} to this Authentik subject?"
+            : $"Link {LinkUser.UserName} to this Authentik subject?";
+        var confirmed = await JS.InvokeAsync<bool>("confirm", confirmationMessage);
+        if (!confirmed)
+            return;
 
         try
         {
