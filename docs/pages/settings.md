@@ -92,9 +92,11 @@ The Users section shows each visible Budget user and their Authentik link status
 - **External Email / Display Name**: provider profile details for audit context
 - **Last external login**: the last successful Authentik login time recorded for that Budget user
 
-Admins can link, relink, or unlink an Authentik identity from the Users grid. Relink and unlink actions ask for confirmation because they change which external account can sign in as that Budget user.
+Admins can link, relink, or unlink an Authentik identity from the Users grid. Link, relink, and unlink actions ask for confirmation because they change which external account can sign in as that Budget user.
 
 Regular users only see their own row and cannot change Authentik links.
+
+Authentik group membership controls whether the external login can enter Budget App. Budget App admin permission still comes from the user row's `IsAdmin` flag.
 
 ### Manual first-user linking process
 

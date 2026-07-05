@@ -5,6 +5,7 @@ A personal budget and checkbook management application. Keeps a running transact
 - **User Guide** → [docs/README.md](docs/README.md) (page-by-page walkthrough)
 - **Backups** → [docs/backups.md](docs/backups.md) (backup/restore commands)
 - **Globalization** → [GLOBALIZATION.md](GLOBALIZATION.md) (why culture is pinned to `en-US`)
+- **Authentik rollout** → [docs/authentik-rollout.md](docs/authentik-rollout.md) (access policy, provider setup, smoke checks, rollback)
 
 ---
 
@@ -84,7 +85,12 @@ AppSettings__LoginPassword="<fallback-login-password>"
 
 ### Optional Authentik OIDC login
 
-Authentik/OpenID Connect login is disabled by default. The local database login and `AppSettings` fallback login remain available as the break-glass path during rollout.
+Authentik/OpenID Connect login is disabled by default. The production access policy is:
+
+- Authentik controls entry to Budget App through the required `budget-users` group.
+- Budget App controls application authorization, admin rights, and data ownership through active `cfUsers` rows.
+- `cfUsers.IsAdmin` remains the source for Budget App admin permission. Authentik groups do not grant app admin rights.
+- Local database login and the `AppSettings` fallback login remain the break-glass path until rollout is complete and disabling normal local password login has been explicitly tested and approved.
 
 Enable Authentik only when all required settings are present:
 
@@ -96,7 +102,11 @@ Authentication__Authentik__ClientSecret="<authentik-client-secret>"
 Authentication__Authentik__AllowedGroups__0="budget-users"
 ```
 
-The OIDC client must request the `openid`, `profile`, and `email` scopes. Budget App reads the stable `sub` claim and only grants access when that Authentik subject is already linked to an active `cfUsers` row. Group claims are captured when Authentik provides them; set `Authentication:Authentik:AllowedGroups` to require membership in one or more groups, or leave it empty to allow any linked Authentik user.
+The Authentik provider must use redirect URI `https://budget.clintandtara.com/signin-oidc` and logout redirect URI `https://budget.clintandtara.com/signout-callback-oidc` for production. The OIDC client must request the `openid`, `profile`, and `email` scopes, and it must emit a `groups`, `group`, `roles`, or standard role claim containing `budget-users`.
+
+Budget App reads the stable `sub` claim and only grants access when that Authentik subject is already linked to an active `cfUsers` row. Group claims are captured when Authentik provides them; set `Authentication:Authentik:AllowedGroups` to require membership in one or more groups. Production should require `budget-users`; leave the list empty only for temporary local or review testing.
+
+OIDC diagnostics log denied access for missing required groups, missing stable subject claims, unknown/unlinked subjects, remote failures, and linked-user success. Logs include provider names, group counts/names, Budget user IDs on success, and short subject fingerprints. They never log tokens, client secrets, or raw OIDC subjects.
 
 For nginx or other reverse-proxy deployments:
 
@@ -104,6 +114,8 @@ For nginx or other reverse-proxy deployments:
 - Keep the app on the query response mode callback; this avoids Blazor/OIDC correlation failures caused by cross-site POST callbacks.
 - Auth, correlation, and nonce cookies use `SameSite=Lax` with `SecurePolicy=SameAsRequest`, so the proxy must forward the original HTTPS scheme.
 - Set `proxy_buffer_size 16k;` for the app location because OIDC callback responses can include large encrypted auth cookies.
+
+Rollout checklist, production/review smoke checks, and emergency rollback steps live in [docs/authentik-rollout.md](docs/authentik-rollout.md).
 
 ---
 
@@ -325,6 +337,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Models/ViewModels/` | UI projection types returned by data services |
 | `Services/AuthService.cs` | Login, logout, lockout (5 attempts / 15-min window), session storage, audit logging |
 | `Services/CurrentUserContext.cs` | Central effective Budget user resolver for authenticated data isolation; contains the explicit AppSettings fallback exception |
+| `Services/AuthentikOidcDiagnostics.cs` | Safe OIDC decision logging for missing groups, missing subjects, unlinked users, remote failures, and linked-user success |
 | `Services/ExternalIdentityLinkService.cs` | Subject-first Authentik/OIDC identity mapping for active Budget users |
 | `Services/SiteInfoService.cs` | Reads `AppSettings` config block (site name, base URL, icon) |
 | `Services/EmailSenderService.cs` | SMTP dispatch via MailKit |

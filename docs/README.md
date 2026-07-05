@@ -26,6 +26,7 @@ This app is designed to be simple, fast, and practical. It helps you:
 | Settings (Admin) | Server-wide settings like SMTP email delivery | [Settings](pages/settings.md) |
 | Users (Admin) | Manage user accounts and access | [Users](pages/users.md) |
 | API: Home Dashboard Summary | Authenticated JSON snapshot for integrations/widgets | [Home Dashboard Summary API](api/home-dashboard-summary.md) |
+| Authentik rollout | Access policy, provider setup, smoke checks, and rollback | [Authentik rollout](authentik-rollout.md) |
 
 ## A quick note about buttons and icons
 

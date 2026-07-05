@@ -186,6 +186,16 @@ public class AuthentikOidcTests
         Assert.False(AuthentikOidcClaims.IsInAllowedGroup(principal, ["admins"]));
     }
 
+    [Fact]
+    public void Fingerprint_ReturnsStableShortHashWithoutRawSubject()
+    {
+        var result = AuthentikOidcDiagnostics.Fingerprint("authentik-subject");
+
+        Assert.Equal("d2c98aa947ac", result);
+        Assert.DoesNotContain("authentik", result);
+        Assert.DoesNotContain("subject", result);
+    }
+
     private static ClaimsPrincipal Principal(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
 

@@ -28,7 +28,9 @@ If everything matches, you’ll be taken into the app and you’ll be able to us
 - Budget Items
 - Accounts
 
-When Authentik is enabled, use **Sign in with Authentik** first. The username/password form remains available as the local fallback during rollout and emergency access.
+When Authentik is enabled, use **Sign in with Authentik** first. Authentik membership in `budget-users` controls entry. Budget App still controls app permissions and data ownership through the linked Budget user row.
+
+The username/password form remains available as the local fallback during rollout and emergency access.
 
 Once you are signed in, the app resolves your effective Budget user through the linked Budget account. Authentik and database logins see only data owned by that Budget user. The legacy local fallback login is the temporary exception: it uses the configured default Budget user until that break-glass path is removed.
 

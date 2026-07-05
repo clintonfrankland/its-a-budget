@@ -106,9 +106,18 @@ if (authentikOidcOptions.IsUsable)
                 var settings = context.HttpContext.RequestServices
                     .GetRequiredService<IOptions<AuthentikOidcOptions>>()
                     .Value;
+                var logger = context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("ClintonFrankland.AuthentikOidc");
+                var receivedGroups = AuthentikOidcClaims.GetGroups(context.Principal!);
+                var requiredGroups = settings.AllowedGroups
+                    .Where(group => !string.IsNullOrWhiteSpace(group))
+                    .Select(group => group.Trim())
+                    .ToArray();
 
                 if (!AuthentikOidcClaims.IsInAllowedGroup(context.Principal!, settings.AllowedGroups))
                 {
+                    AuthentikOidcDiagnostics.LogMissingRequiredGroup(logger, requiredGroups, receivedGroups);
                     context.Fail("Authentik user is not in an allowed Budget App group.");
                     return;
                 }
@@ -116,6 +125,7 @@ if (authentikOidcOptions.IsUsable)
                 var profile = AuthentikOidcClaims.BuildExternalProfile(context.Principal!, settings.NormalizedProviderName);
                 if (profile is null)
                 {
+                    AuthentikOidcDiagnostics.LogMissingStableSubject(logger, settings.NormalizedProviderName);
                     context.Fail("Authentik login did not include a stable subject claim.");
                     return;
                 }
@@ -124,17 +134,24 @@ if (authentikOidcOptions.IsUsable)
                 var user = await linker.RecordExternalLoginAsync(profile);
                 if (user is null)
                 {
+                    AuthentikOidcDiagnostics.LogUnknownLinkedUser(logger, profile);
                     context.Fail("Authentik user is not linked to an active Budget App user.");
                     return;
                 }
 
                 var identity = context.Principal!.Identity as ClaimsIdentity;
                 identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetUserIdClaim, user.UserId.ToString(CultureInfo.InvariantCulture)));
-                foreach (var group in AuthentikOidcClaims.GetGroups(context.Principal!))
+                foreach (var group in receivedGroups)
                     identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
+
+                AuthentikOidcDiagnostics.LogLinkedUserSuccess(logger, profile, user.UserId, receivedGroups);
             };
             options.Events.OnRemoteFailure = context =>
             {
+                var logger = context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("ClintonFrankland.AuthentikOidc");
+                AuthentikOidcDiagnostics.LogRemoteFailure(logger, context.Failure);
                 var message = Uri.EscapeDataString(context.Failure?.Message ?? "Authentik sign-in failed.");
                 context.Response.Redirect($"/login?externalError={message}");
                 context.HandleResponse();
