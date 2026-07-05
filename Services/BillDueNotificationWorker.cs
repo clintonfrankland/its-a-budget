@@ -85,6 +85,11 @@ public class BillDueNotificationWorker : BackgroundService
         foreach (var user in users)
         {
             ct.ThrowIfCancellationRequested();
+            var sharedBudgetIds = await db.BudgetMembers
+                .AsNoTracking()
+                .Where(m => m.UserId == user.UserId && m.Status == BudgetMemberStatus.Active)
+                .Select(m => m.SharedBudgetId)
+                .ToListAsync(ct);
 
             var tz = ResolveTimezone(user.NotificationTimezone);
             var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
@@ -98,7 +103,12 @@ public class BillDueNotificationWorker : BackgroundService
             // Bills for this user.
             var bills = await db.Budgets.AsNoTracking()
                 .Include(b => b.Payee)
-                .Where(b => b.UserId == user.UserId && b.IsBill == true && b.NextDueDate != null)
+                .Where(b =>
+                    (b.SharedBudgetId.HasValue
+                        ? sharedBudgetIds.Contains(b.SharedBudgetId.Value)
+                        : b.UserId == user.UserId) &&
+                    b.IsBill == true &&
+                    b.NextDueDate != null)
                 .ToListAsync(ct);
 
             foreach (var bill in bills)
@@ -135,6 +145,7 @@ public class BillDueNotificationWorker : BackgroundService
                     CreatedAtUtc = DateTime.UtcNow,
                     UserId = user.UserId,
                     BudgetId = bill.BudgetId,
+                    SharedBudgetId = bill.SharedBudgetId,
                     NoticeType = noticeType,
                     NoticeLocalDate = noticeLocalDateKey,
                     Recipient = user.EmailAddress!,

@@ -56,8 +56,11 @@ public class BudgetScheduleService
 
     public async Task MarkBudgetPaidAsync(int userId, int budgetId)
     {
-        var budget = await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
+        var budget = await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId);
         if (budget is null)
+            return;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
             return;
 
         var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
@@ -97,12 +100,15 @@ public class BudgetScheduleService
 
         var originalBudget = await _db.Budgets
             .Include(b => b.Payee)
-            .FirstOrDefaultAsync(b => b.BudgetId == originalBudgetId && b.UserId == userId);
+            .FirstOrDefaultAsync(b => b.BudgetId == originalBudgetId);
 
         if (originalBudget is null)
             return;
 
-        var categoryId = await GetOrCreateCategoryAsync(categoryName.Trim(), userId);
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, originalBudget.SharedBudgetId, originalBudget.UserId))
+            return;
+
+        var categoryId = await GetOrCreateCategoryAsync(categoryName.Trim(), userId, originalBudget.SharedBudgetId);
         var payeeId = await GetOrCreatePayeeAsync(originalBudget.Payee?.PayeeName ?? string.Empty, userId);
         var newNextDueDate = CalculateNextDueDate(originalBudget.NextDueDate ?? DateTime.Today, originalBudget.FrequencyId ?? 0);
 
@@ -159,23 +165,38 @@ public class BudgetScheduleService
 
     private async Task<decimal> GetCurrentBalanceAsync(int userId)
     {
-        var account = await _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId);
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var account = await _db.Accounts
+            .AsNoTracking()
+            .Where(a => a.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
+                : a.UserId == userId)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenBy(a => a.AccountId)
+            .FirstOrDefaultAsync();
         var transactionSum = await _db.Transactions
             .AsNoTracking()
-            .Where(t => t.UserId == userId)
+            .Where(t => t.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                : t.UserId == userId)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
         return (account?.BeginningBalance ?? 0m) + transactionSum;
     }
 
-    private Task<List<Budget>> GetUserBudgetsWithLookupsAsync(int userId) =>
-        _db.Budgets
+    private async Task<List<Budget>> GetUserBudgetsWithLookupsAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Budgets
             .AsNoTracking()
             .Include(b => b.Category)
             .Include(b => b.Frequency)
             .Include(b => b.Payee)
-            .Where(b => b.UserId == userId)
+            .Where(b => b.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(b.SharedBudgetId.Value)
+                : b.UserId == userId)
             .ToListAsync();
+    }
 
     private static List<BudgetItemViewModel> ProjectForecast(
         decimal startingBalance,
@@ -258,9 +279,11 @@ public class BudgetScheduleService
             ? currentDate.AddDays(14)
             : new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1);
 
-    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId, int? sharedBudgetId = null)
     {
-        var category = await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
+        var category = sharedBudgetId.HasValue
+            ? await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.SharedBudgetId == sharedBudgetId)
+            : await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
         if (category != null)
             return category.CategoryId;
 
@@ -268,7 +291,7 @@ public class BudgetScheduleService
         {
             CategoryName = categoryName,
             UserId = userId,
-            SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
+            SharedBudgetId = sharedBudgetId ?? await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
         };
         _db.Categories.Add(newCategory);
         await _db.SaveChangesAsync();

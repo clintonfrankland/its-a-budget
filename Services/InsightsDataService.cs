@@ -12,8 +12,13 @@ public class InsightsDataService
     private const int TrendCompleteMonths = 6;
 
     private readonly ClintonFranklandDbContext _db;
+    private readonly SharedBudgetDataService _sharedBudgets;
 
-    public InsightsDataService(ClintonFranklandDbContext db) => _db = db;
+    public InsightsDataService(ClintonFranklandDbContext db, SharedBudgetDataService? sharedBudgets = null)
+    {
+        _db = db;
+        _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
+    }
 
     public async Task<List<CategorySpendingTotal>> GetMonthlyCategoryTotalsAsync(int userId, DateOnly selectedMonth)
     {
@@ -74,17 +79,22 @@ public class InsightsDataService
             .ToList();
     }
 
-    private Task<List<Transaction>> GetExpenseTransactionsAsync(int userId, DateOnly startInclusive, DateOnly endExclusive)
+    private async Task<List<Transaction>> GetExpenseTransactionsAsync(int userId, DateOnly startInclusive, DateOnly endExclusive)
     {
-        return _db.Transactions
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Transactions
             .AsNoTracking()
             .Include(t => t.Account)
             .Include(t => t.Category)
             .Include(t => t.Payee)
             .Where(t =>
-                t.UserId == userId &&
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
                 t.Account != null &&
-                t.Account.UserId == userId &&
+                (t.Account.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.Account.SharedBudgetId.Value)
+                    : t.Account.UserId == userId) &&
                 t.Amount < 0 &&
                 t.TransactionDate >= startInclusive &&
                 t.TransactionDate < endExclusive)
@@ -98,7 +108,10 @@ public class InsightsDataService
 
     private static string GetCategoryName(Transaction transaction, int userId)
     {
-        if (transaction.Category?.UserId != userId)
+        if (transaction.Category is null)
+            return UncategorizedCategoryName;
+
+        if (!transaction.SharedBudgetId.HasValue && transaction.Category.UserId != userId)
             return UncategorizedCategoryName;
 
         return string.IsNullOrWhiteSpace(transaction.Category.CategoryName)
@@ -108,7 +121,10 @@ public class InsightsDataService
 
     private static string GetPayeeName(Transaction transaction, int userId)
     {
-        if (transaction.Payee?.UserId != userId)
+        if (transaction.Payee is null)
+            return UnknownPayeeName;
+
+        if (!transaction.SharedBudgetId.HasValue && transaction.Payee.UserId != userId)
             return UnknownPayeeName;
 
         return string.IsNullOrWhiteSpace(transaction.Payee.PayeeName)

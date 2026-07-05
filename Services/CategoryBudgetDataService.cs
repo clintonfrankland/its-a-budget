@@ -34,9 +34,12 @@ public class CategoryBudgetDataService
 
     public async Task<List<CategoryBudgetCategoryOption>> GetCategoryOptionsAsync(int userId)
     {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var categories = await _db.Categories
             .AsNoTracking()
-            .Where(c => c.UserId == userId)
+            .Where(c => c.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(c.SharedBudgetId.Value)
+                : c.UserId == userId)
             .OrderBy(c => c.CategoryName)
             .Select(c => new { c.CategoryId, c.CategoryName })
             .ToListAsync();
@@ -52,14 +55,19 @@ public class CategoryBudgetDataService
     {
         var monthStart = FirstOfMonth(selectedMonth);
         var monthEnd = monthStart.AddMonths(1);
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
 
         var targets = await _db.CategoryBudgetTargets
             .AsNoTracking()
             .Include(t => t.Category)
             .Where(t =>
-                t.UserId == userId &&
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
                 t.Category != null &&
-                t.Category.UserId == userId &&
+                (t.Category.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.Category.SharedBudgetId.Value)
+                    : t.Category.UserId == userId) &&
                 t.BudgetMonth == monthStart)
             .ToListAsync();
 
@@ -68,11 +76,17 @@ public class CategoryBudgetDataService
             .Include(t => t.Account)
             .Include(t => t.Category)
             .Where(t =>
-                t.UserId == userId &&
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
                 t.Account != null &&
-                t.Account.UserId == userId &&
+                (t.Account.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.Account.SharedBudgetId.Value)
+                    : t.Account.UserId == userId) &&
                 t.Category != null &&
-                t.Category.UserId == userId &&
+                (t.Category.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.Category.SharedBudgetId.Value)
+                    : t.Category.UserId == userId) &&
                 t.Amount < 0 &&
                 t.TransactionDate >= monthStart &&
                 t.TransactionDate < monthEnd)
@@ -85,7 +99,12 @@ public class CategoryBudgetDataService
 
         var spentOnlyCategories = await _db.Categories
             .AsNoTracking()
-            .Where(c => c.UserId == userId && spendingByCategory.Keys.Contains(c.CategoryId) && !targetCategoryIds.Contains(c.CategoryId))
+            .Where(c =>
+                (c.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(c.SharedBudgetId.Value)
+                    : c.UserId == userId) &&
+                spendingByCategory.Keys.Contains(c.CategoryId) &&
+                !targetCategoryIds.Contains(c.CategoryId))
             .ToListAsync();
 
         var budgetedRows = targets.Select(t => CreateRow(
@@ -114,23 +133,30 @@ public class CategoryBudgetDataService
         var monthStart = FirstOfMonth(request.BudgetMonth);
         var plannedAmount = CurrencyPolicy.RoundNonNegativeSqlAmount(request.PlannedAmount);
 
-        var categoryExists = await _db.Categories
-            .AnyAsync(c => c.CategoryId == request.CategoryId && c.UserId == userId);
-        if (!categoryExists)
+        var category = await _db.Categories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CategoryId == request.CategoryId);
+        if (category is null || !await _sharedBudgets.CanManageFinancialDataAsync(userId, category.SharedBudgetId, category.UserId))
             throw new InvalidOperationException("Category was not found for the current user.");
 
         CategoryBudgetTarget? target = null;
         if (request.TargetId.HasValue)
         {
             target = await _db.CategoryBudgetTargets
-                .FirstOrDefaultAsync(t => t.CategoryBudgetTargetId == request.TargetId && t.UserId == userId);
+                .FirstOrDefaultAsync(t => t.CategoryBudgetTargetId == request.TargetId);
             if (target is null)
+                throw new InvalidOperationException("Budget target was not found for the current user.");
+
+            if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, target.SharedBudgetId, target.UserId))
                 throw new InvalidOperationException("Budget target was not found for the current user.");
         }
 
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
         target ??= await _db.CategoryBudgetTargets
             .FirstOrDefaultAsync(t =>
-                t.UserId == userId &&
+                (t.SharedBudgetId.HasValue
+                    ? writableSharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
                 t.CategoryId == request.CategoryId &&
                 t.BudgetMonth == monthStart);
 
@@ -139,7 +165,7 @@ public class CategoryBudgetDataService
             target = new CategoryBudgetTarget
             {
                 UserId = userId,
-                SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId),
+                SharedBudgetId = category.SharedBudgetId ?? await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId),
                 CategoryId = request.CategoryId,
                 BudgetMonth = monthStart
             };
@@ -149,7 +175,9 @@ public class CategoryBudgetDataService
         {
             var duplicateExists = await _db.CategoryBudgetTargets.AnyAsync(t =>
                 t.CategoryBudgetTargetId != target.CategoryBudgetTargetId &&
-                t.UserId == userId &&
+                (t.SharedBudgetId.HasValue
+                    ? writableSharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
                 t.CategoryId == request.CategoryId &&
                 t.BudgetMonth == monthStart);
             if (duplicateExists)
@@ -167,8 +195,11 @@ public class CategoryBudgetDataService
     public async Task DeleteTargetAsync(int userId, int targetId)
     {
         var target = await _db.CategoryBudgetTargets
-            .FirstOrDefaultAsync(t => t.CategoryBudgetTargetId == targetId && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.CategoryBudgetTargetId == targetId);
         if (target is null)
+            return;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, target.SharedBudgetId, target.UserId))
             return;
 
         _db.CategoryBudgetTargets.Remove(target);

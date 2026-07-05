@@ -125,6 +125,79 @@ public class SharedBudgetDataServiceTests
         Assert.Single(await db.BudgetMembers.ToListAsync());
     }
 
+    [Fact]
+    public async Task SharedBudgetMembers_CanReadSharedFinancialDataButNonMembersCannot()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        SeedSharedBudget(db, BudgetMemberRole.Viewer);
+        await db.SaveChangesAsync();
+
+        var sharedBudgets = new SharedBudgetDataService(db);
+        var viewerAccounts = await new AccountsDataService(db, sharedBudgets).GetAccountsForUserAsync(2);
+        var outsiderAccounts = await new AccountsDataService(db, sharedBudgets).GetAccountsForUserAsync(3);
+        var viewerTransactions = await new CheckbookDataService(db, sharedBudgets).GetTransactionsForUserAsync(2);
+        var outsiderTransactions = await new CheckbookDataService(db, sharedBudgets).GetTransactionsForUserAsync(3);
+        var viewerBudgets = await new BudgetItemsDataService(db, sharedBudgets).GetBudgetsForUserAsync(2);
+        var outsiderBudgets = await new BudgetItemsDataService(db, sharedBudgets).GetBudgetsForUserAsync(3);
+
+        Assert.Contains(viewerAccounts, a => a.AccountName == "House Checking");
+        Assert.DoesNotContain(viewerAccounts, a => a.AccountName == "Owner Legacy");
+        Assert.Empty(outsiderAccounts);
+        Assert.Contains(viewerTransactions, t => t.Amount == -25m);
+        Assert.Empty(outsiderTransactions);
+        Assert.Contains(viewerBudgets, b => b.BudgetName == "Shared Bill");
+        Assert.Empty(outsiderBudgets);
+        Assert.Null(await new AccountsDataService(db, sharedBudgets).GetAccountByIdAsync(3, 1));
+        Assert.Null(await new CheckbookDataService(db, sharedBudgets).GetTransactionByIdAsync(3, 1));
+        Assert.Null(await new BudgetItemsDataService(db, sharedBudgets).GetBudgetByIdAsync(3, 1));
+    }
+
+    [Fact]
+    public async Task SharedBudgetViewer_CannotMutateSharedFinancialData()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        SeedSharedBudget(db, BudgetMemberRole.Viewer);
+        await db.SaveChangesAsync();
+
+        var sharedBudgets = new SharedBudgetDataService(db);
+        await new AccountsDataService(db, sharedBudgets)
+            .SaveAccountAsync(2, 1, "Viewer Edit", "", 1, 1m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
+        await new CheckbookDataService(db, sharedBudgets)
+            .SaveTransactionAsync(2, 1, new DateOnly(2026, 7, 6), "Viewer", "Utilities", -1m, true, null, null);
+        await new BudgetItemsDataService(db, sharedBudgets)
+            .DeleteBudgetAsync(2, 1);
+        await new BudgetScheduleService(db, sharedBudgets)
+            .MarkBudgetPaidAsync(2, 1);
+
+        Assert.Equal("House Checking", (await db.Accounts.FindAsync(1))!.AccountName);
+        Assert.Equal(-25m, (await db.Transactions.FindAsync(1))!.Amount);
+        Assert.NotNull(await db.Budgets.FindAsync(1));
+        Assert.Equal(new DateTime(2026, 7, 5), (await db.Budgets.FindAsync(1))!.NextDueDate);
+    }
+
+    [Fact]
+    public async Task SharedBudgetEditor_CanMutateSharedFinancialDataButNotMemberAdminActions()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        SeedSharedBudget(db, BudgetMemberRole.Editor);
+        await db.SaveChangesAsync();
+
+        var sharedBudgets = new SharedBudgetDataService(db);
+        await new AccountsDataService(db, sharedBudgets)
+            .SaveAccountAsync(2, 1, "Editor Edit", "", 1, 10m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
+        await new CheckbookDataService(db, sharedBudgets)
+            .SetTransactionClearedAsync(2, 1, true);
+
+        Assert.Equal("Editor Edit", (await db.Accounts.FindAsync(1))!.AccountName);
+        Assert.True((await db.Transactions.FindAsync(1))!.Cleared);
+        Assert.True(await sharedBudgets.CanManageFinancialDataAsync(2, 1, 1));
+        Assert.False(await sharedBudgets.CanManageMembersAsync(2, 1));
+        Assert.False(await sharedBudgets.CanPerformOwnerActionAsync(2, 1));
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -137,6 +210,97 @@ public class SharedBudgetDataServiceTests
     private static void SeedAccountTypes(ClintonFranklandDbContext db)
     {
         db.AccountTypes.Add(new AccountType { AccountTypeId = 1, AccountTypeName = "Checking" });
+    }
+
+    private static void SeedSharedBudget(ClintonFranklandDbContext db, BudgetMemberRole memberRole)
+    {
+        var now = DateTime.UtcNow;
+        db.Users.AddRange(
+            User(1, "owner", "Owner"),
+            User(2, "member", "Member"),
+            User(3, "outsider", "Outsider"));
+        db.SharedBudgets.Add(new SharedBudget
+        {
+            SharedBudgetId = 1,
+            Name = "Household",
+            OwnerUserId = 1,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        db.BudgetMembers.AddRange(
+            new BudgetMember
+            {
+                BudgetMemberId = 1,
+                SharedBudgetId = 1,
+                UserId = 1,
+                Role = BudgetMemberRole.Owner,
+                Status = BudgetMemberStatus.Active,
+                CreatedAtUtc = now
+            },
+            new BudgetMember
+            {
+                BudgetMemberId = 2,
+                SharedBudgetId = 1,
+                UserId = 2,
+                Role = memberRole,
+                Status = BudgetMemberStatus.Active,
+                CreatedAtUtc = now
+            });
+        db.Accounts.AddRange(
+            new Account
+            {
+                AccountId = 1,
+                AccountName = "House Checking",
+                AccountTypeId = 1,
+                BeginningBalance = 100m,
+                Balance = 100m,
+                ClearedBalance = 100m,
+                IsDefault = true,
+                UserId = 1,
+                SharedBudgetId = 1
+            },
+            new Account
+            {
+                AccountId = 2,
+                AccountName = "Owner Legacy",
+                AccountTypeId = 1,
+                BeginningBalance = 200m,
+                Balance = 200m,
+                ClearedBalance = 200m,
+                IsDefault = false,
+                UserId = 1,
+                SharedBudgetId = null
+            });
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1, SharedBudgetId = 1 });
+        db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false });
+        db.Frequencies.Add(new Frequency { FrequencyId = 4, FrequencyName = "Monthly", Sort = 1 });
+        db.Transactions.Add(new Transaction
+        {
+            TransactionId = 1,
+            TransactionDate = new DateOnly(2026, 7, 4),
+            Amount = -25m,
+            PayeeId = 1,
+            CategoryId = 1,
+            AccountId = 1,
+            Cleared = false,
+            UserId = 1,
+            SharedBudgetId = 1
+        });
+        db.Budgets.Add(new Budget
+        {
+            BudgetId = 1,
+            BudgetName = "Shared Bill",
+            BudgetTypeId = 1,
+            FrequencyId = 4,
+            NextDueDate = new DateTime(2026, 7, 5),
+            EndDate = new DateTime(1970, 1, 1),
+            Amount = 30m,
+            CategoryId = 1,
+            UserId = 1,
+            SharedBudgetId = 1,
+            IsBill = true,
+            PayeeId = 1
+        });
     }
 
     private static User User(int id, string userName, string displayName) => new()

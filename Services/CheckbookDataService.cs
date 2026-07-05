@@ -15,18 +15,67 @@ public class CheckbookDataService
         _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
     }
 
-    public Task<Account?> GetAccountForUserAsync(int userId) => _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId);
+    public async Task<Account?> GetAccountForUserAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Accounts
+            .AsNoTracking()
+            .Where(a => a.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
+                : a.UserId == userId)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenBy(a => a.AccountId)
+            .FirstOrDefaultAsync();
+    }
 
-    public Task<List<Transaction>> GetTransactionsForUserAsync(int userId) =>
-        _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category)
-            .Where(t => t.UserId == userId)
+    public async Task<List<Transaction>> GetTransactionsForUserAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category)
+            .Where(t => t.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                : t.UserId == userId)
             .OrderByDescending(t => t.Cleared).ThenBy(t => t.TransactionDate).ThenByDescending(t => t.Amount)
             .ToListAsync();
+    }
 
     public Task<List<Payee>> GetPayeesForUserAsync(int userId) => _db.Payees.AsNoTracking().Where(p => p.UserId == userId && !p.IsDeleted).OrderBy(p => p.PayeeName).ToListAsync();
-    public Task<List<Category>> GetCategoriesForUserAsync(int userId) => _db.Categories.AsNoTracking().Where(c => c.UserId == userId).OrderBy(c => c.CategoryName).ToListAsync();
-    public Task<decimal> GetTransactionSumAsync(int userId) => _db.Transactions.AsNoTracking().Where(t => t.UserId == userId).SumAsync(t => (decimal?)t.Amount).ContinueWith(t => t.Result ?? 0m);
-    public Task<List<Budget>> GetBudgetsForUserAsync(int userId) => _db.Budgets.AsNoTracking().Include(b => b.Category).Include(b => b.Frequency).Include(b => b.Payee).Where(b => b.UserId == userId).ToListAsync();
+    public async Task<List<Category>> GetCategoriesForUserAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Categories
+            .AsNoTracking()
+            .Where(c => c.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(c.SharedBudgetId.Value)
+                : c.UserId == userId)
+            .OrderBy(c => c.CategoryName)
+            .ToListAsync();
+    }
+
+    public async Task<decimal> GetTransactionSumAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Transactions
+            .AsNoTracking()
+            .Where(t => t.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                : t.UserId == userId)
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+    }
+
+    public async Task<List<Budget>> GetBudgetsForUserAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Budgets
+            .AsNoTracking()
+            .Include(b => b.Category)
+            .Include(b => b.Frequency)
+            .Include(b => b.Payee)
+            .Where(b => b.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(b.SharedBudgetId.Value)
+                : b.UserId == userId)
+            .ToListAsync();
+    }
 
     /// <summary>
     /// Returns the raw transaction sum per category for each of the last <paramref name="months"/> complete months
@@ -37,10 +86,16 @@ public class CheckbookDataService
         var today = DateOnly.FromDateTime(DateTime.Today);
         var firstMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-months);
 
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var transactions = await _db.Transactions
             .AsNoTracking()
             .Include(t => t.Category)
-            .Where(t => t.UserId == userId && t.TransactionDate >= firstMonth && t.TransactionDate < new DateOnly(today.Year, today.Month, 1))
+            .Where(t =>
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
+                t.TransactionDate >= firstMonth &&
+                t.TransactionDate < new DateOnly(today.Year, today.Month, 1))
             .ToListAsync();
 
         var monthStarts = Enumerable.Range(0, months)
@@ -63,10 +118,17 @@ public class CheckbookDataService
         var startDate = new DateOnly(year, month, 1);
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var transactions = await _db.Transactions
             .AsNoTracking()
             .Include(t => t.Category)
-            .Where(t => t.UserId == userId && t.TransactionDate >= startDate && t.TransactionDate <= endDate && t.Amount < 0)
+            .Where(t =>
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId) &&
+                t.TransactionDate >= startDate &&
+                t.TransactionDate <= endDate &&
+                t.Amount < 0)
             .ToListAsync();
 
         return transactions
@@ -76,12 +138,19 @@ public class CheckbookDataService
             .ToList();
     }
 
-    public Task<Transaction?> GetTransactionByIdAsync(int userId, int id) =>
-        _db.Transactions
+    public async Task<Transaction?> GetTransactionByIdAsync(int userId, int id)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Transactions
             .AsNoTracking()
             .Include(t => t.Payee)
             .Include(t => t.Category)
-            .FirstOrDefaultAsync(t => t.TransactionId == id && t.UserId == userId);
+            .FirstOrDefaultAsync(t =>
+                t.TransactionId == id &&
+                (t.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                    : t.UserId == userId));
+    }
 
     public async Task SaveTransactionAsync(
         int userId,
@@ -97,22 +166,33 @@ public class CheckbookDataService
         if (transactionDate == DateOnly.MinValue)
             throw new InvalidOperationException("Transaction date is required.");
 
-        var roundedAmount = CurrencyPolicy.RoundSignedSqlAmount(amount, CurrencyPolicy.TransactionPrecision);
-        var categoryId = await GetOrCreateCategoryAsync(categoryName, userId);
-        var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
-
-        if (categoryId <= 0) categoryId = await GetOrCreateCategoryAsync("Uncategorized", userId);
-        if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
-
-        var account = await GetAccountForUserAsync(userId);
-        var accountId = account?.AccountId ?? 1;
         var isNew = transactionId == -1;
         var txn = isNew
-            ? new Transaction { UserId = userId, AccountId = accountId, SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId) }
-            : await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.UserId == userId);
+            ? new Transaction { UserId = userId, SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId) }
+            : await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
 
         if (txn is null)
             return;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, txn.SharedBudgetId, txn.UserId))
+            return;
+
+        var roundedAmount = CurrencyPolicy.RoundSignedSqlAmount(amount, CurrencyPolicy.TransactionPrecision);
+        var categoryId = await GetOrCreateCategoryAsync(categoryName, userId, txn.SharedBudgetId);
+        var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
+
+        if (categoryId <= 0) categoryId = await GetOrCreateCategoryAsync("Uncategorized", userId, txn.SharedBudgetId);
+        if (payeeId <= 0) payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
+
+        var account = txn.SharedBudgetId.HasValue
+            ? await _db.Accounts
+                .AsNoTracking()
+                .Where(a => a.SharedBudgetId == txn.SharedBudgetId)
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.AccountId)
+                .FirstOrDefaultAsync()
+            : await GetAccountForUserAsync(userId);
+        var accountId = account?.AccountId ?? 1;
 
         txn.TransactionDate = transactionDate;
         txn.PayeeId = payeeId;
@@ -129,32 +209,43 @@ public class CheckbookDataService
 
     public async Task DeleteTransactionAsync(int userId, int id)
     {
-        var txn = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == id && t.UserId == userId);
+        var txn = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == id);
         if (txn is null) return;
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, txn.SharedBudgetId, txn.UserId))
+            return;
+
         _db.Transactions.Remove(txn);
         await _db.SaveChangesAsync();
     }
 
     public async Task SetTransactionClearedAsync(int userId, int transactionId, bool cleared)
     {
-        var transaction = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.UserId == userId);
+        var transaction = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
         if (transaction is null)
+            return;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, transaction.SharedBudgetId, transaction.UserId))
             return;
 
         transaction.Cleared = cleared;
         await _db.SaveChangesAsync();
     }
 
-    public async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId)
+    public Task<int> GetOrCreateCategoryAsync(string categoryName, int userId) =>
+        GetOrCreateCategoryAsync(categoryName, userId, null);
+
+    private async Task<int> GetOrCreateCategoryAsync(string categoryName, int userId, int? sharedBudgetId)
     {
         if (string.IsNullOrWhiteSpace(categoryName)) return -1;
-        var category = await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
+        var category = sharedBudgetId.HasValue
+            ? await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.SharedBudgetId == sharedBudgetId)
+            : await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
         if (category != null) return category.CategoryId;
         var newCategory = new Category
         {
             CategoryName = categoryName,
             UserId = userId,
-            SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
+            SharedBudgetId = sharedBudgetId ?? await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
         };
         _db.Categories.Add(newCategory);
         await _db.SaveChangesAsync();

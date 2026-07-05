@@ -15,19 +15,33 @@ public class AccountsDataService
         _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
     }
 
-    public Task<List<Account>> GetAccountsForUserAsync(int userId) =>
-        _db.Accounts
+    public async Task<List<Account>> GetAccountsForUserAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Accounts
             .AsNoTracking()
             .Include(a => a.AccountType)
-            .Where(a => a.UserId == userId && (a.IsDeleted == null || a.IsDeleted == false))
+            .Where(a =>
+                (a.IsDeleted == null || a.IsDeleted == false) &&
+                (a.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
+                    : a.UserId == userId))
             .OrderBy(a => a.AccountName)
             .ToListAsync();
+    }
 
-    public Task<Account?> GetAccountByIdAsync(int userId, int accountId) =>
-        _db.Accounts
+    public async Task<Account?> GetAccountByIdAsync(int userId, int accountId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Accounts
             .AsNoTracking()
             .Include(a => a.AccountType)
-            .FirstOrDefaultAsync(a => a.AccountId == accountId && a.UserId == userId);
+            .FirstOrDefaultAsync(a =>
+                a.AccountId == accountId &&
+                (a.SharedBudgetId.HasValue
+                    ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
+                    : a.UserId == userId));
+    }
 
     public async Task SaveAccountAsync(
         int userId,
@@ -59,9 +73,12 @@ public class AccountsDataService
                 UserId = userId,
                 SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
             }
-            : await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId && a.UserId == userId);
+            : await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId);
 
         if (account is null)
+            return;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
             return;
 
         account.AccountName = accountName;
@@ -92,8 +109,11 @@ public class AccountsDataService
 
     public async Task DeleteAccountAsync(int userId, int accountId)
     {
-        var account = await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId && a.UserId == userId);
+        var account = await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId);
         if (account is null) return;
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+            return;
+
         _db.Accounts.Remove(account);
         await _db.SaveChangesAsync();
     }
