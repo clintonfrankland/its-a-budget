@@ -26,6 +26,9 @@ public partial class Budget
     [Inject]
     private BudgetScheduleService BudgetSchedule { get; set; } = default!;
 
+    [Inject]
+    private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
+
     private enum ViewMode { List, Edit, EditNext }
     private ViewMode currentView = ViewMode.List;
 
@@ -33,6 +36,7 @@ public partial class Budget
     private List<BudgetItemViewModel> budgetItems = new();
     private List<ChartDataPoint> chartData = new();
     private List<FrequencyOption> frequencyOptions = new();
+    private bool canCreateFinancialData;
 
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetGrid;
@@ -68,6 +72,7 @@ public partial class Budget
     private bool editHasEndDate = false;
     private DateTime editEndDate = DateTime.Today;
     private string editErrorMessage = string.Empty;
+    private bool canManageEditFinancialData;
 
     // Frequency dropdown option
     private record FrequencyOption(int FrequencyId, string FrequencyName);
@@ -96,6 +101,7 @@ public partial class Budget
             var forecastItems = await BudgetSchedule.GetForecastAsync(userId, endDate);
             budgetItems = forecastItems;
             chartData = GenerateChartData(forecastItems);
+            canCreateFinancialData = (await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId)).Count > 0;
 
             await LoadCategoriesAndPayeesAsync();
         }
@@ -143,8 +149,12 @@ public partial class Budget
 
     private async Task ShowAddBudgetAsync()
     {
+        if (!canCreateFinancialData)
+            return;
+
         await LoadFrequenciesAsync();
         editBudgetId = -1;
+        canManageEditFinancialData = true;
         editBudgetName = string.Empty;
         editIsExpense = true;
         editAmount = 0m;
@@ -167,10 +177,16 @@ public partial class Budget
             await LoadFrequenciesAsync();
             var userId = CurrentUser.UserId;
             var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
+            if (budget is not null &&
+                !await SharedBudgetData.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
+            {
+                return;
+            }
 
             if (budget != null)
             {
                 editBudgetId = budgetId;
+                canManageEditFinancialData = true;
                 editBudgetName = budget.BudgetName ?? string.Empty;
                 editIsExpense = budget.BudgetTypeId == 1;  // 1 = Expense, 0 = Income
                 editAmount = budget.Amount ?? 0m;
@@ -214,12 +230,16 @@ public partial class Budget
     private void CancelEdit()
     {
         editErrorMessage = string.Empty;
+        canManageEditFinancialData = false;
         currentView = ViewMode.List;
     }
 
     private async Task SaveBudgetAsync()
     {
         editErrorMessage = string.Empty;
+
+        if (!await CanSaveCurrentBudgetAsync())
+            return;
 
         if (editHasEndDate && editEndDate < editNextDueDate)
         {
@@ -305,6 +325,9 @@ public partial class Budget
 
     private async Task DeleteBudgetAsync()
     {
+        if (editBudgetId == -1 || !await CanManageBudgetAsync(editBudgetId))
+            return;
+
         var confirmed = await DialogService.Confirm(
             "Are you sure you want to delete this budget item?",
             "Confirm Delete",
@@ -334,6 +357,9 @@ public partial class Budget
 
     private async Task MarkPaidAsync(int budgetId)
     {
+        if (!await CanManageBudgetAsync(budgetId))
+            return;
+
         try
         {
             var userId = CurrentUser.UserId;
@@ -353,10 +379,16 @@ public partial class Budget
         {
             var userId = CurrentUser.UserId;
             var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
+            if (budget is not null &&
+                !await SharedBudgetData.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
+            {
+                return;
+            }
 
             if (budget != null)
             {
                 editBudgetId = budgetId;
+                canManageEditFinancialData = true;
                 editBudgetName = budget.BudgetName ?? string.Empty;
                 editAmount = budget.Amount ?? 0m;
                 editNextDueDate = budget.NextDueDate ?? DateTime.Today;
@@ -376,6 +408,9 @@ public partial class Budget
     private async Task SaveEditNextAsync()
     {
         editErrorMessage = string.Empty;
+
+        if (!await CanManageBudgetAsync(editBudgetId))
+            return;
 
         if (string.IsNullOrWhiteSpace(editBudgetName))
         {
@@ -455,6 +490,9 @@ public partial class Budget
     // When main button is clicked, args is null - default to "edit" action
     private async Task OnBudgetGridActionSelectedOrDefaultAsync(RadzenSplitButtonItem? args, BudgetItemViewModel item)
     {
+        if (!item.CanManageFinancialData)
+            return;
+
         var action = args?.Value?.ToString() ?? "edit";  // Default to edit when main button clicked
 
         switch (action)
@@ -523,5 +561,24 @@ public partial class Budget
     {
         budgetSearchText = value ?? string.Empty;
         budgetGrid?.GoToPage(0);
+    }
+
+    private async Task<bool> CanSaveCurrentBudgetAsync()
+    {
+        if (editBudgetId == -1)
+            return canCreateFinancialData;
+
+        return await CanManageBudgetAsync(editBudgetId);
+    }
+
+    private async Task<bool> CanManageBudgetAsync(int budgetId)
+    {
+        if (budgetId <= 0)
+            return false;
+
+        var userId = CurrentUser.UserId;
+        var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
+        return budget is not null &&
+            await SharedBudgetData.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId);
     }
 }

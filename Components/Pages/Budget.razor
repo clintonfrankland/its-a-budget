@@ -31,8 +31,11 @@ else
                     <h1>Budget Forecast</h1>
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
-                    <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary" 
-                                  Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
+                    @if (canCreateFinancialData)
+                    {
+                        <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
+                    }
                 </div>
             </div>
         </div>
@@ -90,11 +93,11 @@ else
                         </RadzenStack>
                     </HeaderTemplate>
                     <Columns>
-                        @if (!AuthService.CurrentUser.ListButtonsRight)
+                        @if (!AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    @if (IsAtLeast(ScreenSize.Medium))
+                                    @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Medium))
                                     {
                                         <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
                                                       Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
@@ -103,7 +106,7 @@ else
                                         <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
                                                       Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
                                     }
-                                    else
+                                    else if (item.CanManageFinancialData)
                                     {
                                         <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                            Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
@@ -141,11 +144,11 @@ else
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Balance" Title="Balance" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)" />
 
-                        @if (AuthService.CurrentUser.ListButtonsRight)
+                        @if (AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    @if (IsAtLeast(ScreenSize.Medium))
+                                    @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Medium))
                                     {
                                         <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
                                                       Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
@@ -154,7 +157,7 @@ else
                                         <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
                                                       Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
                                     }
-                                    else
+                                    else if (item.CanManageFinancialData)
                                     {
                                         <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                            Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
@@ -313,7 +316,7 @@ else
                     </RadzenRow>
                 }
 
-                @if (editBudgetId != -1)
+                @if (editBudgetId != -1 && canManageEditFinancialData)
                 {
                     <RadzenRow class="mb-3">
                         <RadzenColumn Size="12">
@@ -326,7 +329,10 @@ else
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudgetAsync" class="me-2" />
+                        @if (editBudgetId == -1 ? canCreateFinancialData : canManageEditFinancialData)
+                        {
+                            <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveBudgetAsync" class="me-2" />
+                        }
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>
@@ -399,7 +405,10 @@ else
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
-                        <RadzenButton Text="Save" Icon="check" ButtonStyle="ButtonStyle.Primary" Click="SaveEditNextAsync" class="me-2" />
+                        @if (canManageEditFinancialData)
+                        {
+                            <RadzenButton Text="Save" Icon="check" ButtonStyle="ButtonStyle.Primary" Click="SaveEditNextAsync" class="me-2" />
+                        }
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>
