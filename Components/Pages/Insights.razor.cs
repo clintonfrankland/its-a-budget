@@ -11,7 +11,7 @@ public partial class Insights
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -64,7 +64,7 @@ public partial class Insights
         try
         {
             errorMessage = string.Empty;
-            var userId = GetCurrentUserId();
+            var userId = CurrentUser.UserId;
             trendMonths = InsightsDataService.GetTrendMonths(selectedMonth);
             categoryTotals = await InsightsData.GetMonthlyCategoryTotalsAsync(userId, selectedMonth);
             categoryTrends = await InsightsData.GetCategoryTrendAsync(userId, selectedMonth);
@@ -76,8 +76,4 @@ public partial class Insights
         }
     }
 
-    private int GetCurrentUserId() =>
-        AuthService.CurrentUser.UserId > 0
-            ? AuthService.CurrentUser.UserId
-            : SiteInfoService.DefaultUserId;
 }

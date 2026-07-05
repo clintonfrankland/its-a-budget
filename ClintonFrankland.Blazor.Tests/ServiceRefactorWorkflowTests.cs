@@ -208,6 +208,61 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
+    public async Task DashboardSnapshot_UsesOnlyRequestedUserData()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        db.Accounts.AddRange(
+            new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 100m, UserId = 42 },
+            new Account { AccountId = 2, AccountName = "Other Checking", AccountTypeId = 1, BeginningBalance = 1000m, UserId = 99 });
+        db.Categories.AddRange(
+            new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 42 },
+            new Category { CategoryId = 2, CategoryName = "Other Utilities", UserId = 99 });
+        db.Payees.AddRange(
+            new Payee { PayeeId = 1, PayeeName = "Power", UserId = 42, IsDeleted = false },
+            new Payee { PayeeId = 2, PayeeName = "Other Power", UserId = 99, IsDeleted = false });
+        db.Frequencies.Add(new Frequency { FrequencyId = 4, FrequencyName = "Monthly", Sort = 1 });
+        db.Transactions.AddRange(
+            new Transaction
+            {
+                TransactionId = 1,
+                UserId = 42,
+                AccountId = 1,
+                CategoryId = 1,
+                PayeeId = 1,
+                TransactionDate = new DateOnly(2026, 7, 2),
+                Amount = -25m
+            },
+            new Transaction
+            {
+                TransactionId = 2,
+                UserId = 99,
+                AccountId = 2,
+                CategoryId = 2,
+                PayeeId = 2,
+                TransactionDate = new DateOnly(2026, 7, 2),
+                Amount = -900m
+            });
+        db.Budgets.AddRange(
+            Budget(1, 42, "Electric", 1, 1, new DateTime(2026, 7, 4), 30m, frequencyId: 4, isBill: true),
+            Budget(2, 99, "Other Electric", 1, 2, new DateTime(2026, 7, 4), 999m, frequencyId: 4, isBill: true));
+        await db.SaveChangesAsync();
+
+        var service = new DashboardDataService(new CheckbookDataService(db), new BudgetScheduleService(db));
+
+        var snapshot = await service.GetSnapshotAsync(42, new DateTime(2026, 7, 4));
+
+        Assert.Equal(75m, snapshot.TodayBalance);
+        var bill = Assert.Single(snapshot.UpcomingBills);
+        Assert.Equal("Electric", bill.Name);
+        Assert.Equal(30m, snapshot.UpcomingBillsTotal);
+        var category = Assert.Single(snapshot.CategorySpend);
+        Assert.Equal("Utilities", category.CategoryName);
+        Assert.Equal(25m, category.Total);
+        Assert.Equal(-135m, snapshot.LowestProjectedBalance);
+    }
+
+    [Fact]
     public async Task BudgetScheduleService_CreateEditedNextOccurrence_RoundsAndValidatesAmountAndDate()
     {
         await using var db = CreateDbContext();
@@ -254,6 +309,31 @@ public class ServiceRefactorWorkflowTests
         }
     }
 
+    [Fact]
+    public void AuthenticatedDataPages_ResolveUserThroughCurrentUserContext()
+    {
+        var targetPages = new[]
+        {
+            "Components/Pages/Home.razor.cs",
+            "Components/Pages/Budget.razor.cs",
+            "Components/Pages/Checkbook.razor.cs",
+            "Components/Pages/Accounts.razor.cs",
+            "Components/Pages/BudgetItems.razor.cs",
+            "Components/Pages/Payees.razor.cs",
+            "Components/Pages/CategoryBudgets.razor.cs",
+            "Components/Pages/Insights.razor.cs"
+        };
+
+        foreach (var page in targetPages)
+        {
+            var source = ReadRepoFile(page);
+            Assert.Contains("CurrentUserContext", source);
+            Assert.Contains("CurrentUser.UserId", source);
+            Assert.DoesNotContain("DefaultUserId", source);
+            Assert.DoesNotContain("AuthService.CurrentUser.UserId > 0", source);
+        }
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -275,7 +355,8 @@ public class ServiceRefactorWorkflowTests
         DateTime dueDate,
         decimal amount,
         int frequencyId = 0,
-        DateTime? endDate = null) => new()
+        DateTime? endDate = null,
+        bool isBill = false) => new()
         {
             BudgetId = id,
             UserId = userId,
@@ -285,7 +366,8 @@ public class ServiceRefactorWorkflowTests
             FrequencyId = frequencyId,
             NextDueDate = dueDate,
             EndDate = endDate ?? new DateTime(1970, 1, 1),
-            Amount = amount
+            Amount = amount,
+            IsBill = isBill
         };
 
     private static string ReadRepoFile(string relativePath)

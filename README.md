@@ -124,6 +124,8 @@ Existing database-backed username/password login and the `AppSettings` fallback 
 
 When optional Authentik login is enabled, `/` and `/login` display **Sign in with Authentik** first and keep the local username/password form underneath as **Local fallback**. Return URLs are accepted only when they are rooted local paths; unsafe absolute or protocol-relative URLs are ignored for both login and logout redirects.
 
+Authenticated Budget data uses `CurrentUserContext` to resolve the effective Budget `UserId` once per UI/data path. Database-backed and Authentik users resolve to their linked `cfUsers.UserId`, so accounts, budgets, transactions, categories, payees, insights, bill notices, and dashboard reads/writes remain isolated by owner. The only intentional exception is the legacy `AppSettings` fallback login: because that login has no `cfUsers` row, `CurrentUserContext` explicitly maps it to `AppSettings:DefaultUserId` until the fallback login is retired.
+
 ---
 
 ## User workflows
@@ -312,6 +314,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Models/Entities/` | EF Core entity classes (one per table) |
 | `Models/ViewModels/` | UI projection types returned by data services |
 | `Services/AuthService.cs` | Login, logout, lockout (5 attempts / 15-min window), session storage, audit logging |
+| `Services/CurrentUserContext.cs` | Central effective Budget user resolver for authenticated data isolation; contains the explicit AppSettings fallback exception |
 | `Services/ExternalIdentityLinkService.cs` | Subject-first Authentik/OIDC identity mapping for active Budget users |
 | `Services/SiteInfoService.cs` | Reads `AppSettings` config block (site name, base URL, icon) |
 | `Services/EmailSenderService.cs` | SMTP dispatch via MailKit |

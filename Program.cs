@@ -158,6 +158,7 @@ builder.Services.AddSingleton<StartupDiagnosticsState>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ExternalIdentityLinkService>();
 builder.Services.AddScoped<SiteInfoService>();
+builder.Services.AddScoped<CurrentUserContext>();
 builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddScoped<MigrationErrorTracker>();
 builder.Services.AddHostedService<BillDueNotificationWorker>();

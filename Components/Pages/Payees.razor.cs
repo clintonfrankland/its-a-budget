@@ -1,4 +1,3 @@
-using ClintonFrankland.Models;
 using ClintonFrankland.Models.ViewModels;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
@@ -12,7 +11,7 @@ public partial class Payees
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -38,7 +37,7 @@ public partial class Payees
     private List<PayeeSummaryViewModel> activePayees = new();
     private readonly HashSet<int> selectedPayeeIds = new();
 
-    private int CurrentPayeesUserId => ResolvePayeesUserId(AuthService.CurrentUser, SiteInfoService.DefaultUserId);
+    private int CurrentPayeesUserId => CurrentUser.UserId;
 
     private IEnumerable<PayeeSummaryViewModel> filteredPayees => FilterPayees();
     private List<PayeeSummaryViewModel> selectedPayees => activePayees
@@ -214,6 +213,4 @@ public partial class Payees
             item.DuplicateHint.ToLower().Contains(searchLower));
     }
 
-    internal static int ResolvePayeesUserId(UserInfo currentUser, int fallbackDefaultUserId)
-        => currentUser.UserId > 0 ? currentUser.UserId : fallbackDefaultUserId;
 }

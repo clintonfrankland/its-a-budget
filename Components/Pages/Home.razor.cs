@@ -8,7 +8,7 @@ namespace ClintonFrankland.Components.Pages;
 public partial class Home
 {
     [Inject] private AuthService AuthService { get; set; } = default!;
-    [Inject] private SiteInfoService SiteInfoService { get; set; } = default!;
+    [Inject] private CurrentUserContext CurrentUser { get; set; } = default!;
     [Inject] private DashboardDataService DashboardData { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IOptions<AuthentikOidcOptions> AuthentikOptions { get; set; } = default!;
@@ -43,12 +43,7 @@ public partial class Home
 
         try
         {
-            // Config-fallback login uses UserId=0, so use DefaultUserId for data.
-            var userId = AuthService.CurrentUser.UserId > 0
-                ? AuthService.CurrentUser.UserId
-                : SiteInfoService.DefaultUserId;
-
-            Snapshot = await DashboardData.GetSnapshotAsync(userId, DateTime.Today);
+            Snapshot = await DashboardData.GetSnapshotAsync(CurrentUser.UserId, DateTime.Today);
         }
         catch (Exception ex)
         {

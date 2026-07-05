@@ -12,7 +12,7 @@ public partial class CategoryBudgets
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -72,7 +72,7 @@ public partial class CategoryBudgets
         try
         {
             errorMessage = string.Empty;
-            var userId = GetCurrentUserId();
+            var userId = CurrentUser.UserId;
             categoryOptions = await CategoryBudgetData.GetCategoryOptionsAsync(userId);
             rows = await CategoryBudgetData.GetMonthRowsAsync(userId, selectedMonth);
 
@@ -117,7 +117,7 @@ public partial class CategoryBudgets
                 selectedMonth,
                 editPlannedAmount);
 
-            await CategoryBudgetData.SaveTargetAsync(GetCurrentUserId(), request);
+            await CategoryBudgetData.SaveTargetAsync(CurrentUser.UserId, request);
             ResetEditor();
             await LoadDataAsync();
         }
@@ -147,7 +147,7 @@ public partial class CategoryBudgets
 
         try
         {
-            await CategoryBudgetData.DeleteTargetAsync(GetCurrentUserId(), row.TargetId.Value);
+            await CategoryBudgetData.DeleteTargetAsync(CurrentUser.UserId, row.TargetId.Value);
             ResetEditor();
             await LoadDataAsync();
         }
@@ -164,11 +164,6 @@ public partial class CategoryBudgets
         editCategoryId = categoryOptions.FirstOrDefault()?.CategoryId ?? 0;
         editPlannedAmount = 0m;
     }
-
-    private int GetCurrentUserId() =>
-        AuthService.CurrentUser.UserId > 0
-            ? AuthService.CurrentUser.UserId
-            : SiteInfoService.DefaultUserId;
 
     private string GetAlertCss(CategoryBudgetAlertStatus status) => status switch
     {

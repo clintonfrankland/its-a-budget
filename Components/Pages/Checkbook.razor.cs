@@ -13,7 +13,7 @@ public partial class Checkbook
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -150,7 +150,7 @@ public partial class Checkbook
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var account = await CheckbookData.GetAccountForUserAsync(userId);
             var startingBalance = account?.BeginningBalance ?? 0m;
 
@@ -195,7 +195,7 @@ public partial class Checkbook
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var payees = await CheckbookData.GetPayeesForUserAsync(userId);
 
             payeesList = payees
@@ -222,7 +222,7 @@ public partial class Checkbook
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             // Always check for bills due today (independent of budget panel settings)
             var allForecast = await BudgetSchedule.GetForecastAsync(userId, DateTime.Today.AddDays(Math.Max(budgetDays + 1, 1)));
 
@@ -316,7 +316,7 @@ public partial class Checkbook
     }
     private async Task MarkBudgetPaidAsync(int budgetId)
     {
-        var userId = SiteInfoService.DefaultUserId;
+        var userId = CurrentUser.UserId;
         await BudgetSchedule.MarkBudgetPaidAsync(userId, budgetId);
     }
 
@@ -414,7 +414,7 @@ public partial class Checkbook
         try
         {
             SaveGridState();
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var transaction = await CheckbookData.GetTransactionByIdAsync(userId, transactionId);
 
             if (transaction != null)
@@ -464,7 +464,7 @@ public partial class Checkbook
                 return;
             }
 
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
             finalAmount = CurrencyPolicy.Round(finalAmount);
             string? attachmentPath = editAttachmentPath;
@@ -557,7 +557,7 @@ public partial class Checkbook
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var transaction = await CheckbookData.GetTransactionByIdAsync(userId, editTransactionId);
             if (transaction != null)
             {
@@ -580,7 +580,7 @@ public partial class Checkbook
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             await CheckbookData.SetTransactionClearedAsync(userId, transactionId, true);
 
             // Update the item in place to preserve grid filter state
@@ -604,7 +604,7 @@ public partial class Checkbook
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             await CheckbookData.SetTransactionClearedAsync(userId, transactionId, false);
 
             // Update the item in place to preserve grid filter state

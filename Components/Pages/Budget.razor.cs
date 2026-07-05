@@ -12,7 +12,7 @@ public partial class Budget
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -91,7 +91,7 @@ public partial class Budget
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var endDate = DateTime.Today.AddMonths(6);
             var forecastItems = await BudgetSchedule.GetForecastAsync(userId, endDate);
             budgetItems = forecastItems;
@@ -119,7 +119,7 @@ public partial class Budget
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var categories = await BudgetData.GetCategoriesForUserAsync(userId);
 
             categoriesList = categories
@@ -165,7 +165,7 @@ public partial class Budget
         try
         {
             await LoadFrequenciesAsync();
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
 
             if (budget != null)
@@ -272,7 +272,7 @@ public partial class Budget
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
             var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
@@ -320,7 +320,7 @@ public partial class Budget
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             await BudgetData.DeleteBudgetAsync(userId, editBudgetId);
 
             currentView = ViewMode.List;
@@ -336,7 +336,7 @@ public partial class Budget
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             await BudgetSchedule.MarkBudgetPaidAsync(userId, budgetId);
 
             await LoadDataAsync();
@@ -351,7 +351,7 @@ public partial class Budget
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var budget = await BudgetData.GetBudgetByIdAsync(userId, budgetId);
 
             if (budget != null)
@@ -403,7 +403,7 @@ public partial class Budget
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var budgetName = editBudgetName.Trim();
             var categoryName = editCategory.Trim();
 

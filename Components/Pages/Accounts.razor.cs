@@ -12,7 +12,7 @@ public partial class Accounts
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -80,7 +80,7 @@ public partial class Accounts
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var accountsData = await AccountsData.GetAccountsForUserAsync(userId);
 
             accounts = accountsData.Select(a => new AccountViewModel
@@ -122,7 +122,7 @@ public partial class Accounts
     {
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var account = await AccountsData.GetAccountByIdAsync(userId, accountId);
 
             if (account != null)
@@ -162,7 +162,7 @@ public partial class Accounts
                 return;
             }
 
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             var now = DateTime.UtcNow;
             await AccountsData.SaveAccountAsync(
                 userId,
@@ -217,7 +217,7 @@ public partial class Accounts
 
         try
         {
-            var userId = SiteInfoService.DefaultUserId;
+            var userId = CurrentUser.UserId;
             await AccountsData.DeleteAccountAsync(userId, editAccountId);
             currentView = ViewMode.List;
             await LoadDataAsync();

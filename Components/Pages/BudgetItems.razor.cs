@@ -13,7 +13,7 @@ public partial class BudgetItems
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
-    private SiteInfoService SiteInfoService { get; set; } = default!;
+    private CurrentUserContext CurrentUser { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -56,7 +56,7 @@ public partial class BudgetItems
     // Frequency dropdown option
     private record FrequencyOption(int FrequencyId, string FrequencyName);
 
-    private int CurrentBudgetItemsUserId => ResolveBudgetItemsUserId(AuthService.CurrentUser, SiteInfoService.DefaultUserId);
+    private int CurrentBudgetItemsUserId => CurrentUser.UserId;
 
     // Edit fields
     private int editBudgetId = -1;
@@ -337,9 +337,6 @@ public partial class BudgetItems
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
     }
-
-    internal static int ResolveBudgetItemsUserId(UserInfo currentUser, int fallbackDefaultUserId)
-        => currentUser.UserId > 0 ? currentUser.UserId : fallbackDefaultUserId;
 
     private async Task DeleteBudgetAsync()
     {
