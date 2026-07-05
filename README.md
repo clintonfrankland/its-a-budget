@@ -126,6 +126,16 @@ When optional Authentik login is enabled, `/` and `/login` display **Sign in wit
 
 Authenticated Budget data uses `CurrentUserContext` to resolve the effective Budget `UserId` once per UI/data path. Database-backed and Authentik users resolve to their linked `cfUsers.UserId`, so accounts, budgets, transactions, categories, payees, insights, bill notices, and dashboard reads/writes remain isolated by owner. The only intentional exception is the legacy `AppSettings` fallback login: because that login has no `cfUsers` row, `CurrentUserContext` explicitly maps it to `AppSettings:DefaultUserId` until the fallback login is retired.
 
+Admins manage Authentik links from **Settings > Users**. The grid shows provider, subject presence, external email/display name, and last external login without showing any credentials or tokens. Admins can link, relink, or unlink an Authentik identity with confirmation; regular users can only view their own linked identity status. The password utility is labeled as local-account-only for Authentik-linked users.
+
+Manual first-user linking for Clinton's current Budget row:
+
+1. Sign in with the local fallback login.
+2. Open **Settings > Users**.
+3. Link Clinton's active Budget user row to provider `authentik` and the stable Authentik `sub` claim.
+4. Optionally save the Authentik email/display name for audit context.
+5. Test **Sign in with Authentik** and verify `LastExternalLoginUtc` updates.
+
 ---
 
 ## User workflows

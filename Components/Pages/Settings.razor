@@ -9,20 +9,13 @@
 {
     <p>Redirecting to login...</p>
 }
-else if (!AuthService.CurrentUser.IsAdmin)
-{
-    <div class="alert alert-warning">
-        <h4>Access Denied</h4>
-        <p class="mb-0">Only administrators can access Server Settings.</p>
-    </div>
-}
 else
 {
     <div class="container-fluid">
         <div class="row">
             @* Main content area *@
             <div class="col-lg-9 col-md-8">
-                <h1 class="mb-4">Server Settings</h1>
+                <h1 class="mb-4">@(AuthService.CurrentUser.IsAdmin ? "Server Settings" : "Account Settings")</h1>
 
                 @if (!string.IsNullOrWhiteSpace(Message))
                 {
@@ -32,9 +25,14 @@ else
                     </div>
                 }
 
-                <MigrationDiagnosticsCard />
+                @if (AuthService.CurrentUser.IsAdmin)
+                {
+                    <MigrationDiagnosticsCard />
+                }
 
                 @* SMTP Email Section *@
+                @if (AuthService.CurrentUser.IsAdmin)
+                {
                 <section id="smtp-email" class="mb-5">
                     <div class="card">
                         <div class="card-header fw-semibold">
@@ -127,8 +125,11 @@ else
                         </div>
                     </div>
                 </section>
+                }
 
                 @* Bill Due Notifications *@
+                @if (AuthService.CurrentUser.IsAdmin)
+                {
                 <section id="bill-due" class="mb-5">
                     <div class="card">
                         <div class="card-header fw-semibold">
@@ -169,6 +170,7 @@ else
                         </div>
                     </div>
                 </section>
+                }
 
                 @* Users Section *@
                 <section id="users" class="mb-5">
@@ -198,13 +200,30 @@ else
                                 <Columns>
                                     @if (!AuthService.CurrentUser.ListButtonsRight)
                                     {
-                                        <RadzenDataGridColumn TItem="User" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                                        <RadzenDataGridColumn TItem="User" Width="190px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                             <Template Context="u">
                                                 <div class="d-flex justify-content-start gap-1">
                                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
                                                                   Click="() => EditUser(u)" title="Edit user" />
-                                                    <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
-                                                                  Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                                                    @if (AuthService.CurrentUser.IsAdmin)
+                                                    {
+                                                        <RadzenButton Icon="link" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
+                                                                      Click="() => OpenExternalIdentityModal(u)" title="Link or relink Authentik identity" />
+                                                        @if (HasExternalIdentity(u))
+                                                        {
+                                                            <RadzenButton Icon="link_off" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                                                          Click="() => UnlinkExternalIdentity(u)" title="Unlink Authentik identity" />
+                                                        }
+                                                    }
+                                                    @if (HasExternalIdentity(u))
+                                                    {
+                                                        <span class="badge bg-secondary" title="Password utility is local-account-only">Local password disabled</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
+                                                                      Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                                                    }
                                                 </div>
                                             </Template>
                                         </RadzenDataGridColumn>
@@ -213,6 +232,16 @@ else
                                     <RadzenDataGridColumn TItem="User" Property="DisplayName" Title="Full Name" />
                                     <RadzenDataGridColumn TItem="User" Property="UserName" Title="Username" />
                                     <RadzenDataGridColumn TItem="User" Property="EmailAddress" Title="Email" />
+                                    <RadzenDataGridColumn TItem="User" Title="Authentik Identity" Width="280px">
+                                        <Template Context="u">
+                                            <div class="small">
+                                                <div class="fw-semibold">@ExternalIdentityStatus(u)</div>
+                                                <div class="text-muted">@ExternalIdentitySubjectStatus(u)</div>
+                                                <div>@ExternalIdentityMetadata(u)</div>
+                                                <div class="text-muted">Last external login: @LastExternalLoginText(u)</div>
+                                            </div>
+                                        </Template>
+                                    </RadzenDataGridColumn>
                                     <RadzenDataGridColumn TItem="User" Property="IsAdmin" Title="Admin" Width="80px">
                                         <Template Context="u">
                                             @(u.IsAdmin ? "Yes" : "No")
@@ -220,13 +249,30 @@ else
                                     </RadzenDataGridColumn>
                                     @if (AuthService.CurrentUser.ListButtonsRight)
                                     {
-                                        <RadzenDataGridColumn TItem="User" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                                        <RadzenDataGridColumn TItem="User" Width="190px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                             <Template Context="u">
                                                 <div class="d-flex justify-content-end gap-1">
                                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.ExtraSmall"
                                                                   Click="() => EditUser(u)" title="Edit user" />
-                                                    <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
-                                                                  Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                                                    @if (AuthService.CurrentUser.IsAdmin)
+                                                    {
+                                                        <RadzenButton Icon="link" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
+                                                                      Click="() => OpenExternalIdentityModal(u)" title="Link or relink Authentik identity" />
+                                                        @if (HasExternalIdentity(u))
+                                                        {
+                                                            <RadzenButton Icon="link_off" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                                                          Click="() => UnlinkExternalIdentity(u)" title="Unlink Authentik identity" />
+                                                        }
+                                                    }
+                                                    @if (HasExternalIdentity(u))
+                                                    {
+                                                        <span class="badge bg-secondary" title="Password utility is local-account-only">Local password disabled</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <RadzenButton Icon="key" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
+                                                                      Click="() => OpenPasswordUtility(u)" title="Password utility" />
+                                                    }
                                                 </div>
                                             </Template>
                                         </RadzenDataGridColumn>
@@ -239,6 +285,8 @@ else
             </div>
 
             @* Right-side navigation *@
+            @if (AuthService.CurrentUser.IsAdmin)
+            {
             <div class="col-lg-3 col-md-4 d-none d-md-block">
                 <div class="position-sticky" style="top: 80px;">
                     <div class="card">
@@ -262,6 +310,7 @@ else
                     </div>
                 </div>
             </div>
+            }
         </div>
     </div>
 }
@@ -297,6 +346,48 @@ else
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveUser">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Authentik Identity Modal *@
+@if (LinkUser is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);" @onclick="CloseExternalIdentityModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Authentik Identity - @LinkUser.UserName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseExternalIdentityModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        Link the Budget user to the stable Authentik subject claim. Email and display name are shown only for audit context.
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Provider</label>
+                        <input class="form-control" @bind="LinkProvider" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Subject</label>
+                        <input class="form-control" @bind="LinkSubject" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">External Email</label>
+                        <input class="form-control" @bind="LinkEmail" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">External Display Name</label>
+                        <input class="form-control" @bind="LinkDisplayName" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseExternalIdentityModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveExternalIdentity">
+                        @(HasExternalIdentity(LinkUser) ? "Relink Authentik Identity" : "Link Authentik Identity")
+                    </button>
                 </div>
             </div>
         </div>

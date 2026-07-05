@@ -1,4 +1,5 @@
 using ClintonFrankland.Data;
+using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,27 @@ public sealed class ExternalIdentityLinkService
             !user.IsDeleted &&
             user.ExternalProvider == normalizedProvider &&
             user.ExternalSubject == normalizedSubject);
+    }
+
+    public async Task<List<User>> GetVisibleUsersAsync(UserInfo currentUser)
+    {
+        var query = _db.Users.AsNoTracking().Where(user => !user.IsDeleted);
+
+        if (!currentUser.IsAdmin)
+            query = query.Where(user => user.UserId == currentUser.UserId);
+
+        return await query.OrderBy(user => user.UserId).ToListAsync();
+    }
+
+    public Task<User> LinkExternalIdentityAsAdminAsync(
+        UserInfo actor,
+        int userId,
+        ExternalIdentityProfile profile)
+    {
+        if (!actor.IsAdmin)
+            throw new UnauthorizedAccessException("Only admins can link Authentik identities.");
+
+        return LinkExternalIdentityAsync(userId, profile);
     }
 
     public async Task<User> LinkExternalIdentityAsync(int userId, ExternalIdentityProfile profile)
@@ -66,6 +88,28 @@ public sealed class ExternalIdentityLinkService
 
         return user;
     }
+
+    public async Task<User> UnlinkExternalIdentityAsAdminAsync(UserInfo actor, int userId)
+    {
+        if (!actor.IsAdmin)
+            throw new UnauthorizedAccessException("Only admins can unlink Authentik identities.");
+
+        var user = await _db.Users.FirstOrDefaultAsync(user => user.UserId == userId && !user.IsDeleted)
+            ?? throw new InvalidOperationException("Active Budget user was not found.");
+
+        user.ExternalProvider = null;
+        user.ExternalSubject = null;
+        user.ExternalEmail = null;
+        user.ExternalDisplayName = null;
+        user.LastExternalLoginUtc = null;
+
+        await _db.SaveChangesAsync();
+        return user;
+    }
+
+    public static bool HasExternalIdentity(User user) =>
+        !string.IsNullOrWhiteSpace(user.ExternalProvider) &&
+        !string.IsNullOrWhiteSpace(user.ExternalSubject);
 
     private void ApplyExternalIdentity(
         User user,

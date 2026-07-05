@@ -1,4 +1,5 @@
 using ClintonFrankland.Data;
+using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,106 @@ public class ExternalIdentityLinkServiceTests
     }
 
     [Fact]
+    public async Task LinkExternalIdentityAsAdminAsync_RejectsNonAdminActor()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(User(1, "clinton"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.LinkExternalIdentityAsAdminAsync(
+                CurrentUser(1, isAdmin: false),
+                1,
+                new ExternalIdentityProfile("authentik", "subject")));
+
+        Assert.Contains("Only admins", ex.Message);
+        Assert.Null(db.Users.Single().ExternalSubject);
+    }
+
+    [Fact]
+    public async Task GetVisibleUsersAsync_ReturnsOnlySelfForRegularUsers()
+    {
+        await using var db = CreateDbContext();
+        db.Users.AddRange(
+            User(1, "clinton", "authentik", "subject-1"),
+            User(2, "tara", "authentik", "subject-2"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var visibleUsers = await service.GetVisibleUsersAsync(CurrentUser(2, isAdmin: false));
+
+        var user = Assert.Single(visibleUsers);
+        Assert.Equal(2, user.UserId);
+        Assert.Equal("subject-2", user.ExternalSubject);
+    }
+
+    [Fact]
+    public async Task GetVisibleUsersAsync_ReturnsActiveUsersForAdminsOnly()
+    {
+        await using var db = CreateDbContext();
+        db.Users.AddRange(
+            User(1, "clinton"),
+            User(2, "deleted", isDeleted: true));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var visibleUsers = await service.GetVisibleUsersAsync(CurrentUser(1, isAdmin: true));
+
+        var user = Assert.Single(visibleUsers);
+        Assert.Equal("clinton", user.UserName);
+    }
+
+    [Fact]
+    public async Task LinkExternalIdentityAsAdminAsync_RelinksExistingIdentity()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(User(1, "clinton", "authentik", "old-subject"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var user = await service.LinkExternalIdentityAsAdminAsync(
+            CurrentUser(99, isAdmin: true),
+            1,
+            new ExternalIdentityProfile("authentik", "new-subject", "new@example.com", "New Name"));
+
+        Assert.Equal("new-subject", user.ExternalSubject);
+        Assert.Equal("new@example.com", user.ExternalEmail);
+        Assert.Equal("New Name", user.ExternalDisplayName);
+    }
+
+    [Fact]
+    public async Task UnlinkExternalIdentityAsAdminAsync_ClearsLinkedIdentity()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(User(1, "clinton", "authentik", "subject"));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var user = await service.UnlinkExternalIdentityAsAdminAsync(CurrentUser(99, isAdmin: true), 1);
+
+        Assert.Null(user.ExternalProvider);
+        Assert.Null(user.ExternalSubject);
+        Assert.Null(user.ExternalEmail);
+        Assert.Null(user.ExternalDisplayName);
+        Assert.Null(user.LastExternalLoginUtc);
+    }
+
+    [Fact]
+    public async Task UnlinkExternalIdentityAsAdminAsync_RejectsDeletedUsers()
+    {
+        await using var db = CreateDbContext();
+        db.Users.Add(User(1, "deleted", "authentik", "subject", isDeleted: true));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UnlinkExternalIdentityAsAdminAsync(CurrentUser(99, isAdmin: true), 1));
+
+        Assert.Contains("Active Budget user", ex.Message);
+    }
+
+    [Fact]
     public async Task FindLinkedUserAsync_IgnoresLegacyUsersWithNullExternalFields()
     {
         await using var db = CreateDbContext();
@@ -98,6 +199,16 @@ public class ExternalIdentityLinkServiceTests
 
     private static ExternalIdentityLinkService CreateService(ClintonFranklandDbContext db) =>
         new(db, TimeProvider.System);
+
+    private static UserInfo CurrentUser(int userId, bool isAdmin) => new()
+    {
+        UserId = userId,
+        SiteId = 1,
+        UserName = $"user-{userId}",
+        DisplayName = $"User {userId}",
+        IsAdmin = isAdmin,
+        IsLoggedIn = true
+    };
 
     private static User User(
         int userId,

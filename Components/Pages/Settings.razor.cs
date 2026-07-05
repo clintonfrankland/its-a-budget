@@ -13,6 +13,7 @@ public partial class Settings
     [Inject] private ClintonFrankland.Data.ClintonFranklandDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private EmailSenderService EmailSenderService { get; set; } = default!;
+    [Inject] private ExternalIdentityLinkService ExternalIdentityLinks { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     // SMTP Settings
@@ -54,6 +55,12 @@ public partial class Settings
     private User? PasswordUser { get; set; }
     private string PasswordValue { get; set; } = "";
 
+    private User? LinkUser { get; set; }
+    private string LinkProvider { get; set; } = "authentik";
+    private string LinkSubject { get; set; } = "";
+    private string? LinkEmail { get; set; }
+    private string? LinkDisplayName { get; set; }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -71,8 +78,12 @@ public partial class Settings
 
     private async Task LoadAsync()
     {
-        await LoadSmtpSettingsAsync();
-        await LoadBillDueSettingsAsync();
+        if (AuthService.CurrentUser.IsAdmin)
+        {
+            await LoadSmtpSettingsAsync();
+            await LoadBillDueSettingsAsync();
+        }
+
         await LoadUsersAsync();
     }
 
@@ -290,16 +301,7 @@ public partial class Settings
 
     private async Task LoadUsersAsync()
     {
-        var current = AuthService.CurrentUser;
-
-        if (current.IsAdmin)
-        {
-            UsersList = await DbContext.Users.AsNoTracking().Where(u => !u.IsDeleted).OrderBy(u => u.UserId).ToListAsync();
-        }
-        else
-        {
-            UsersList = await DbContext.Users.AsNoTracking().Where(u => !u.IsDeleted && u.UserId == current.UserId).ToListAsync();
-        }
+        UsersList = await ExternalIdentityLinks.GetVisibleUsersAsync(AuthService.CurrentUser);
     }
 
     private void ShowNewUser()
@@ -408,6 +410,12 @@ public partial class Settings
             return;
         }
 
+        if (HasExternalIdentity(user))
+        {
+            UserErrorMessage = "Password utility is local-account-only. Unlink the Authentik identity before resetting this user's local password.";
+            return;
+        }
+
         PasswordUser = user;
         PasswordValue = "";
     }
@@ -433,6 +441,12 @@ public partial class Settings
         }
 
         var dbUser = await DbContext.Users.FirstAsync(u => u.UserId == PasswordUser.UserId);
+        if (HasExternalIdentity(dbUser))
+        {
+            UserErrorMessage = "Password utility is local-account-only. Unlink the Authentik identity before resetting this user's local password.";
+            return;
+        }
+
         dbUser.Salt = PasswordUtility.CreateSalt();
         dbUser.PasswordHash = PasswordUtility.HashPassword(PasswordValue, dbUser.Salt);
         dbUser.PasswordResetRequestOn = DateTime.UtcNow;
@@ -455,6 +469,135 @@ public partial class Settings
         PasswordUser = null;
         PasswordValue = "";
     }
+
+    private void OpenExternalIdentityModal(User user)
+    {
+        if (!AuthService.CurrentUser.IsAdmin)
+        {
+            UserErrorMessage = "Only admins can link Authentik identities.";
+            return;
+        }
+
+        LinkUser = user;
+        LinkProvider = string.IsNullOrWhiteSpace(user.ExternalProvider) ? "authentik" : user.ExternalProvider;
+        LinkSubject = user.ExternalSubject ?? "";
+        LinkEmail = user.ExternalEmail;
+        LinkDisplayName = user.ExternalDisplayName;
+        UserErrorMessage = null;
+    }
+
+    private async Task SaveExternalIdentity()
+    {
+        if (LinkUser is null)
+            return;
+
+        if (!AuthService.CurrentUser.IsAdmin)
+        {
+            UserErrorMessage = "Only admins can link Authentik identities.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(LinkProvider) || string.IsNullOrWhiteSpace(LinkSubject))
+        {
+            UserErrorMessage = "Authentik provider and subject are required.";
+            return;
+        }
+
+        var wasLinked = HasExternalIdentity(LinkUser);
+        if (wasLinked)
+        {
+            var confirmed = await JS.InvokeAsync<bool>(
+                "confirm",
+                $"Relink {LinkUser.UserName} to this Authentik subject?");
+            if (!confirmed)
+                return;
+        }
+
+        try
+        {
+            await ExternalIdentityLinks.LinkExternalIdentityAsAdminAsync(
+                AuthService.CurrentUser,
+                LinkUser.UserId,
+                new ExternalIdentityProfile(LinkProvider, LinkSubject, LinkEmail, LinkDisplayName));
+
+            CloseExternalIdentityModal();
+            await LoadUsersAsync();
+            Message = wasLinked ? "Authentik identity relinked." : "Authentik identity linked.";
+            MessageCss = "alert-success";
+            UserErrorMessage = null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            UserErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task UnlinkExternalIdentity(User user)
+    {
+        if (!AuthService.CurrentUser.IsAdmin)
+        {
+            UserErrorMessage = "Only admins can unlink Authentik identities.";
+            return;
+        }
+
+        if (!HasExternalIdentity(user))
+        {
+            UserErrorMessage = "This user does not have a linked Authentik identity.";
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Unlink Authentik identity from {user.UserName}?");
+        if (!confirmed)
+            return;
+
+        try
+        {
+            await ExternalIdentityLinks.UnlinkExternalIdentityAsAdminAsync(AuthService.CurrentUser, user.UserId);
+            await LoadUsersAsync();
+            Message = $"Authentik identity unlinked from {user.UserName}.";
+            MessageCss = "alert-success";
+            UserErrorMessage = null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            UserErrorMessage = ex.Message;
+        }
+    }
+
+    private void CloseExternalIdentityModal()
+    {
+        LinkUser = null;
+        LinkProvider = "authentik";
+        LinkSubject = "";
+        LinkEmail = null;
+        LinkDisplayName = null;
+    }
+
+    private static bool HasExternalIdentity(User user) => ExternalIdentityLinkService.HasExternalIdentity(user);
+
+    private static string ExternalIdentityStatus(User user) =>
+        HasExternalIdentity(user)
+            ? $"{user.ExternalProvider} linked"
+            : "Not linked";
+
+    private static string ExternalIdentitySubjectStatus(User user) =>
+        string.IsNullOrWhiteSpace(user.ExternalSubject) ? "No subject" : "Subject present";
+
+    private static string ExternalIdentityMetadata(User user)
+    {
+        var parts = new[] { user.ExternalDisplayName, user.ExternalEmail }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+
+        return parts.Length == 0 ? "No provider profile details" : string.Join(" / ", parts);
+    }
+
+    private static string LastExternalLoginText(User user) =>
+        user.LastExternalLoginUtc is null
+            ? "Never"
+            : $"{DateTime.SpecifyKind(user.LastExternalLoginUtc.Value, DateTimeKind.Utc):yyyy-MM-dd HH:mm} UTC";
 
     #endregion
 

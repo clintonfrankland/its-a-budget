@@ -2,11 +2,11 @@
 
 ## What this page is
 
-The **Settings** page is for **administrators only**.
+The **Settings** page is the admin server-settings area and the Authentik identity status area.
 
-It contains server-wide settings that affect how the app behaves for everyone.
+Admins see server-wide settings that affect how the app behaves for everyone. Regular users can open Settings to view their own Budget user row and Authentik linked-identity status.
 
-If you are not an admin, you won’t be able to access this page.
+Regular users cannot create users, edit other users, or link/unlink Authentik identities.
 
 ## SMTP Email (Server-wide)
 
@@ -82,6 +82,38 @@ Options:
 - **Due Soon Window (days ahead)**: how far in advance to remind.
 - **Send past-due reminders**: enable reminders after a due date has passed.
 - **Past Due Max (days)**: safety cap to stop reminding forever.
+
+## Users and Authentik identity links
+
+The Users section shows each visible Budget user and their Authentik link status:
+
+- **Provider**: normally `authentik`
+- **Subject presence**: whether the stable OIDC `sub` claim is stored
+- **External Email / Display Name**: provider profile details for audit context
+- **Last external login**: the last successful Authentik login time recorded for that Budget user
+
+Admins can link, relink, or unlink an Authentik identity from the Users grid. Relink and unlink actions ask for confirmation because they change which external account can sign in as that Budget user.
+
+Regular users only see their own row and cannot change Authentik links.
+
+### Manual first-user linking process
+
+For Clinton's current Budget user row:
+
+1. Sign in with the local fallback login.
+2. Open **Settings**.
+3. In **Users**, find Clinton's active Budget user row.
+4. Click the link action.
+5. Enter provider `authentik`.
+6. Enter the stable Authentik subject claim for Clinton's Budget account.
+7. Optionally enter the Authentik email and display name for audit context.
+8. Save the link, then test **Sign in with Authentik**.
+
+Email is displayed for context only. The Authentik subject is the durable identity key.
+
+### Local password utility
+
+The password utility is local-account-only. When a user is linked to Authentik, the grid labels the local password utility as disabled so it is not mistaken for an Authentik password reset.
 
 ## Why this page matters
 
