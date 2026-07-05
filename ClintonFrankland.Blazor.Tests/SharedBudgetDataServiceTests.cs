@@ -198,6 +198,140 @@ public class SharedBudgetDataServiceTests
         Assert.False(await sharedBudgets.CanPerformOwnerActionAsync(2, 1));
     }
 
+    [Fact]
+    public async Task BudgetInviteOwner_CreatesHighEntropyHashOnlyInviteForUsername()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer);
+        await db.SaveChangesAsync();
+
+        var service = CreateInviteService(db);
+
+        var result = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Editor);
+
+        Assert.True(result.PlainToken.Length >= 40);
+        Assert.DoesNotContain(result.PlainToken, result.Invite.InviteTokenHash, StringComparison.Ordinal);
+        Assert.Equal(64, result.Invite.InviteTokenHash.Length);
+        Assert.Equal("member", result.Invite.InviteeUserName);
+        Assert.Equal(BudgetMemberRole.Editor, result.Invite.Role);
+        Assert.DoesNotContain(
+            typeof(BudgetInvite).GetProperties().Select(p => p.Name),
+            name => name.Contains("Plain", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(name, "Token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task BudgetInviteAccept_CreatesMemberExactlyOnce()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer, includeMember: false);
+        await db.SaveChangesAsync();
+        var service = CreateInviteService(db);
+        var invite = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Admin);
+
+        var first = await service.AcceptInviteAsync(invite.PlainToken, 2);
+        var second = await service.AcceptInviteAsync(invite.PlainToken, 2);
+
+        Assert.Equal(BudgetInviteAcceptStatus.Accepted, first.Status);
+        Assert.Equal(BudgetInviteAcceptStatus.AlreadyAccepted, second.Status);
+        var member = Assert.Single(await db.BudgetMembers.Where(m => m.UserId == 2).ToListAsync());
+        Assert.Equal(BudgetMemberRole.Admin, member.Role);
+        Assert.Equal(BudgetMemberStatus.Active, member.Status);
+        Assert.Equal(2, await db.BudgetMembers.CountAsync());
+        Assert.Equal(2, (await db.BudgetInvites.SingleAsync()).AcceptedByUserId);
+    }
+
+    [Fact]
+    public async Task BudgetInviteAccept_ReturnsExpiredRevokedAndWrongUserStates()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer, includeMember: false);
+        await db.SaveChangesAsync();
+        var service = CreateInviteService(db);
+
+        var expired = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Viewer, expirationDays: 1);
+        var expiredInvite = await db.BudgetInvites.SingleAsync(i => i.BudgetInviteId == expired.Invite.BudgetInviteId);
+        expiredInvite.ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1);
+
+        var revoked = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Viewer);
+        var revokedInvite = await db.BudgetInvites.SingleAsync(i => i.BudgetInviteId == revoked.Invite.BudgetInviteId);
+        revokedInvite.RevokedAtUtc = DateTime.UtcNow;
+        revokedInvite.RevokedByUserId = 1;
+
+        var wrongUser = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Viewer);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(BudgetInviteAcceptStatus.Expired, (await service.AcceptInviteAsync(expired.PlainToken, 2)).Status);
+        Assert.Equal(BudgetInviteAcceptStatus.Revoked, (await service.AcceptInviteAsync(revoked.PlainToken, 2)).Status);
+        Assert.Equal(BudgetInviteAcceptStatus.WrongUser, (await service.AcceptInviteAsync(wrongUser.PlainToken, 3)).Status);
+        Assert.DoesNotContain(await db.BudgetMembers.ToListAsync(), m => m.UserId == 2);
+    }
+
+    [Fact]
+    public async Task BudgetInviteAccept_RequiresAuthenticatedBudgetUser()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer, includeMember: false);
+        await db.SaveChangesAsync();
+        var service = CreateInviteService(db);
+        var invite = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Viewer);
+
+        Assert.Equal(
+            BudgetInviteAcceptStatus.AuthenticationRequired,
+            (await service.AcceptInviteAsync(invite.PlainToken, 0)).Status);
+
+        Assert.Equal(
+            BudgetInviteAcceptStatus.AuthenticationRequired,
+            (await service.AcceptInviteAsync(invite.PlainToken, 999)).Status);
+    }
+
+    [Fact]
+    public async Task BudgetInviteManageActions_AreLimitedToOwnerAndAdmin()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Editor);
+        db.Users.Add(User(4, "admin", "Admin"));
+        db.BudgetMembers.Add(new BudgetMember
+        {
+            BudgetMemberId = 3,
+            SharedBudgetId = 1,
+            UserId = 4,
+            Role = BudgetMemberRole.Admin,
+            Status = BudgetMemberStatus.Active,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        var service = CreateInviteService(db);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.CreateInviteAsync(2, 1, "member@example.com", BudgetMemberRole.Viewer));
+
+        var createdByAdmin = await service.CreateInviteAsync(4, 1, "member@example.com", BudgetMemberRole.Viewer);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.RevokeInviteAsync(2, createdByAdmin.Invite.BudgetInviteId));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.ResendInviteAsync(2, createdByAdmin.Invite.BudgetInviteId));
+
+        Assert.True(await service.RevokeInviteAsync(1, createdByAdmin.Invite.BudgetInviteId));
+    }
+
+    [Fact]
+    public async Task BudgetInviteResend_RotatesTokenAndReopensInvite()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer, includeMember: false);
+        await db.SaveChangesAsync();
+        var service = CreateInviteService(db);
+        var created = await service.CreateInviteAsync(1, 1, "member", BudgetMemberRole.Viewer);
+        await service.RevokeInviteAsync(1, created.Invite.BudgetInviteId);
+
+        var resent = await service.ResendInviteAsync(1, created.Invite.BudgetInviteId);
+
+        Assert.NotEqual(created.PlainToken, resent.PlainToken);
+        Assert.Equal(BudgetInviteAcceptStatus.Invalid, (await service.AcceptInviteAsync(created.PlainToken, 2)).Status);
+        Assert.Equal(BudgetInviteAcceptStatus.Accepted, (await service.AcceptInviteAsync(resent.PlainToken, 2)).Status);
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -212,13 +346,19 @@ public class SharedBudgetDataServiceTests
         db.AccountTypes.Add(new AccountType { AccountTypeId = 1, AccountTypeName = "Checking" });
     }
 
-    private static void SeedSharedBudget(ClintonFranklandDbContext db, BudgetMemberRole memberRole)
+    private static BudgetInviteService CreateInviteService(ClintonFranklandDbContext db) =>
+        new(db, new SharedBudgetDataService(db), TimeProvider.System);
+
+    private static void SeedSharedBudget(
+        ClintonFranklandDbContext db,
+        BudgetMemberRole memberRole,
+        bool includeMember = true)
     {
         var now = DateTime.UtcNow;
         db.Users.AddRange(
-            User(1, "owner", "Owner"),
-            User(2, "member", "Member"),
-            User(3, "outsider", "Outsider"));
+            User(1, "owner", "Owner", "owner@example.com"),
+            User(2, "member", "Member", "member@example.com"),
+            User(3, "outsider", "Outsider", "outsider@example.com"));
         db.SharedBudgets.Add(new SharedBudget
         {
             SharedBudgetId = 1,
@@ -227,8 +367,7 @@ public class SharedBudgetDataServiceTests
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
-        db.BudgetMembers.AddRange(
-            new BudgetMember
+        db.BudgetMembers.Add(new BudgetMember
             {
                 BudgetMemberId = 1,
                 SharedBudgetId = 1,
@@ -236,8 +375,11 @@ public class SharedBudgetDataServiceTests
                 Role = BudgetMemberRole.Owner,
                 Status = BudgetMemberStatus.Active,
                 CreatedAtUtc = now
-            },
-            new BudgetMember
+            });
+
+        if (includeMember)
+        {
+            db.BudgetMembers.Add(new BudgetMember
             {
                 BudgetMemberId = 2,
                 SharedBudgetId = 1,
@@ -246,6 +388,8 @@ public class SharedBudgetDataServiceTests
                 Status = BudgetMemberStatus.Active,
                 CreatedAtUtc = now
             });
+        }
+
         db.Accounts.AddRange(
             new Account
             {
@@ -303,12 +447,13 @@ public class SharedBudgetDataServiceTests
         });
     }
 
-    private static User User(int id, string userName, string displayName) => new()
+    private static User User(int id, string userName, string displayName, string? email = null) => new()
     {
         UserId = id,
         SiteId = 1,
         UserName = userName,
         DisplayName = displayName,
+        EmailAddress = email,
         IsAdmin = false,
         Salt = "salt",
         PasswordHash = "hash",

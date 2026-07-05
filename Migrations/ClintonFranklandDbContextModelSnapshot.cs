@@ -320,6 +320,11 @@ namespace ClintonFrankland.Migrations
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("InviteeEmail");
 
+                    b.Property<string>("InviteeUserName")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("InviteeUserName");
+
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("RevokedAtUtc");

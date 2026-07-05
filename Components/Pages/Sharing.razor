@@ -1,0 +1,145 @@
+@page "/sharing"
+@using ClintonFrankland.Models.Entities
+@rendermode InteractiveServer
+
+<PageTitle>Budget Sharing</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <h1 class="mb-3">Budget Sharing</h1>
+
+    @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+    {
+        <div class="alert alert-success">@SuccessMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-danger">@ErrorMessage</div>
+    }
+
+    @if (ManageableBudgets.Count == 0)
+    {
+        <div class="alert alert-info">You need Owner or Admin access to a shared budget before you can manage invites.</div>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="card-header">Create Invite</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label">Shared Budget</label>
+                        <InputSelect class="form-select" @bind-Value="SelectedSharedBudgetId">
+                            @foreach (var budget in ManageableBudgets)
+                            {
+                                <option value="@budget.SharedBudgetId">@budget.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Email or Username</label>
+                        <input class="form-control" @bind="InviteTarget" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Role</label>
+                        <InputSelect class="form-select" @bind-Value="InviteRole">
+                            <option value="@BudgetMemberRole.Viewer">Viewer</option>
+                            <option value="@BudgetMemberRole.Editor">Editor</option>
+                            <option value="@BudgetMemberRole.Admin">Admin</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" @onclick="CreateInviteAsync">Create Invite</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(LastInviteLink))
+        {
+            <div class="alert alert-info">
+                <div class="fw-semibold">Invite link</div>
+                <code>@LastInviteLink</code>
+            </div>
+        }
+
+        <div class="card mb-3">
+            <div class="card-header">Members</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in Members)
+                            {
+                                <tr>
+                                    <td>@(member.User?.DisplayName ?? "Unknown user")</td>
+                                    <td>@(member.User?.UserName ?? "")</td>
+                                    <td>@member.Role</td>
+                                    <td>@member.Status</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Invites</div>
+            <div class="card-body">
+                @if (Invites.Count == 0)
+                {
+                    <div class="text-muted">No invites yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Target</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Expires</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var invite in Invites)
+                                {
+                                    <tr>
+                                        <td>@invite.Target</td>
+                                        <td>@invite.Role</td>
+                                        <td>@InviteStatus(invite)</td>
+                                        <td>@invite.ExpiresAtUtc.ToLocalTime().ToString("g")</td>
+                                        <td class="text-end">
+                                            @if (!invite.AcceptedAtUtc.HasValue && !invite.RevokedAtUtc.HasValue)
+                                            {
+                                                <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => ResendInviteAsync(invite.BudgetInviteId)">Resend</button>
+                                                <button class="btn btn-outline-danger btn-sm" @onclick="() => RevokeInviteAsync(invite.BudgetInviteId)">Revoke</button>
+                                            }
+                                            else if (!invite.AcceptedAtUtc.HasValue)
+                                            {
+                                                <button class="btn btn-outline-primary btn-sm" @onclick="() => ResendInviteAsync(invite.BudgetInviteId)">Resend</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}

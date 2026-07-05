@@ -1,0 +1,36 @@
+@page "/share/accept/{Token}"
+@rendermode InteractiveServer
+
+<PageTitle>Accept Budget Invite</PageTitle>
+
+<h1 class="mb-3">Accept Budget Invite</h1>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="alert @MessageCss">@Message</div>
+}
+else if (Preview is null)
+{
+    <div class="alert alert-info">Loading invite...</div>
+}
+else
+{
+    <div class="card">
+        <div class="card-header">Shared Budget</div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Budget</dt>
+                <dd class="col-sm-9">@Preview.SharedBudgetName</dd>
+                <dt class="col-sm-3">Invited by</dt>
+                <dd class="col-sm-9">@Preview.InvitedByDisplayName</dd>
+                <dt class="col-sm-3">Role</dt>
+                <dd class="col-sm-9">@Preview.Role</dd>
+            </dl>
+            <button class="btn btn-primary" @onclick="AcceptAsync">Accept Invite</button>
+        </div>
+    </div>
+}

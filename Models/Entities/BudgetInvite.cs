@@ -33,6 +33,10 @@ public class BudgetInvite
     [StringLength(256)]
     public string? InviteeEmail { get; set; }
 
+    [Column("InviteeUserName")]
+    [StringLength(64)]
+    public string? InviteeUserName { get; set; }
+
     [Required]
     [Column("ExpiresAtUtc")]
     public DateTime ExpiresAtUtc { get; set; }

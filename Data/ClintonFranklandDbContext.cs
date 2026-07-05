@@ -95,6 +95,7 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(i => i.InviteTokenHash).HasMaxLength(128).IsRequired();
             entity.Property(i => i.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
             entity.Property(i => i.InviteeEmail).HasMaxLength(256);
+            entity.Property(i => i.InviteeUserName).HasMaxLength(64);
             entity.Property(i => i.CreatedAtUtc).IsRequired();
             entity.Property(i => i.ExpiresAtUtc).IsRequired();
             entity.HasIndex(i => i.InviteTokenHash).IsUnique();
