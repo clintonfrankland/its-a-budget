@@ -49,6 +49,7 @@ public class AuthService
     private readonly ProtectedSessionStorage _sessionStorage;
     private readonly ClintonFranklandDbContext _db;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly SemaphoreSlim _initializeGate = new(1, 1);
 
     private UserInfo? _currentUser;
     private bool _isInitialized;
@@ -75,25 +76,35 @@ public class AuthService
     {
         if (_isInitialized) return;
 
+        await _initializeGate.WaitAsync();
         try
         {
-            var result = await _sessionStorage.GetAsync<UserInfo>(AuthStorageKey);
-            if (result.Success && result.Value != null)
+            if (_isInitialized) return;
+
+            try
             {
-                _currentUser = result.Value;
+                var result = await _sessionStorage.GetAsync<UserInfo>(AuthStorageKey);
+                if (result.Success && result.Value != null)
+                {
+                    _currentUser = result.Value;
+                }
             }
-        }
-        catch
-        {
-            // Session storage not available during prerendering
-        }
+            catch
+            {
+                // Session storage not available during prerendering
+            }
 
-        if (_currentUser is null || !_currentUser.IsLoggedIn)
-        {
-            await InitializeFromAuthenticatedPrincipalAsync();
-        }
+            if (_currentUser is null || !_currentUser.IsLoggedIn)
+            {
+                await InitializeFromAuthenticatedPrincipalAsync();
+            }
 
-        _isInitialized = true;
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializeGate.Release();
+        }
     }
 
     public async Task<bool> ValidateCredentialsAsync(string username, string password)

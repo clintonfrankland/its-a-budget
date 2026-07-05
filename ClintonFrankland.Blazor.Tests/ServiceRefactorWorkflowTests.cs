@@ -334,6 +334,17 @@ public class ServiceRefactorWorkflowTests
         }
     }
 
+    [Fact]
+    public void AuthService_InitializesThroughSerializedGate()
+    {
+        var source = ReadRepoFile("Services/AuthService.cs");
+
+        Assert.Contains("SemaphoreSlim _initializeGate", source);
+        Assert.Contains("await _initializeGate.WaitAsync()", source);
+        Assert.Contains("_initializeGate.Release()", source);
+        Assert.Contains("if (_isInitialized) return;", source);
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
