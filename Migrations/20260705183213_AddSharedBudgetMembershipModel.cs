@@ -53,7 +53,9 @@ BEGIN
         RevokedByUserId INT NULL
     );
 END
+");
 
+            migrationBuilder.Sql(@"
 IF OBJECT_ID('dbo.cfAccounts', 'U') IS NOT NULL AND COL_LENGTH('dbo.cfAccounts', 'SharedBudgetId') IS NULL
     ALTER TABLE dbo.cfAccounts ADD SharedBudgetId INT NULL;
 
@@ -71,7 +73,9 @@ IF OBJECT_ID('dbo.cfCategoryBudgetTargets', 'U') IS NOT NULL AND COL_LENGTH('dbo
 
 IF OBJECT_ID('dbo.cfNotificationSendLog', 'U') IS NOT NULL AND COL_LENGTH('dbo.cfNotificationSendLog', 'SharedBudgetId') IS NULL
     ALTER TABLE dbo.cfNotificationSendLog ADD SharedBudgetId INT NULL;
+");
 
+            migrationBuilder.Sql(@"
 IF OBJECT_ID('dbo.cfUsers', 'U') IS NOT NULL
 BEGIN
     INSERT INTO dbo.cfSharedBudgets (Name, OwnerUserId, CreatedAtUtc, UpdatedAtUtc)
@@ -160,7 +164,9 @@ BEGIN
         WHERE l.SharedBudgetId IS NULL;
     END
 END
+");
 
+            migrationBuilder.Sql(@"
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_cfBudgetMembers_Role')
     ALTER TABLE dbo.cfBudgetMembers ADD CONSTRAINT CK_cfBudgetMembers_Role CHECK (Role IN ('Owner', 'Admin', 'Editor', 'Viewer'));
 
