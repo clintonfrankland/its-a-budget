@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClintonFrankland</RootNamespace>
-    <Version>5.10.0.90</Version>
+    <Version>5.10.0.91</Version>
     <UserSecretsId>clintonfrankland-budget-app</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>

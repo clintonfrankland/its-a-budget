@@ -130,23 +130,13 @@ if (authentikOidcOptions.IsUsable)
                     return;
                 }
 
-                var identity = context.Principal!.Identity as ClaimsIdentity;
                 var isLinkIntent = string.Equals(
                     context.Properties?.RedirectUri,
                     AuthentikOidcDefaults.LinkConfirmationPath,
                     StringComparison.Ordinal);
                 if (isLinkIntent)
                 {
-                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.LinkIntentClaim, "true"));
-                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalProviderClaim, profile.Provider));
-                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalSubjectClaim, profile.Subject));
-                    if (!string.IsNullOrWhiteSpace(profile.Email))
-                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalEmailClaim, profile.Email));
-                    if (!string.IsNullOrWhiteSpace(profile.DisplayName))
-                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.ExternalDisplayNameClaim, profile.DisplayName));
-                    foreach (var group in receivedGroups)
-                        identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
-
+                    context.Principal = AuthentikOidcClaims.CreateLinkIntentPrincipal(profile, receivedGroups);
                     AuthentikOidcDiagnostics.LogLinkIntentSuccess(logger, profile, receivedGroups);
                     return;
                 }
@@ -160,10 +150,7 @@ if (authentikOidcOptions.IsUsable)
                     return;
                 }
 
-                identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetUserIdClaim, user.UserId.ToString(CultureInfo.InvariantCulture)));
-                foreach (var group in receivedGroups)
-                    identity?.AddClaim(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group));
-
+                context.Principal = AuthentikOidcClaims.CreateBudgetUserPrincipal(user, receivedGroups);
                 AuthentikOidcDiagnostics.LogLinkedUserSuccess(logger, profile, user.UserId, receivedGroups);
             };
             options.Events.OnRemoteFailure = context =>

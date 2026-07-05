@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using ClintonFrankland.Models.Entities;
 
 namespace ClintonFrankland.Services;
 
@@ -48,6 +49,49 @@ public static class AuthentikOidcClaims
         return userGroups.Any(normalizedAllowedGroups.Contains);
     }
 
+    public static ClaimsPrincipal CreateLinkIntentPrincipal(
+        ExternalIdentityProfile profile,
+        IEnumerable<string> groups)
+    {
+        var claims = new List<Claim>
+        {
+            new(AuthentikOidcDefaults.LinkIntentClaim, "true"),
+            new(AuthentikOidcDefaults.ExternalProviderClaim, profile.Provider),
+            new(AuthentikOidcDefaults.ExternalSubjectClaim, profile.Subject)
+        };
+
+        if (!string.IsNullOrWhiteSpace(profile.Email))
+            claims.Add(new Claim(AuthentikOidcDefaults.ExternalEmailClaim, profile.Email));
+        if (!string.IsNullOrWhiteSpace(profile.DisplayName))
+        {
+            claims.Add(new Claim(AuthentikOidcDefaults.ExternalDisplayNameClaim, profile.DisplayName));
+            claims.Add(new Claim(ClaimTypes.Name, profile.DisplayName));
+        }
+
+        AddBudgetGroupClaims(claims, groups);
+        return CreatePrincipal(claims);
+    }
+
+    public static ClaimsPrincipal CreateBudgetUserPrincipal(
+        User user,
+        IEnumerable<string> groups)
+    {
+        var claims = new List<Claim>
+        {
+            new(AuthentikOidcDefaults.BudgetUserIdClaim, user.UserId.ToString()),
+            new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new(ClaimTypes.Name, user.DisplayName ?? user.UserName)
+        };
+
+        if (!string.IsNullOrWhiteSpace(user.EmailAddress))
+            claims.Add(new Claim(ClaimTypes.Email, user.EmailAddress));
+        if (user.IsAdmin)
+            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+
+        AddBudgetGroupClaims(claims, groups);
+        return CreatePrincipal(claims);
+    }
+
     private static bool IsGroupClaim(string claimType) =>
         string.Equals(claimType, "groups", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(claimType, "group", StringComparison.OrdinalIgnoreCase) ||
@@ -81,4 +125,17 @@ public static class AuthentikOidcClaims
 
         groups.Add(trimmed);
     }
+
+    private static void AddBudgetGroupClaims(List<Claim> claims, IEnumerable<string> groups)
+    {
+        foreach (var group in groups.Where(group => !string.IsNullOrWhiteSpace(group)).Distinct(StringComparer.OrdinalIgnoreCase))
+            claims.Add(new Claim(AuthentikOidcDefaults.BudgetGroupClaim, group.Trim()));
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(IEnumerable<Claim> claims) =>
+        new(new ClaimsIdentity(
+            claims,
+            AuthentikOidcDefaults.OpenIdConnectScheme,
+            ClaimTypes.Name,
+            ClaimTypes.Role));
 }

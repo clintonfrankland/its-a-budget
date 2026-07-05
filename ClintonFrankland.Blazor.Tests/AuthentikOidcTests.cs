@@ -237,6 +237,40 @@ public class AuthentikOidcTests
         Assert.DoesNotContain("subject", result);
     }
 
+    [Fact]
+    public void CreateLinkIntentPrincipal_KeepsOnlyBudgetLinkClaims()
+    {
+        var principal = AuthentikOidcClaims.CreateLinkIntentPrincipal(
+            new ExternalIdentityProfile("authentik", "subject", "clinton@example.com", "Clinton"),
+            ["budget-users", "budget-users"]);
+
+        Assert.Equal("true", principal.FindFirstValue(AuthentikOidcDefaults.LinkIntentClaim));
+        Assert.Equal("subject", principal.FindFirstValue(AuthentikOidcDefaults.ExternalSubjectClaim));
+        Assert.Equal("Clinton", principal.FindFirstValue(ClaimTypes.Name));
+        Assert.Single(principal.FindAll(AuthentikOidcDefaults.BudgetGroupClaim));
+        Assert.DoesNotContain(principal.Claims, claim => claim.Type == "groups");
+        Assert.DoesNotContain(principal.Claims, claim => claim.Type == "sub");
+    }
+
+    [Fact]
+    public void CreateBudgetUserPrincipal_KeepsOnlyBudgetLoginClaims()
+    {
+        var user = User(7, "clinton", "salt", "hash");
+        user.DisplayName = "Clinton";
+        user.EmailAddress = "clinton@example.com";
+        user.IsAdmin = true;
+
+        var principal = AuthentikOidcClaims.CreateBudgetUserPrincipal(user, ["budget-users"]);
+
+        Assert.Equal("7", principal.FindFirstValue(AuthentikOidcDefaults.BudgetUserIdClaim));
+        Assert.Equal("Clinton", principal.FindFirstValue(ClaimTypes.Name));
+        Assert.Equal("clinton@example.com", principal.FindFirstValue(ClaimTypes.Email));
+        Assert.Equal("Admin", principal.FindFirstValue(ClaimTypes.Role));
+        Assert.Single(principal.FindAll(AuthentikOidcDefaults.BudgetGroupClaim));
+        Assert.DoesNotContain(principal.Claims, claim => claim.Type == "groups");
+        Assert.DoesNotContain(principal.Claims, claim => claim.Type == "sub");
+    }
+
     private static ClaimsPrincipal Principal(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
 
