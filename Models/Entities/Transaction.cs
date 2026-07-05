@@ -41,6 +41,9 @@ public class Transaction
     [Column("UserId")]
     public int? UserId { get; set; }
 
+    [Column("SharedBudgetId")]
+    public int? SharedBudgetId { get; set; }
+
     [Column("Notes")]
     [MaxLength(500)]
     public string? Notes { get; set; }
@@ -61,4 +64,7 @@ public class Transaction
 
     [ForeignKey("UserId")]
     public virtual User? User { get; set; }
+
+    [ForeignKey("SharedBudgetId")]
+    public virtual SharedBudget? SharedBudget { get; set; }
 }

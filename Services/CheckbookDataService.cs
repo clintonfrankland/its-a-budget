@@ -7,7 +7,13 @@ namespace ClintonFrankland.Services;
 public class CheckbookDataService
 {
     private readonly ClintonFranklandDbContext _db;
-    public CheckbookDataService(ClintonFranklandDbContext db) => _db = db;
+    private readonly SharedBudgetDataService _sharedBudgets;
+
+    public CheckbookDataService(ClintonFranklandDbContext db, SharedBudgetDataService? sharedBudgets = null)
+    {
+        _db = db;
+        _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
+    }
 
     public Task<Account?> GetAccountForUserAsync(int userId) => _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId);
 
@@ -102,7 +108,7 @@ public class CheckbookDataService
         var accountId = account?.AccountId ?? 1;
         var isNew = transactionId == -1;
         var txn = isNew
-            ? new Transaction { UserId = userId, AccountId = accountId }
+            ? new Transaction { UserId = userId, AccountId = accountId, SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId) }
             : await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.UserId == userId);
 
         if (txn is null)
@@ -144,7 +150,12 @@ public class CheckbookDataService
         if (string.IsNullOrWhiteSpace(categoryName)) return -1;
         var category = await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
         if (category != null) return category.CategoryId;
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
+        var newCategory = new Category
+        {
+            CategoryName = categoryName,
+            UserId = userId,
+            SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
+        };
         _db.Categories.Add(newCategory);
         await _db.SaveChangesAsync();
         return newCategory.CategoryId;

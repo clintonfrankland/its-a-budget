@@ -18,6 +18,9 @@ public class CategoryBudgetTarget
     [Column("UserId")]
     public int UserId { get; set; }
 
+    [Column("SharedBudgetId")]
+    public int? SharedBudgetId { get; set; }
+
     [Required]
     [Column("CategoryId")]
     public int CategoryId { get; set; }
@@ -36,6 +39,9 @@ public class CategoryBudgetTarget
 
     [ForeignKey("UserId")]
     public virtual User? User { get; set; }
+
+    [ForeignKey("SharedBudgetId")]
+    public virtual SharedBudget? SharedBudget { get; set; }
 
     [ForeignKey("CategoryId")]
     public virtual Category? Category { get; set; }

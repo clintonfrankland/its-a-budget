@@ -34,6 +34,12 @@ graph TD
 
 The app is a **Blazor Server** application — all rendering and logic runs on the server. The browser holds only a lightweight WebSocket circuit. There is no client-side WASM layer, and only a small authenticated JSON endpoint for home dashboard summary integrations.
 
+## Sharing foundation
+
+SproutPenny keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
+
+Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted.
+
 ---
 
 ## Architecture

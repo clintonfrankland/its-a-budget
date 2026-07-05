@@ -104,7 +104,10 @@ public class User
 
     // Navigation properties
     public virtual ICollection<Account> Accounts { get; set; } = [];
+    public virtual ICollection<SharedBudget> OwnedSharedBudgets { get; set; } = [];
     public virtual ICollection<Budget> Budgets { get; set; } = [];
+    public virtual ICollection<BudgetMember> BudgetMemberships { get; set; } = [];
+    public virtual ICollection<BudgetInvite> SentBudgetInvites { get; set; } = [];
     public virtual ICollection<CategoryBudgetTarget> CategoryBudgetTargets { get; set; } = [];
     public virtual ICollection<Category> Categories { get; set; } = [];
     public virtual ICollection<Payee> Payees { get; set; } = [];

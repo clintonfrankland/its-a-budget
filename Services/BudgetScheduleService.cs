@@ -10,10 +10,12 @@ public class BudgetScheduleService
     private static readonly DateTime NoEndDate = new(1970, 1, 1);
 
     private readonly ClintonFranklandDbContext _db;
+    private readonly SharedBudgetDataService _sharedBudgets;
 
-    public BudgetScheduleService(ClintonFranklandDbContext db)
+    public BudgetScheduleService(ClintonFranklandDbContext db, SharedBudgetDataService? sharedBudgets = null)
     {
         _db = db;
+        _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
     }
 
     public async Task<List<BudgetItemViewModel>> GetForecastAsync(int userId, DateTime endDate, bool includeEndDate = false)
@@ -123,6 +125,7 @@ public class BudgetScheduleService
             Amount = roundedAmount,
             CategoryId = categoryId,
             UserId = userId,
+            SharedBudgetId = originalBudget.SharedBudgetId ?? await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId),
             IsAutomatic = isAutomatic,
             IsBill = originalBudget.IsBill,
             IsLate = isLate,
@@ -261,7 +264,12 @@ public class BudgetScheduleService
         if (category != null)
             return category.CategoryId;
 
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
+        var newCategory = new Category
+        {
+            CategoryName = categoryName,
+            UserId = userId,
+            SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
+        };
         _db.Categories.Add(newCategory);
         await _db.SaveChangesAsync();
         return newCategory.CategoryId;

@@ -7,7 +7,13 @@ namespace ClintonFrankland.Services;
 public class BudgetItemsDataService
 {
     private readonly ClintonFranklandDbContext _db;
-    public BudgetItemsDataService(ClintonFranklandDbContext db) => _db = db;
+    private readonly SharedBudgetDataService _sharedBudgets;
+
+    public BudgetItemsDataService(ClintonFranklandDbContext db, SharedBudgetDataService? sharedBudgets = null)
+    {
+        _db = db;
+        _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
+    }
 
     public Task<List<Budget>> GetBudgetsForUserAsync(int userId) =>
         _db.Budgets
@@ -58,7 +64,7 @@ public class BudgetItemsDataService
         var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
         var isNew = budgetId == -1;
         var budget = isNew
-            ? new Budget { UserId = userId }
+            ? new Budget { UserId = userId, SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId) }
             : await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
 
         if (budget is null)
@@ -100,7 +106,12 @@ public class BudgetItemsDataService
         if (string.IsNullOrWhiteSpace(categoryName)) return -1;
         var category = await _db.Categories.FirstOrDefaultAsync(c => c.CategoryName == categoryName && c.UserId == userId);
         if (category != null) return category.CategoryId;
-        var newCategory = new Category { CategoryName = categoryName, UserId = userId };
+        var newCategory = new Category
+        {
+            CategoryName = categoryName,
+            UserId = userId,
+            SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
+        };
         _db.Categories.Add(newCategory);
         await _db.SaveChangesAsync();
         return newCategory.CategoryId;

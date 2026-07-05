@@ -24,6 +24,9 @@ public class NotificationSendLog
     [Column("BudgetId")]
     public int? BudgetId { get; set; }
 
+    [Column("SharedBudgetId")]
+    public int? SharedBudgetId { get; set; }
+
     /// <summary>
     /// The user's local date the notice applies to (used for "at most one per day" idempotency).
     /// Stored as a DateTime at midnight UTC to stay EF-friendly across providers.

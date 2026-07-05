@@ -16,6 +16,8 @@ public class ClintonFranklandDbContext : DbContext
     // DbSets for each entity
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountType> AccountTypes => Set<AccountType>();
+    public DbSet<BudgetInvite> BudgetInvites => Set<BudgetInvite>();
+    public DbSet<BudgetMember> BudgetMembers => Set<BudgetMember>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<CategoryBudgetTarget> CategoryBudgetTargets => Set<CategoryBudgetTarget>();
     public DbSet<Category> Categories => Set<Category>();
@@ -28,6 +30,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<BillDueNotificationSetting> BillDueNotificationSettings => Set<BillDueNotificationSetting>();
     public DbSet<NotificationSendLog> NotificationSendLogs => Set<NotificationSendLog>();
     public DbSet<MigrationError> MigrationErrors => Set<MigrationError>();
+    public DbSet<SharedBudget> SharedBudgets => Set<SharedBudget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +47,67 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasOne(a => a.User)
                   .WithMany(u => u.Accounts)
                   .HasForeignKey(a => a.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.SharedBudget)
+                  .WithMany(b => b.Accounts)
+                  .HasForeignKey(a => a.SharedBudgetId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SharedBudget>(entity =>
+        {
+            entity.HasKey(b => b.SharedBudgetId);
+            entity.Property(b => b.Name).HasMaxLength(128).IsRequired();
+            entity.Property(b => b.CreatedAtUtc).IsRequired();
+            entity.Property(b => b.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(b => b.OwnerUserId);
+
+            entity.HasOne(b => b.OwnerUser)
+                  .WithMany(u => u.OwnedSharedBudgets)
+                  .HasForeignKey(b => b.OwnerUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BudgetMember>(entity =>
+        {
+            entity.HasKey(m => m.BudgetMemberId);
+            entity.Property(m => m.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
+            entity.Property(m => m.Status).HasConversion<string>().HasMaxLength(16).IsRequired();
+            entity.Property(m => m.CreatedAtUtc).IsRequired();
+            entity.HasIndex(m => new { m.SharedBudgetId, m.UserId }).IsUnique();
+            entity.HasIndex(m => m.UserId);
+
+            entity.HasOne(m => m.SharedBudget)
+                  .WithMany(b => b.Members)
+                  .HasForeignKey(m => m.SharedBudgetId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(m => m.User)
+                  .WithMany(u => u.BudgetMemberships)
+                  .HasForeignKey(m => m.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BudgetInvite>(entity =>
+        {
+            entity.HasKey(i => i.BudgetInviteId);
+            entity.Property(i => i.InviteTokenHash).HasMaxLength(128).IsRequired();
+            entity.Property(i => i.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
+            entity.Property(i => i.InviteeEmail).HasMaxLength(256);
+            entity.Property(i => i.CreatedAtUtc).IsRequired();
+            entity.Property(i => i.ExpiresAtUtc).IsRequired();
+            entity.HasIndex(i => i.InviteTokenHash).IsUnique();
+            entity.HasIndex(i => new { i.SharedBudgetId, i.ExpiresAtUtc });
+
+            entity.HasOne(i => i.SharedBudget)
+                  .WithMany(b => b.Invites)
+                  .HasForeignKey(i => i.SharedBudgetId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(i => i.InvitedByUser)
+                  .WithMany(u => u.SentBudgetInvites)
+                  .HasForeignKey(i => i.InvitedByUserId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -69,6 +133,11 @@ public class ClintonFranklandDbContext : DbContext
                   .WithMany(u => u.Budgets)
                   .HasForeignKey(b => b.UserId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(b => b.SharedBudget)
+                  .WithMany(sb => sb.Budgets)
+                  .HasForeignKey(b => b.SharedBudgetId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Configure Category entity
@@ -78,6 +147,11 @@ public class ClintonFranklandDbContext : DbContext
                   .WithMany(u => u.Categories)
                   .HasForeignKey(c => c.UserId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(c => c.SharedBudget)
+                  .WithMany(b => b.Categories)
+                  .HasForeignKey(c => c.SharedBudgetId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CategoryBudgetTarget>(entity =>
@@ -86,6 +160,9 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(t => t.UpdatedAtUtc).IsRequired();
 
             entity.HasIndex(t => new { t.UserId, t.CategoryId, t.BudgetMonth }).IsUnique();
+            entity.HasIndex(t => new { t.SharedBudgetId, t.CategoryId, t.BudgetMonth })
+                  .IsUnique()
+                  .HasFilter("[SharedBudgetId] IS NOT NULL");
 
             entity.HasOne(t => t.User)
                   .WithMany(u => u.CategoryBudgetTargets)
@@ -95,6 +172,11 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasOne(t => t.Category)
                   .WithMany(c => c.CategoryBudgetTargets)
                   .HasForeignKey(t => t.CategoryId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(t => t.SharedBudget)
+                  .WithMany(b => b.CategoryBudgetTargets)
+                  .HasForeignKey(t => t.SharedBudgetId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -128,6 +210,11 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasOne(t => t.User)
                   .WithMany(u => u.Transactions)
                   .HasForeignKey(t => t.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(t => t.SharedBudget)
+                  .WithMany(b => b.Transactions)
+                  .HasForeignKey(t => t.SharedBudgetId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -164,6 +251,7 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(x => x.CreatedAtUtc).IsRequired();
             entity.HasIndex(x => x.CreatedAtUtc);
             entity.HasIndex(x => new { x.UserId, x.BudgetId, x.NoticeType, x.NoticeLocalDate }).IsUnique();
+            entity.HasIndex(x => x.SharedBudgetId);
         });
 
         modelBuilder.Entity<MigrationError>(entity =>

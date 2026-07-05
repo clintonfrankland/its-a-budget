@@ -7,10 +7,12 @@ namespace ClintonFrankland.Services;
 public class AccountsDataService
 {
     private readonly ClintonFranklandDbContext _db;
+    private readonly SharedBudgetDataService _sharedBudgets;
 
-    public AccountsDataService(ClintonFranklandDbContext db)
+    public AccountsDataService(ClintonFranklandDbContext db, SharedBudgetDataService? sharedBudgets = null)
     {
         _db = db;
+        _sharedBudgets = sharedBudgets ?? new SharedBudgetDataService(db);
     }
 
     public Task<List<Account>> GetAccountsForUserAsync(int userId) =>
@@ -54,7 +56,8 @@ public class AccountsDataService
                 BeginningBalance = 0m,
                 ClearedBalance = 0m,
                 IsDefault = false,
-                UserId = userId
+                UserId = userId,
+                SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId)
             }
             : await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId && a.UserId == userId);
 

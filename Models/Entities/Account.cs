@@ -42,6 +42,9 @@ public class Account
     [Column("UserId")]
     public int? UserId { get; set; }
 
+    [Column("SharedBudgetId")]
+    public int? SharedBudgetId { get; set; }
+
     [Column("AccountNumber")]
     [StringLength(16)]
     public string? AccountNumber { get; set; }
@@ -77,6 +80,9 @@ public class Account
 
     [ForeignKey("UserId")]
     public virtual User? User { get; set; }
+
+    [ForeignKey("SharedBudgetId")]
+    public virtual SharedBudget? SharedBudget { get; set; }
 
     public virtual ICollection<Transaction> Transactions { get; set; } = [];
 }

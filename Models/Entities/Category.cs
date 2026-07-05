@@ -21,9 +21,15 @@ public class Category
     [Column("UserId")]
     public int? UserId { get; set; }
 
+    [Column("SharedBudgetId")]
+    public int? SharedBudgetId { get; set; }
+
     // Navigation properties
     [ForeignKey("UserId")]
     public virtual User? User { get; set; }
+
+    [ForeignKey("SharedBudgetId")]
+    public virtual SharedBudget? SharedBudget { get; set; }
 
     public virtual ICollection<Budget> Budgets { get; set; } = [];
     public virtual ICollection<CategoryBudgetTarget> CategoryBudgetTargets { get; set; } = [];

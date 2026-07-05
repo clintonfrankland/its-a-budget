@@ -10,14 +10,24 @@ namespace ClintonFrankland.Services;
 public class CategoryBudgetDataService
 {
     private readonly ClintonFranklandDbContext _db;
+    private readonly SharedBudgetDataService _sharedBudgets;
     private readonly CategoryBudgetThresholds _thresholds;
 
     public CategoryBudgetDataService(
         ClintonFranklandDbContext db,
+        SharedBudgetDataService sharedBudgets,
         IOptions<CategoryBudgetAlertOptions> options)
     {
         _db = db;
+        _sharedBudgets = sharedBudgets;
         _thresholds = CategoryBudgetThresholds.Validate(options.Value.WarningPercent);
+    }
+
+    public CategoryBudgetDataService(
+        ClintonFranklandDbContext db,
+        IOptions<CategoryBudgetAlertOptions> options)
+        : this(db, new SharedBudgetDataService(db), options)
+    {
     }
 
     public CategoryBudgetThresholds Thresholds => _thresholds;
@@ -129,6 +139,7 @@ public class CategoryBudgetDataService
             target = new CategoryBudgetTarget
             {
                 UserId = userId,
+                SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId),
                 CategoryId = request.CategoryId,
                 BudgetMonth = monthStart
             };
