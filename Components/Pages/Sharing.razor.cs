@@ -28,8 +28,8 @@ public partial class Sharing
         SelectedBudget?.Role is BudgetMemberRole.Owner or BudgetMemberRole.Admin;
     private bool IsSelectedBudgetOwner => SelectedBudget?.Role == BudgetMemberRole.Owner;
     private bool IsPrivateSingleUserBudget =>
-        BudgetOptions.Count == 1 &&
         CanManageSelectedBudget &&
+        BudgetOptions.Count == 1 &&
         SelectedBudget?.ActiveMemberCount <= 1 &&
         Invites.Count == 0;
 
@@ -78,6 +78,12 @@ public partial class Sharing
         ErrorMessage = null;
         LastInviteLink = null;
         await LoadAsync();
+    }
+
+    private void SetMemberRoleSelection(int budgetMemberId, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<BudgetMemberRole>(args.Value?.ToString(), out var role))
+            MemberRoleSelections[budgetMemberId] = role;
     }
 
     private async Task CreateInviteAsync()

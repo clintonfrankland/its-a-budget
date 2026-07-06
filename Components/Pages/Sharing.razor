@@ -125,11 +125,13 @@ else
                                         <td>
                                             @if (canEditMember)
                                             {
-                                                <InputSelect class="form-select form-select-sm sharing-role-select" @bind-Value="MemberRoleSelections[member.BudgetMemberId]">
+                                                <select class="form-select form-select-sm sharing-role-select"
+                                                        value="@MemberRoleSelections[member.BudgetMemberId]"
+                                                        @onchange="args => SetMemberRoleSelection(member.BudgetMemberId, args)">
                                                     <option value="@BudgetMemberRole.Viewer">Viewer</option>
                                                     <option value="@BudgetMemberRole.Editor">Editor</option>
                                                     <option value="@BudgetMemberRole.Admin">Admin</option>
-                                                </InputSelect>
+                                                </select>
                                             }
                                             else
                                             {
