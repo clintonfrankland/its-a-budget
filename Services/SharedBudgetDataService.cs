@@ -4,6 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClintonFrankland.Services;
 
+public sealed record SharedBudgetMembershipSummary(
+    int SharedBudgetId,
+    string Name,
+    BudgetMemberRole Role,
+    int ActiveMemberCount,
+    bool IsSoleOwner);
+
 public class SharedBudgetDataService
 {
     private readonly ClintonFranklandDbContext _db;
@@ -23,6 +30,29 @@ public class SharedBudgetDataService
         GetActiveMemberships(userId)
             .Select(m => m.SharedBudgetId)
             .ToListAsync();
+
+    public Task<List<SharedBudgetMembershipSummary>> GetReadableSharedBudgetSummariesAsync(int userId)
+    {
+        if (userId <= 0)
+            return Task.FromResult(new List<SharedBudgetMembershipSummary>());
+
+        return _db.BudgetMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == userId && m.Status == BudgetMemberStatus.Active)
+            .Select(m => new SharedBudgetMembershipSummary(
+                m.SharedBudgetId,
+                m.SharedBudget == null ? $"Budget {m.SharedBudgetId}" : m.SharedBudget.Name,
+                m.Role,
+                _db.BudgetMembers.Count(active =>
+                    active.SharedBudgetId == m.SharedBudgetId &&
+                    active.Status == BudgetMemberStatus.Active),
+                m.Role == BudgetMemberRole.Owner &&
+                    _db.BudgetMembers.Count(active =>
+                        active.SharedBudgetId == m.SharedBudgetId &&
+                        active.Status == BudgetMemberStatus.Active) == 1))
+            .OrderBy(b => b.Name)
+            .ToListAsync();
+    }
 
     public Task<List<int>> GetFinancialManagerSharedBudgetIdsAsync(int userId) =>
         GetActiveMemberships(userId)
@@ -71,6 +101,103 @@ public class SharedBudgetDataService
     {
         var role = await GetMemberRoleAsync(userId, sharedBudgetId);
         return role is BudgetMemberRole.Owner;
+    }
+
+    public async Task<bool> ChangeMemberRoleAsync(int requesterUserId, int budgetMemberId, BudgetMemberRole newRole)
+    {
+        if (newRole == BudgetMemberRole.Owner)
+            throw new InvalidOperationException("Use ownership transfer to assign the Owner role.");
+
+        if (newRole is not (BudgetMemberRole.Admin or BudgetMemberRole.Editor or BudgetMemberRole.Viewer))
+            throw new InvalidOperationException("Members may be changed to Admin, Editor, or Viewer.");
+
+        var member = await _db.BudgetMembers.FirstOrDefaultAsync(m => m.BudgetMemberId == budgetMemberId);
+        if (member is null || member.Status != BudgetMemberStatus.Active)
+            return false;
+
+        if (member.UserId == requesterUserId)
+            throw new InvalidOperationException("Use leave budget or ownership transfer for your own membership.");
+
+        if (!await CanManageMembersAsync(requesterUserId, member.SharedBudgetId))
+            throw new UnauthorizedAccessException("Only budget owners and admins can change member roles.");
+
+        if (member.Role == BudgetMemberRole.Owner)
+            throw new InvalidOperationException("Transfer ownership before changing the current owner.");
+
+        member.Role = newRole;
+        await TouchSharedBudgetAsync(member.SharedBudgetId);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RemoveMemberAsync(int requesterUserId, int budgetMemberId)
+    {
+        var member = await _db.BudgetMembers.FirstOrDefaultAsync(m => m.BudgetMemberId == budgetMemberId);
+        if (member is null || member.Status != BudgetMemberStatus.Active)
+            return false;
+
+        if (member.UserId == requesterUserId)
+            return await LeaveSharedBudgetAsync(requesterUserId, member.SharedBudgetId);
+
+        if (!await CanManageMembersAsync(requesterUserId, member.SharedBudgetId))
+            throw new UnauthorizedAccessException("Only budget owners and admins can remove members.");
+
+        if (member.Role == BudgetMemberRole.Owner)
+            throw new InvalidOperationException("Transfer ownership before removing the current owner.");
+
+        MarkRemoved(member, requesterUserId);
+        await TouchSharedBudgetAsync(member.SharedBudgetId);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> LeaveSharedBudgetAsync(int requesterUserId, int sharedBudgetId)
+    {
+        var member = await _db.BudgetMembers.FirstOrDefaultAsync(m =>
+            m.UserId == requesterUserId &&
+            m.SharedBudgetId == sharedBudgetId &&
+            m.Status == BudgetMemberStatus.Active);
+
+        if (member is null)
+            return false;
+
+        if (member.Role == BudgetMemberRole.Owner)
+            throw new InvalidOperationException("Transfer ownership before leaving this budget.");
+
+        MarkRemoved(member, requesterUserId);
+        await TouchSharedBudgetAsync(sharedBudgetId);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> TransferOwnershipAsync(int requesterUserId, int sharedBudgetId, int newOwnerMemberId)
+    {
+        if (!await CanPerformOwnerActionAsync(requesterUserId, sharedBudgetId))
+            throw new UnauthorizedAccessException("Only the current owner can transfer ownership.");
+
+        var currentOwner = await _db.BudgetMembers.FirstOrDefaultAsync(m =>
+            m.SharedBudgetId == sharedBudgetId &&
+            m.UserId == requesterUserId &&
+            m.Status == BudgetMemberStatus.Active &&
+            m.Role == BudgetMemberRole.Owner);
+        var newOwner = await _db.BudgetMembers.FirstOrDefaultAsync(m =>
+            m.BudgetMemberId == newOwnerMemberId &&
+            m.SharedBudgetId == sharedBudgetId &&
+            m.Status == BudgetMemberStatus.Active);
+        var sharedBudget = await _db.SharedBudgets.FirstOrDefaultAsync(b => b.SharedBudgetId == sharedBudgetId);
+
+        if (currentOwner is null || newOwner is null || sharedBudget is null)
+            return false;
+
+        if (newOwner.UserId == requesterUserId)
+            throw new InvalidOperationException("Select another active member to receive ownership.");
+
+        currentOwner.Role = BudgetMemberRole.Admin;
+        newOwner.Role = BudgetMemberRole.Owner;
+        sharedBudget.OwnerUserId = newOwner.UserId;
+        sharedBudget.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return true;
     }
 
     public async Task<int?> GetDefaultSharedBudgetIdAsync(int userId)
@@ -123,6 +250,20 @@ public class SharedBudgetDataService
         _db.BudgetMembers
             .AsNoTracking()
             .Where(m => m.UserId == userId && m.Status == BudgetMemberStatus.Active);
+
+    private async Task TouchSharedBudgetAsync(int sharedBudgetId)
+    {
+        var sharedBudget = await _db.SharedBudgets.FirstOrDefaultAsync(b => b.SharedBudgetId == sharedBudgetId);
+        if (sharedBudget is not null)
+            sharedBudget.UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private static void MarkRemoved(BudgetMember member, int removedByUserId)
+    {
+        member.Status = BudgetMemberStatus.Removed;
+        member.RemovedAtUtc = DateTime.UtcNow;
+        member.RemovedByUserId = removedByUserId;
+    }
 
     private static string BuildDefaultName(User user)
     {

@@ -11,12 +11,20 @@ public partial class MainLayout : IDisposable
     private AuthService AuthService { get; set; } = default!;
 
     [Inject]
+    private CurrentUserContext CurrentUserContext { get; set; } = default!;
+
+    [Inject]
+    private SharedBudgetDataService SharedBudgetsService { get; set; } = default!;
+
+    [Inject]
     private SiteInfoService SiteInfoService { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
     private bool _navbarExpanded = false;
+    private List<SharedBudgetMembershipSummary> _budgetSwitcherOptions = [];
+    private int _selectedSwitcherBudgetId;
 
     // CSS class for navbar collapse state
     private string NavbarCollapseClass => _navbarExpanded ? "collapse show" : "collapse";
@@ -32,6 +40,11 @@ public partial class MainLayout : IDisposable
         if (firstRender)
         {
             await AuthService.InitializeAsync();
+            if (AuthService.IsAuthenticated)
+            {
+                _budgetSwitcherOptions = await SharedBudgetsService.GetReadableSharedBudgetSummariesAsync(CurrentUserContext.UserId);
+                _selectedSwitcherBudgetId = _budgetSwitcherOptions.FirstOrDefault()?.SharedBudgetId ?? 0;
+            }
             StateHasChanged();
         }
     }
@@ -79,6 +92,15 @@ public partial class MainLayout : IDisposable
             await AuthService.LogoutAsync();
             Navigation.NavigateTo($"/auth/logout?returnUrl={Uri.EscapeDataString("/")}", forceLoad: true);
         }
+    }
+
+    private void HandleBudgetSwitcherChange(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var sharedBudgetId))
+            _selectedSwitcherBudgetId = sharedBudgetId;
+
+        CollapseNavbar();
+        Navigation.NavigateTo("sharing");
     }
 
     public void Dispose()

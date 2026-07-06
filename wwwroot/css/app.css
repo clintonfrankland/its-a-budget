@@ -77,3 +77,22 @@ html {
 .navbar-nav .nav-link {
     cursor: pointer;
 }
+
+.budget-switcher {
+    max-width: 16rem;
+}
+
+.sharing-invite-link {
+    display: block;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.sharing-role-select {
+    min-width: 8rem;
+}
+
+.sharing-management-table th,
+.sharing-management-table td {
+    white-space: nowrap;
+}

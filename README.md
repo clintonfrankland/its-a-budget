@@ -38,7 +38,7 @@ The app is a **Blazor Server** application — all rendering and logic runs on t
 
 SproutPenny keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
 
-Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to create email or username invites for Viewer, Editor, or Admin access. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users.
+Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to manage members, create email or username invites for Viewer, Editor, or Admin access, resend/revoke pending invites, update non-owner roles, and remove non-owner members. Members can leave budgets where they are not the current Owner; Owners transfer ownership to another active member before leaving. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users.
 
 ---
 
@@ -338,7 +338,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Components/Pages/Profile.razor(.cs)` | User preferences and notification settings |
 | `Components/Pages/Settings.razor(.cs)` | Admin: SMTP config, bill-due notification settings, backup |
 | `Components/Pages/Users.razor(.cs)` | Admin: user management |
-| `Components/Pages/Sharing.razor(.cs)` | Owner/Admin shared-budget member invites |
+| `Components/Pages/Sharing.razor(.cs)` | Shared-budget member, owner transfer, leave, and invite management |
 | `Components/Pages/AcceptShareInvite.razor(.cs)` | Authenticated shared-budget invite acceptance |
 | `Data/ClintonFranklandDbContext.cs` | EF Core `DbContext` — all `DbSet<T>` properties |
 | `Models/Entities/` | EF Core entity classes (one per table) |

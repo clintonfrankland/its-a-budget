@@ -332,6 +332,95 @@ public class SharedBudgetDataServiceTests
         Assert.Equal(BudgetInviteAcceptStatus.Accepted, (await service.AcceptInviteAsync(resent.PlainToken, 2)).Status);
     }
 
+    [Fact]
+    public async Task SharedBudgetMemberManagement_RequiresOwnerOrAdminAndProtectsOwnerRole()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Editor);
+        db.Users.Add(User(4, "viewer", "Viewer", "viewer@example.com"));
+        db.BudgetMembers.Add(new BudgetMember
+        {
+            BudgetMemberId = 3,
+            SharedBudgetId = 1,
+            UserId = 4,
+            Role = BudgetMemberRole.Viewer,
+            Status = BudgetMemberStatus.Active,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SharedBudgetDataService(db);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.ChangeMemberRoleAsync(2, 3, BudgetMemberRole.Admin));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ChangeMemberRoleAsync(1, 1, BudgetMemberRole.Viewer));
+
+        Assert.True(await service.ChangeMemberRoleAsync(1, 3, BudgetMemberRole.Admin));
+        Assert.Equal(BudgetMemberRole.Admin, (await db.BudgetMembers.FindAsync(3))!.Role);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RemoveMemberAsync(4, 1));
+        Assert.True(await service.RemoveMemberAsync(1, 3));
+
+        var removed = (await db.BudgetMembers.FindAsync(3))!;
+        Assert.Equal(BudgetMemberStatus.Removed, removed.Status);
+        Assert.Equal(1, removed.RemovedByUserId);
+    }
+
+    [Fact]
+    public async Task SharedBudgetLeaveAndOwnershipTransfer_EnforceOwnerHandoff()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Admin);
+        await db.SaveChangesAsync();
+
+        var service = new SharedBudgetDataService(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.LeaveSharedBudgetAsync(1, 1));
+
+        Assert.True(await service.TransferOwnershipAsync(1, 1, 2));
+        Assert.Equal(2, (await db.SharedBudgets.FindAsync(1))!.OwnerUserId);
+        Assert.Equal(BudgetMemberRole.Admin, (await db.BudgetMembers.FindAsync(1))!.Role);
+        Assert.Equal(BudgetMemberRole.Owner, (await db.BudgetMembers.FindAsync(2))!.Role);
+
+        Assert.True(await service.LeaveSharedBudgetAsync(1, 1));
+        Assert.Equal(BudgetMemberStatus.Removed, (await db.BudgetMembers.FindAsync(1))!.Status);
+        Assert.True(await service.CanPerformOwnerActionAsync(2, 1));
+    }
+
+    [Fact]
+    public async Task SharedBudgetSwitcherSummaries_AppearOnlyWhenUserHasMultipleMemberships()
+    {
+        await using var db = CreateDbContext();
+        SeedSharedBudget(db, BudgetMemberRole.Viewer);
+        db.SharedBudgets.Add(new SharedBudget
+        {
+            SharedBudgetId = 2,
+            Name = "Vacation",
+            OwnerUserId = 2,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        db.BudgetMembers.Add(new BudgetMember
+        {
+            BudgetMemberId = 3,
+            SharedBudgetId = 2,
+            UserId = 2,
+            Role = BudgetMemberRole.Owner,
+            Status = BudgetMemberStatus.Active,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var summaries = await new SharedBudgetDataService(db).GetReadableSharedBudgetSummariesAsync(2);
+
+        Assert.Equal(2, summaries.Count);
+        Assert.Contains(summaries, s => s.Name == "Household" && s.Role == BudgetMemberRole.Viewer && !s.IsSoleOwner);
+        Assert.Contains(summaries, s => s.Name == "Vacation" && s.Role == BudgetMemberRole.Owner && s.IsSoleOwner);
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()

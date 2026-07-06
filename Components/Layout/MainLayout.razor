@@ -31,6 +31,17 @@
             <ul class="nav ms-auto">
                 @if (AuthService.IsAuthenticated)
                 {
+                    @if (_budgetSwitcherOptions.Count > 1)
+                    {
+                        <li class="nav-item d-flex align-items-center me-xl-2 my-1 my-xl-0">
+                            <select class="form-select form-select-sm budget-switcher" title="Shared budget" value="@_selectedSwitcherBudgetId" @onchange="HandleBudgetSwitcherChange">
+                                @foreach (var budget in _budgetSwitcherOptions)
+                                {
+                                    <option value="@budget.SharedBudgetId">@budget.Name</option>
+                                }
+                            </select>
+                        </li>
+                    }
                     <li class="nav-item">
                         <a class="nav-link" href="/profile" @onclick="CollapseNavbar">
                             <i class="fa fa-user"></i>&nbsp;&nbsp;@AuthService.CurrentUser.DisplayName
