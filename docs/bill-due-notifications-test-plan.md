@@ -70,3 +70,15 @@ Expected:
 Expected:
 - Repeated ticks in the same day do not generate duplicate sends.
 - Only one row exists per (UserId, BudgetId, NoticeType, NoticeLocalDate).
+
+### 7) Shared-budget scoping
+
+- Create two shared budgets and make a test user an active Viewer in both.
+- Add due bills to both shared budgets and an unrelated bill in a third budget where the user is not an active member.
+- Run the worker on Monday after the user's delivery time.
+
+Expected:
+- The test user receives only bills from the budgets where they are an active member.
+- The weekly upcoming-bills summary includes the accessible budget names.
+- Removed members and unrelated users receive no emails for the shared budget.
+- Legacy single-user notices keep their existing per-bill subject format when only one budget is visible.

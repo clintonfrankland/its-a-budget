@@ -7,7 +7,12 @@ using MimeKit;
 
 namespace ClintonFrankland.Services;
 
-public class EmailSenderService
+public interface IEmailSender
+{
+    Task SendAsync(string toEmail, string subject, string body);
+}
+
+public class EmailSenderService : IEmailSender
 {
     private readonly ClintonFranklandDbContext _db;
     private readonly IConfiguration _configuration;
