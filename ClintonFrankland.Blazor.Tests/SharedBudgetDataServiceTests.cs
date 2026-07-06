@@ -428,6 +428,7 @@ public class SharedBudgetDataServiceTests
 
         Assert.Contains("SharedBudgetMembershipSummaryRow", serviceSource);
         Assert.DoesNotContain(".Select(m => new SharedBudgetMembershipSummary(", serviceSource);
+        Assert.DoesNotContain(".OrderBy(b => b.Name)", serviceSource);
     }
 
     [Fact]

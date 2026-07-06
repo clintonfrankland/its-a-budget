@@ -45,6 +45,8 @@ public class SharedBudgetDataService
         var rows = await _db.BudgetMembers
             .AsNoTracking()
             .Where(m => m.UserId == userId && m.Status == BudgetMemberStatus.Active)
+            .OrderBy(m => m.SharedBudget == null ? null : m.SharedBudget.Name)
+            .ThenBy(m => m.SharedBudgetId)
             .Select(m => new SharedBudgetMembershipSummaryRow(
                 m.SharedBudgetId,
                 m.SharedBudget == null ? null : m.SharedBudget.Name,
@@ -52,8 +54,6 @@ public class SharedBudgetDataService
                 _db.BudgetMembers.Count(active =>
                     active.SharedBudgetId == m.SharedBudgetId &&
                     active.Status == BudgetMemberStatus.Active)))
-            .OrderBy(b => b.Name)
-            .ThenBy(b => b.SharedBudgetId)
             .ToListAsync();
 
         return rows
