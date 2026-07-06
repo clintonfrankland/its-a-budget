@@ -29,7 +29,8 @@ public partial class Sharing
     private bool IsSelectedBudgetOwner => SelectedBudget?.Role == BudgetMemberRole.Owner;
     private bool IsPrivateSingleUserBudget =>
         BudgetOptions.Count == 1 &&
-        Members.Count <= 1 &&
+        CanManageSelectedBudget &&
+        SelectedBudget?.ActiveMemberCount <= 1 &&
         Invites.Count == 0;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

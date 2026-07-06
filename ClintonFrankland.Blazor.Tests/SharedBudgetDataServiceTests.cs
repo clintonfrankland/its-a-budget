@@ -421,6 +421,42 @@ public class SharedBudgetDataServiceTests
         Assert.Contains(summaries, s => s.Name == "Vacation" && s.Role == BudgetMemberRole.Owner && s.IsSoleOwner);
     }
 
+    [Fact]
+    public void SharingPageUi_GatesInviteMemberAndOwnershipControlsByRole()
+    {
+        var componentSource = ReadRepoFile("Components/Pages/Sharing.razor");
+        var codeBehindSource = ReadRepoFile("Components/Pages/Sharing.razor.cs");
+
+        Assert.Contains("CanManageSelectedBudget", componentSource);
+        Assert.Contains("Owners and Admins can manage members and invites", componentSource);
+        Assert.Contains("Create Invite", componentSource);
+        Assert.Contains("Pending Invites", componentSource);
+        Assert.Contains("ChangeMemberRoleAsync", componentSource);
+        Assert.Contains("RemoveMemberAsync", componentSource);
+
+        Assert.Contains("IsSelectedBudgetOwner", componentSource);
+        Assert.Contains("TransferOwnershipAsync", componentSource);
+        Assert.Contains("Make Owner", componentSource);
+
+        Assert.Contains("CanManageSelectedBudget =>", codeBehindSource);
+        Assert.Contains("BudgetMemberRole.Owner or BudgetMemberRole.Admin", codeBehindSource);
+        Assert.Contains("IsSelectedBudgetOwner =>", codeBehindSource);
+        Assert.Contains("BudgetMemberRole.Owner", codeBehindSource);
+    }
+
+    [Fact]
+    public void SharingPageUi_ShowsLeaveButNotPrivateEmptyStateForNonManagerSharedMembers()
+    {
+        var componentSource = ReadRepoFile("Components/Pages/Sharing.razor");
+        var codeBehindSource = ReadRepoFile("Components/Pages/Sharing.razor.cs");
+
+        Assert.Contains("!IsSelectedBudgetOwner", componentSource);
+        Assert.Contains("Leave Budget", componentSource);
+        Assert.Contains("CanManageSelectedBudget", codeBehindSource);
+        Assert.Contains("SelectedBudget?.ActiveMemberCount <= 1", codeBehindSource);
+        Assert.DoesNotContain("Members.Count <= 1", codeBehindSource);
+    }
+
     private static ClintonFranklandDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -550,4 +586,19 @@ public class SharedBudgetDataServiceTests
         FirstLogin = DateTime.UtcNow,
         LastLogin = DateTime.UtcNow
     };
+
+    private static string ReadRepoFile(string relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var path = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not find {relativePath} from {AppContext.BaseDirectory}.");
+    }
 }
