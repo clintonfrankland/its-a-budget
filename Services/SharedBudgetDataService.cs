@@ -11,6 +11,12 @@ public sealed record SharedBudgetMembershipSummary(
     int ActiveMemberCount,
     bool IsSoleOwner);
 
+internal sealed record SharedBudgetMembershipSummaryRow(
+    int SharedBudgetId,
+    string? Name,
+    BudgetMemberRole Role,
+    int ActiveMemberCount);
+
 public class SharedBudgetDataService
 {
     private readonly ClintonFranklandDbContext _db;
@@ -31,27 +37,33 @@ public class SharedBudgetDataService
             .Select(m => m.SharedBudgetId)
             .ToListAsync();
 
-    public Task<List<SharedBudgetMembershipSummary>> GetReadableSharedBudgetSummariesAsync(int userId)
+    public async Task<List<SharedBudgetMembershipSummary>> GetReadableSharedBudgetSummariesAsync(int userId)
     {
         if (userId <= 0)
-            return Task.FromResult(new List<SharedBudgetMembershipSummary>());
+            return [];
 
-        return _db.BudgetMembers
+        var rows = await _db.BudgetMembers
             .AsNoTracking()
             .Where(m => m.UserId == userId && m.Status == BudgetMemberStatus.Active)
-            .Select(m => new SharedBudgetMembershipSummary(
+            .Select(m => new SharedBudgetMembershipSummaryRow(
                 m.SharedBudgetId,
-                m.SharedBudget == null ? $"Budget {m.SharedBudgetId}" : m.SharedBudget.Name,
+                m.SharedBudget == null ? null : m.SharedBudget.Name,
                 m.Role,
                 _db.BudgetMembers.Count(active =>
                     active.SharedBudgetId == m.SharedBudgetId &&
-                    active.Status == BudgetMemberStatus.Active),
-                m.Role == BudgetMemberRole.Owner &&
-                    _db.BudgetMembers.Count(active =>
-                        active.SharedBudgetId == m.SharedBudgetId &&
-                        active.Status == BudgetMemberStatus.Active) == 1))
+                    active.Status == BudgetMemberStatus.Active)))
             .OrderBy(b => b.Name)
+            .ThenBy(b => b.SharedBudgetId)
             .ToListAsync();
+
+        return rows
+            .Select(row => new SharedBudgetMembershipSummary(
+                row.SharedBudgetId,
+                string.IsNullOrWhiteSpace(row.Name) ? $"Budget {row.SharedBudgetId}" : row.Name,
+                row.Role,
+                row.ActiveMemberCount,
+                row.Role == BudgetMemberRole.Owner && row.ActiveMemberCount == 1))
+            .ToList();
     }
 
     public Task<List<int>> GetFinancialManagerSharedBudgetIdsAsync(int userId) =>

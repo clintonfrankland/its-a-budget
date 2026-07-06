@@ -422,6 +422,15 @@ public class SharedBudgetDataServiceTests
     }
 
     [Fact]
+    public void SharedBudgetSwitcherSummaries_AvoidOrderingByPublicRecordProjection()
+    {
+        var serviceSource = ReadRepoFile("Services/SharedBudgetDataService.cs");
+
+        Assert.Contains("SharedBudgetMembershipSummaryRow", serviceSource);
+        Assert.DoesNotContain(".Select(m => new SharedBudgetMembershipSummary(", serviceSource);
+    }
+
+    [Fact]
     public void SharingPageUi_GatesInviteMemberAndOwnershipControlsByRole()
     {
         var componentSource = ReadRepoFile("Components/Pages/Sharing.razor");
