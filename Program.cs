@@ -185,6 +185,7 @@ builder.Services.AddScoped<SiteInfoService>();
 builder.Services.AddScoped<CurrentUserContext>();
 builder.Services.AddScoped<EmailSenderService>();
 builder.Services.AddScoped<IEmailSender, EmailSenderService>();
+builder.Services.AddScoped<WeeklyUpcomingBillsDigestService>();
 builder.Services.AddScoped<MigrationErrorTracker>();
 builder.Services.AddHostedService<BillDueNotificationWorker>();
 

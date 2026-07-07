@@ -413,7 +413,7 @@ All tables use the `cf` prefix.
 
 | Table | Description |
 |---|---|
-| `cfUsers` | App users. Manually-assigned IDs, salt+hash passwords, `IsAdmin` flag, notification preferences, and optional Authentik/OIDC provider+subject mapping. |
+| `cfUsers` | App users. Manually-assigned IDs, salt+hash passwords, `IsAdmin` flag, daily bill-due and weekly upcoming-bills notification preferences, and optional Authentik/OIDC provider+subject mapping. |
 | `cfAccounts` | Financial accounts (checking, credit card, etc.). Tracks balance, cleared balance, credit limit, min payment, interest rate, due day. |
 | `cfTransactions` | Ledger entries. Date, amount, payee, category, account, cleared flag, optional notes and attachment path. |
 | `cfBudgets` | Recurring income/expense items. Frequency, next due date, end date, `IsBill`, `IsAutomatic`, `IsLate`, optional payee. |
@@ -424,7 +424,7 @@ All tables use the `cf` prefix.
 | `cfAuthLoginAudit` | Login audit trail — username, IP, success/failure, reason, timestamp. |
 | `cfSmtpSettings` | SMTP server configuration — host, port, TLS mode, sender identity, per-server credentials. |
 | `cfBillDueNotificationSettings` | Server-wide gate for bill-due email notifications (enabled flag, due-soon window, past-due settings). |
-| `cfNotificationSendLog` | Audit trail of sent notifications — user, budget, notice type, local date, status, error message. Prevents duplicate sends. |
+| `cfNotificationSendLog` | Audit trail of sent notifications — user, budget, notice type, local date, status, error message. Prevents duplicate daily notices and weekly digest sends. |
 
 ---
 

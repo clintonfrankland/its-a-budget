@@ -151,6 +151,83 @@ public class BillDueNotificationWorkerTests
         Assert.Equal(25m, category.Total);
     }
 
+    [Fact]
+    public async Task RunOnceAsync_SendsWeeklyDigestOnlyForWeeklyOptedInUsers()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 6, 13, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db);
+            db.Users.AddRange(
+                User(1, "weekly", "Weekly User", "weekly@example.com", receiveDaily: false, receiveWeekly: true),
+                User(2, "daily", "Daily User", "daily@example.com", receiveDaily: true, receiveWeekly: false));
+            db.Categories.AddRange(
+                new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 },
+                new Category { CategoryId = 2, CategoryName = "Utilities", UserId = 2 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Water", UserId = 2, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Electric", 1, nowUtc.DateTime.AddDays(2), 80m),
+                Bill(2, 2, 2, "Water", 2, nowUtc.DateTime.AddDays(2), 45m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        Assert.Single(sent, email => email.To == "weekly@example.com" && email.Subject.StartsWith("Upcoming bills this week:", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, email => email.To == "weekly@example.com" && email.Subject.StartsWith("Bill due soon:", StringComparison.Ordinal));
+        Assert.Single(sent, email => email.To == "daily@example.com" && email.Subject.StartsWith("Bill due soon:", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, email => email.To == "daily@example.com" && email.Subject.StartsWith("Upcoming bills this week:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_DoesNotSendWeeklyDigestWhenNoUpcomingBillsExist()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 6, 13, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db);
+            db.Users.Add(User(1, "weekly", "Weekly User", "weekly@example.com", receiveDaily: false, receiveWeekly: true));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false });
+            db.Budgets.Add(Bill(1, 1, 1, "Electric", 1, nowUtc.DateTime.AddDays(12), 80m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        Assert.Empty(sent);
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        Assert.False(await db.NotificationSendLogs.AnyAsync(log => log.NoticeType == "WeeklyUpcoming"));
+    }
+
+    [Fact]
+    public async Task SendManualPreviewAsync_SendsWeeklyDigestWithoutWaitingForMonday()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 7, 13, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db);
+            db.Users.Add(User(1, "preview", "Preview User", "preview@example.com", receiveDaily: false, receiveWeekly: false));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false });
+            db.Budgets.Add(Bill(1, 1, 1, "Electric", 1, nowUtc.DateTime.AddDays(2), 80m));
+        });
+
+        await using var scope = provider.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<WeeklyUpcomingBillsDigestService>();
+        var result = await service.SendManualPreviewAsync(1, CancellationToken.None);
+
+        Assert.True(result.Sent);
+        Assert.Equal(1, result.UpcomingBillCount);
+        var email = Assert.Single(sent);
+        Assert.Equal("preview@example.com", email.To);
+        Assert.Contains("Electric", email.Body);
+    }
+
     private static async Task RunWorkerAsync(ServiceProvider provider)
     {
         var worker = new BillDueNotificationWorker(
@@ -188,6 +265,8 @@ public class BillDueNotificationWorkerTests
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(nowUtc));
         services.AddSingleton(sent);
         services.AddScoped<IEmailSender, CapturingEmailSender>();
+        services.AddLogging();
+        services.AddScoped<WeeklyUpcomingBillsDigestService>();
 
         var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -266,14 +345,21 @@ public class BillDueNotificationWorkerTests
         IsBill = true
     };
 
-    private static User User(int id, string userName, string displayName, string? email) => new()
+    private static User User(
+        int id,
+        string userName,
+        string displayName,
+        string? email,
+        bool receiveDaily = true,
+        bool receiveWeekly = true) => new()
     {
         UserId = id,
         SiteId = 1,
         UserName = userName,
         DisplayName = displayName,
         EmailAddress = email,
-        ReceiveBillDueNotices = true,
+        ReceiveBillDueNotices = receiveDaily,
+        ReceiveWeeklyUpcomingBillDigest = receiveWeekly,
         NotificationTimezone = "UTC",
         NotificationDeliveryTime = TimeOnly.MinValue,
         IsAdmin = false,

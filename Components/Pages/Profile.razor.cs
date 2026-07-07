@@ -12,6 +12,7 @@ public partial class Profile
     [Inject] private AuthService AuthService { get; set; } = default!;
     [Inject] private ClintonFrankland.Data.ClintonFranklandDbContext DbContext { get; set; } = default!;
     [Inject] private ExternalIdentityLinkService ExternalIdentityLinks { get; set; } = default!;
+    [Inject] private WeeklyUpcomingBillsDigestService WeeklyUpcomingBillsDigestService { get; set; } = default!;
     [Inject] private IOptions<AuthentikOidcOptions> AuthentikOptions { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
@@ -25,8 +26,10 @@ public partial class Profile
 
     // Notification preferences
     private bool ReceiveBillDueNotices { get; set; }
+    private bool ReceiveWeeklyUpcomingBillDigest { get; set; }
     private string NotificationTimezone { get; set; } = "America/New_York";
     private TimeOnly NotificationDeliveryTime { get; set; } = new TimeOnly(8, 0);
+    private bool IsSendingWeeklyPreview { get; set; }
 
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
@@ -96,6 +99,7 @@ public partial class Profile
 
         // Load notification preferences
         ReceiveBillDueNotices = CurrentDbUser.ReceiveBillDueNotices;
+        ReceiveWeeklyUpcomingBillDigest = CurrentDbUser.ReceiveWeeklyUpcomingBillDigest;
         NotificationTimezone = CurrentDbUser.NotificationTimezone;
         NotificationDeliveryTime = CurrentDbUser.NotificationDeliveryTime;
     }
@@ -158,13 +162,15 @@ public partial class Profile
         }
 
         // Warn if enabling notifications without email
-        if (ReceiveBillDueNotices && string.IsNullOrWhiteSpace(CurrentDbUser.EmailAddress))
+        if ((ReceiveBillDueNotices || ReceiveWeeklyUpcomingBillDigest) && string.IsNullOrWhiteSpace(EmailAddress))
         {
-            ErrorMessage = "Please set an email address before enabling bill-due notices.";
+            ErrorMessage = "Please set an email address before enabling email notifications.";
             return;
         }
 
         CurrentDbUser.ReceiveBillDueNotices = ReceiveBillDueNotices;
+        CurrentDbUser.ReceiveWeeklyUpcomingBillDigest = ReceiveWeeklyUpcomingBillDigest;
+        CurrentDbUser.EmailAddress = string.IsNullOrWhiteSpace(EmailAddress) ? null : EmailAddress.Trim();
         CurrentDbUser.NotificationTimezone = NotificationTimezone;
         CurrentDbUser.NotificationDeliveryTime = NotificationDeliveryTime;
 
@@ -172,6 +178,45 @@ public partial class Profile
         await AuthService.RefreshCurrentUserAsync(CurrentDbUser);
 
         SuccessMessage = "Notification preferences updated.";
+    }
+
+    private async Task SendWeeklyDigestPreviewAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        if (CurrentDbUser is null)
+        {
+            ErrorMessage = "Profile not loaded.";
+            return;
+        }
+
+        IsSendingWeeklyPreview = true;
+
+        try
+        {
+            await SaveNotificationPreferencesAsync();
+            if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                return;
+
+            var result = await WeeklyUpcomingBillsDigestService.SendManualPreviewAsync(CurrentDbUser.UserId, CancellationToken.None);
+            if (result.Sent)
+            {
+                SuccessMessage = $"{result.Message} Bills included: {result.UpcomingBillCount}.";
+            }
+            else if (result.Skipped)
+            {
+                SuccessMessage = result.Message;
+            }
+            else
+            {
+                ErrorMessage = result.Message;
+            }
+        }
+        finally
+        {
+            IsSendingWeeklyPreview = false;
+        }
     }
 
     private static bool IsValidTimezone(string timezoneId)

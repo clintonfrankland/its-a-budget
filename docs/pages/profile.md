@@ -15,23 +15,29 @@ Depending on your permissions and what your admin allows, you may see fields lik
 - **Display Name** (how your name appears in the app)
 - **Email Address** (used for certain notices and test emails)
 
-### Notification Preferences (Bill-Due Notices)
+### Notification Preferences
 
 This is where you decide if you want reminders about upcoming bills.
 
 You can set:
 
 - **Receive bill-due notices**
-  - Turn this **on** if you want reminders.
+  - Turn this **on** if you want individual reminders when bills are due soon, due today, or past due.
   - Turn this **off** if you prefer to manage bills manually.
+
+- **Receive weekly upcoming bills digest**
+  - Turn this **on** if you want one Monday email that lists bills due in the next 7 days.
+  - This preference is separate from individual bill-due notices.
 
 - **Timezone**
   - This makes sure reminders arrive at the right time *where you actually live*.
   - Example: `America/New_York`
 
 - **Delivery time**
-  - The time of day you prefer to receive bill reminders (your local time).
+  - The time of day you prefer to receive bill emails (your local time).
   - Example: `08:00` so you get reminders in the morning.
+
+You can also send a **Weekly Digest Preview** from Profile. The preview uses your current accessible bills and sends immediately, so you can test the digest without waiting for Monday.
 
 Tip: If you travel a lot, keeping your timezone correct prevents reminders from showing up at weird hours.
 

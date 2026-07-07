@@ -95,6 +95,9 @@ public class User
     [Column("ReceiveBillDueNotices")]
     public bool ReceiveBillDueNotices { get; set; } = false;
 
+    [Column("ReceiveWeeklyUpcomingBillDigest")]
+    public bool ReceiveWeeklyUpcomingBillDigest { get; set; } = false;
+
     [Column("NotificationTimezone")]
     [StringLength(64)]
     public string NotificationTimezone { get; set; } = "America/New_York";

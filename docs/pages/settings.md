@@ -74,8 +74,10 @@ This section controls the **server-wide behavior** of bill-due reminders.
 
 Notes:
 - The server-wide switch must be enabled here.
-- Each user must also opt-in on their **Profile** page (Receive bill-due notices).
+- Each user must also opt-in on their **Profile** page for individual bill-due notices, weekly upcoming-bills digests, or both.
 - The background worker runs inside the server process and does not require a user to have the UI open.
+- Weekly upcoming-bills digests run on Mondays after the user's preferred delivery time and include accessible bills due in the next 7 days.
+- Users can send an immediate weekly digest preview from Profile without waiting for the weekly schedule.
 
 Options:
 - **Enable bill-due email reminders**: master enable/disable.

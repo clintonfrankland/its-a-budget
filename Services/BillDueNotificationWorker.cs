@@ -61,6 +61,7 @@ public class BillDueNotificationWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
         var email = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+        var weeklyDigest = scope.ServiceProvider.GetRequiredService<WeeklyUpcomingBillsDigestService>();
 
         // Server-wide gate.
         var billSettings = await db.BillDueNotificationSettings.FirstOrDefaultAsync(x => x.Id == 1, ct);
@@ -81,7 +82,11 @@ public class BillDueNotificationWorker : BackgroundService
 
         // Load candidate users.
         var users = await db.Users.AsNoTracking()
-            .Where(u => !u.IsDeleted && u.ReceiveBillDueNotices && u.EmailAddress != null && u.EmailAddress != "")
+            .Where(u =>
+                !u.IsDeleted &&
+                (u.ReceiveBillDueNotices || u.ReceiveWeeklyUpcomingBillDigest) &&
+                u.EmailAddress != null &&
+                u.EmailAddress != "")
             .ToListAsync(ct);
 
         if (users.Count == 0)
@@ -117,6 +122,11 @@ public class BillDueNotificationWorker : BackgroundService
 
             var localDate = nowLocal.Date;
 
+            await weeklyDigest.SendScheduledDigestAsync(user, localDate, nowUtc, ct);
+
+            if (!user.ReceiveBillDueNotices)
+                continue;
+
             // Bills for this user.
             var bills = await db.Budgets.AsNoTracking()
                 .Include(b => b.Payee)
@@ -128,17 +138,6 @@ public class BillDueNotificationWorker : BackgroundService
                     b.IsBill == true &&
                     b.NextDueDate != null)
                 .ToListAsync(ct);
-
-            await SendWeeklyUpcomingSummaryAsync(
-                db,
-                email,
-                user,
-                bills,
-                localDate,
-                nowUtc,
-                showBudgetNames,
-                sharedBudgetNames,
-                ct);
 
             foreach (var bill in bills)
             {
@@ -200,87 +199,6 @@ public class BillDueNotificationWorker : BackgroundService
                     await db.SaveChangesAsync(ct);
                 }
             }
-        }
-    }
-
-    private async Task SendWeeklyUpcomingSummaryAsync(
-        ClintonFranklandDbContext db,
-        IEmailSender email,
-        User user,
-        IReadOnlyCollection<Budget> bills,
-        DateTime localDate,
-        DateTime nowUtc,
-        bool showBudgetNames,
-        IReadOnlyDictionary<int, string> sharedBudgetNames,
-        CancellationToken ct)
-    {
-        if (localDate.DayOfWeek != DayOfWeek.Monday)
-            return;
-
-        var weekStart = localDate.Date;
-        var weekEnd = weekStart.AddDays(7);
-        var upcoming = bills
-            .Where(b => b.NextDueDate is not null)
-            .Select(b => new
-            {
-                Bill = b,
-                DueLocal = b.NextDueDate!.Value.Date,
-                Amount = b.Amount ?? 0m
-            })
-            .Where(b => b.DueLocal >= weekStart && b.DueLocal < weekEnd)
-            .OrderBy(b => b.DueLocal)
-            .ThenBy(b => GetBillName(b.Bill))
-            .ToList();
-
-        if (upcoming.Count == 0)
-            return;
-
-        const string noticeType = "WeeklyUpcoming";
-        var already = await db.NotificationSendLogs.AsNoTracking().AnyAsync(x =>
-                x.UserId == user.UserId &&
-                x.BudgetId == null &&
-                x.NoticeType == noticeType &&
-                x.NoticeLocalDate == weekStart,
-            ct);
-
-        if (already)
-            return;
-
-        var subject = $"Upcoming bills this week: {upcoming.Sum(b => b.Amount):C}";
-        var body = $"Hi {user.DisplayName},\n\n" +
-                   $"Here are your upcoming bills for {weekStart:yyyy-MM-dd} through {weekEnd.AddDays(-1):yyyy-MM-dd}:\n\n" +
-                   string.Join("\n", upcoming.Select(b => BuildWeeklyLine(b.Bill, b.DueLocal, showBudgetNames, sharedBudgetNames))) +
-                   "\n\nYou can manage notification preferences in your Profile page.\n";
-
-        var log = new NotificationSendLog
-        {
-            CreatedAtUtc = nowUtc,
-            UserId = user.UserId,
-            BudgetId = null,
-            SharedBudgetId = null,
-            NoticeType = noticeType,
-            NoticeLocalDate = weekStart,
-            Recipient = user.EmailAddress!,
-            Subject = subject,
-            Status = "Failed"
-        };
-
-        db.NotificationSendLogs.Add(log);
-        await db.SaveChangesAsync(ct);
-
-        try
-        {
-            await email.SendAsync(user.EmailAddress!, subject, body);
-            log.Status = "Sent";
-            log.ErrorMessage = null;
-            await db.SaveChangesAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send weekly upcoming bills notice (UserId={UserId})", user.UserId);
-            log.Status = "Failed";
-            log.ErrorMessage = ex.Message;
-            await db.SaveChangesAsync(ct);
         }
     }
 
@@ -347,20 +265,6 @@ public class BillDueNotificationWorker : BackgroundService
                (string.IsNullOrWhiteSpace(payee) ? "" : $"Payee: {payee}\n") +
                $"Amount: {amount}\n\n" +
                "You can manage notification preferences in your Profile page.\n";
-    }
-
-    private static string BuildWeeklyLine(
-        Budget bill,
-        DateTime dueLocalDate,
-        bool showBudgetNames,
-        IReadOnlyDictionary<int, string> sharedBudgetNames)
-    {
-        var budgetPrefix = GetBudgetLabel(bill, showBudgetNames, sharedBudgetNames);
-        var name = GetBillName(bill);
-        var payee = string.IsNullOrWhiteSpace(bill.Payee?.PayeeName) ? "" : $" - {bill.Payee.PayeeName.Trim()}";
-        var amount = bill.Amount.HasValue ? bill.Amount.Value.ToString("C") : "(amount not set)";
-        var label = string.IsNullOrWhiteSpace(budgetPrefix) ? name : $"{budgetPrefix}: {name}";
-        return $"- {dueLocalDate:yyyy-MM-dd}: {label}{payee} - {amount}";
     }
 
     private static string GetBillName(Budget bill) =>

@@ -8,7 +8,8 @@ This is a lightweight manual test plan for the first version of bill-due email n
 - Bill-due notifications are enabled in **Settings**.
 - At least one user has:
   - `EmailAddress` populated
-  - `ReceiveBillDueNotices = true`
+  - `ReceiveBillDueNotices = true` for individual due notices
+  - `ReceiveWeeklyUpcomingBillDigest = true` for weekly upcoming-bills digests
   - `NotificationTimezone` set to a valid timezone id
   - `NotificationDeliveryTime` set to a time earlier than now (in that timezone)
 - At least one Budget item exists with:
@@ -82,3 +83,25 @@ Expected:
 - The weekly upcoming-bills summary includes the accessible budget names.
 - Removed members and unrelated users receive no emails for the shared budget.
 - Legacy single-user notices keep their existing per-bill subject format when only one budget is visible.
+
+### 8) Weekly opt-in and empty digest behavior
+
+- Set one user to `ReceiveWeeklyUpcomingBillDigest = true`.
+- Set another user to `ReceiveWeeklyUpcomingBillDigest = false`.
+- Seed bills due in the next 7 days for both users.
+- Seed a separate opted-in user with no bills due in the next 7 days.
+- Run the worker on Monday after each user's delivery time.
+
+Expected:
+- The opted-in user with upcoming bills receives one `WeeklyUpcoming` email.
+- The opted-out user does not receive a weekly digest.
+- The opted-in user with no upcoming bills receives no weekly email and no `WeeklyUpcoming` send log.
+
+### 9) Manual weekly preview
+
+- Open **Profile** for a user with a valid email address.
+- Click **Send Weekly Digest Preview**.
+
+Expected:
+- A digest is generated immediately from that user's accessible bills due in the next 7 days.
+- The preview does not require waiting until Monday.
