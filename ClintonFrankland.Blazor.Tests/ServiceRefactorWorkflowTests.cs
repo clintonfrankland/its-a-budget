@@ -2,6 +2,7 @@ using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -343,6 +344,17 @@ public class ServiceRefactorWorkflowTests
         Assert.Contains("await _initializeGate.WaitAsync()", source);
         Assert.Contains("_initializeGate.Release()", source);
         Assert.Contains("if (_isInitialized) return;", source);
+    }
+
+    [Fact]
+    public void DashboardDataService_UsesIsolatedScopeForProductionSnapshotLoads()
+    {
+        var source = ReadRepoFile("Services/DashboardDataService.cs");
+
+        Assert.Contains("IServiceScopeFactory", source);
+        Assert.Contains("CreateAsyncScope()", source);
+        Assert.Contains("GetRequiredService<CheckbookDataService>()", source);
+        Assert.Contains("GetRequiredService<BudgetScheduleService>()", source);
     }
 
     private static ClintonFranklandDbContext CreateDbContext()

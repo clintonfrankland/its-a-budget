@@ -1,11 +1,21 @@
 using ClintonFrankland.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClintonFrankland.Services;
 
 public class DashboardDataService
 {
+    private readonly IServiceScopeFactory? _scopeFactory;
     private readonly CheckbookDataService _checkbook;
     private readonly BudgetScheduleService _budgetSchedule;
+
+    [ActivatorUtilitiesConstructor]
+    public DashboardDataService(IServiceScopeFactory scopeFactory)
+    {
+        _scopeFactory = scopeFactory;
+        _checkbook = null!;
+        _budgetSchedule = null!;
+    }
 
     public DashboardDataService(CheckbookDataService checkbook, BudgetScheduleService budgetSchedule)
     {
@@ -15,19 +25,35 @@ public class DashboardDataService
 
     public async Task<DashboardSnapshotViewModel> GetSnapshotAsync(int userId, DateTime today)
     {
+        if (_scopeFactory is null)
+            return await BuildSnapshotAsync(_checkbook, _budgetSchedule, userId, today);
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var checkbook = scope.ServiceProvider.GetRequiredService<CheckbookDataService>();
+        var budgetSchedule = scope.ServiceProvider.GetRequiredService<BudgetScheduleService>();
+
+        return await BuildSnapshotAsync(checkbook, budgetSchedule, userId, today);
+    }
+
+    private static async Task<DashboardSnapshotViewModel> BuildSnapshotAsync(
+        CheckbookDataService checkbook,
+        BudgetScheduleService budgetSchedule,
+        int userId,
+        DateTime today)
+    {
         var snapshot = new DashboardSnapshotViewModel
         {
             AsOfDate = today.Date
         };
 
         // Today's balance: BeginningBalance + sum(all transactions)
-        var account = await _checkbook.GetAccountForUserAsync(userId);
+        var account = await checkbook.GetAccountForUserAsync(userId);
         var startingBalance = account?.BeginningBalance ?? 0m;
-        var transactionSum = await _checkbook.GetTransactionSumAsync(userId);
+        var transactionSum = await checkbook.GetTransactionSumAsync(userId);
         snapshot.TodayBalance = startingBalance + transactionSum;
 
         // Upcoming bills: budgets flagged as bills, due within next 14 days (default snapshot window)
-        var budgets = await _checkbook.GetBudgetsForUserAsync(userId);
+        var budgets = await checkbook.GetBudgetsForUserAsync(userId);
 
         var dueThrough = today.Date.AddDays(14);
         var upcomingBills = budgets
@@ -67,7 +93,7 @@ public class DashboardDataService
         snapshot.UpcomingBillsTotal = upcoming7Total;
 
         // Monthly spend by category (expenses only, current month, top 8)
-        var monthlyExpenses = await _checkbook.GetMonthlyExpensesByCategoryAsync(userId, today.Year, today.Month);
+        var monthlyExpenses = await checkbook.GetMonthlyExpensesByCategoryAsync(userId, today.Year, today.Month);
 
         var monthlyBudgetByCategory = budgets
             .Where(b => b.BudgetTypeId != 0 && b.Amount.HasValue && (b.FrequencyId ?? 0) != 0)
@@ -90,7 +116,7 @@ public class DashboardDataService
             .ToList();
 
         // Calculate lowest projected balance over next 6 months
-        var (lowestBalance, lowestDate) = await _budgetSchedule.GetLowestProjectedBalanceAsync(
+        var (lowestBalance, lowestDate) = await budgetSchedule.GetLowestProjectedBalanceAsync(
             userId, today, today.AddMonths(6));
 
         snapshot.LowestProjectedBalance = lowestBalance;
