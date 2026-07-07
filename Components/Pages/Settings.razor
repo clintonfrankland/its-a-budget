@@ -408,13 +408,13 @@ else
                     <label class="form-label">New Password</label>
                     <div class="input-group mb-2">
                         <input class="form-control" @bind="PasswordValue" />
-                        <button class="btn btn-outline-secondary" @onclick="GeneratePassword">Generate</button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="GeneratePassword">Generate</button>
                     </div>
                     <div class="form-text">Passwords are hashed with PBKDF2 + per-user salt.</div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="ClosePasswordModal">Cancel</button>
-                    <button class="btn btn-warning" @onclick="ResetPassword">Reset Password</button>
+                    <button type="button" class="btn btn-secondary" @onclick="ClosePasswordModal">Cancel</button>
+                    <button type="button" class="btn btn-warning" @onclick="ResetPassword">Reset Password</button>
                 </div>
             </div>
         </div>

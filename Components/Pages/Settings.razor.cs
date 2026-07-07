@@ -451,10 +451,12 @@ public partial class Settings
         dbUser.PasswordHash = PasswordUtility.HashPassword(PasswordValue, dbUser.Salt);
         dbUser.PasswordResetRequestOn = DateTime.UtcNow;
 
+        var passwordUserName = dbUser.UserName;
+
         await DbContext.SaveChangesAsync();
         ClosePasswordModal();
         UserErrorMessage = null;
-        Message = $"Password reset for {PasswordUser.UserName}.";
+        Message = $"Password reset for {passwordUserName}.";
         MessageCss = "alert-success";
     }
 
