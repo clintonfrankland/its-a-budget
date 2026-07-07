@@ -17,7 +17,7 @@ public class DashboardDataService
         _budgetSchedule = null!;
     }
 
-    public DashboardDataService(CheckbookDataService checkbook, BudgetScheduleService budgetSchedule)
+    internal DashboardDataService(CheckbookDataService checkbook, BudgetScheduleService budgetSchedule)
     {
         _checkbook = checkbook;
         _budgetSchedule = budgetSchedule;
