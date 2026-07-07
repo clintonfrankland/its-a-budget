@@ -885,6 +885,12 @@ namespace ClintonFrankland.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("ReceiveBillDueNotices");
 
+                    b.Property<bool>("ReceiveWeeklyUpcomingBillDigest")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("ReceiveWeeklyUpcomingBillDigest");
+
                     b.Property<string>("Salt")
                         .IsRequired()
                         .HasMaxLength(32)

@@ -1,3 +1,5 @@
+using ClintonFrankland.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ClintonFrankland.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ClintonFranklandDbContext))]
+    [Migration("20260707143000_AddWeeklyUpcomingBillDigestPreference")]
     public partial class AddWeeklyUpcomingBillDigestPreference : Migration
     {
         /// <inheritdoc />
