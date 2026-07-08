@@ -28,6 +28,9 @@ public partial class BudgetItems
     private CheckbookDataService CheckbookData { get; set; } = default!;
 
     [Inject]
+    private BudgetScheduleService BudgetSchedule { get; set; } = default!;
+
+    [Inject]
     private BudgetItemsExportService BudgetItemsExport { get; set; } = default!;
 
     [Inject]
@@ -36,14 +39,18 @@ public partial class BudgetItems
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
-    private enum ViewMode { List, Edit }
+    private enum ViewMode { List, Calendar, Edit }
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
     private List<BudgetItemViewModel> budgetItems = new();
+    private List<BudgetItemViewModel> previewItems = new();
     private Dictionary<string, decimal[]> _sparklineData = new();
     private List<FrequencyOption> frequencyOptions = new();
     private bool canCreateFinancialData;
+    private int previewDays = 30;
+    private string previewStatusMessage = string.Empty;
+    private readonly HashSet<string> handlingOccurrenceKeys = [];
     
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetItemsGrid;
@@ -59,6 +66,22 @@ public partial class BudgetItems
 
     // Frequency dropdown option
     private record FrequencyOption(int FrequencyId, string FrequencyName);
+    private static readonly List<PreviewWindowOption> previewWindowOptions =
+    [
+        new(7, "7 days"),
+        new(14, "14 days"),
+        new(30, "30 days"),
+        new(60, "60 days"),
+        new(90, "90 days")
+    ];
+
+    private record PreviewWindowOption(int Value, string Text);
+    private IEnumerable<IGrouping<DateTime, BudgetItemViewModel>> previewGroups =>
+        previewItems
+            .OrderBy(i => i.DueDate)
+            .ThenBy(i => i.IsIncome ? 0 : 1)
+            .ThenBy(i => i.BudgetName)
+            .GroupBy(i => i.DueDate.Date);
 
     private int CurrentBudgetItemsUserId => CurrentUser.UserId;
 
@@ -126,12 +149,94 @@ public partial class BudgetItems
             }).ToList();
 
             await LoadCategoriesAndPayeesAsync();
+            if (currentView == ViewMode.Calendar)
+                await LoadPreviewAsync();
         }
         catch (Exception ex)
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
     }
+
+    private async Task ShowCalendarAsync()
+    {
+        previewStatusMessage = string.Empty;
+        currentView = ViewMode.Calendar;
+        await LoadPreviewAsync();
+    }
+
+    private async Task ShowListAsync()
+    {
+        currentView = ViewMode.List;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        try
+        {
+            var userId = CurrentBudgetItemsUserId;
+            previewItems = await BudgetSchedule.GetRecurringPreviewAsync(userId, DateTime.Today, previewDays);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"{ex.GetType()}: {ex.Message}";
+        }
+    }
+
+    private async Task OnPreviewDaysChangedAsync()
+    {
+        previewStatusMessage = string.Empty;
+        await LoadPreviewAsync();
+    }
+
+    private async Task RecordOccurrenceAsync(BudgetItemViewModel item)
+    {
+        if (!item.CanRecordToCheckbook || !handlingOccurrenceKeys.Add(item.OccurrenceKey))
+            return;
+
+        try
+        {
+            var handled = await BudgetSchedule.RecordOccurrenceToCheckbookAsync(CurrentBudgetItemsUserId, item.BudgetId, item.DueDate);
+            previewStatusMessage = handled
+                ? $"Recorded {item.BudgetName} for {item.DueDate:MMM d} to Checkbook."
+                : $"{item.BudgetName} was already handled or is no longer available.";
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"{ex.GetType()}: {ex.Message}";
+        }
+        finally
+        {
+            handlingOccurrenceKeys.Remove(item.OccurrenceKey);
+        }
+    }
+
+    private async Task SkipOccurrenceAsync(BudgetItemViewModel item)
+    {
+        if (!item.CanManageFinancialData || !handlingOccurrenceKeys.Add(item.OccurrenceKey))
+            return;
+
+        try
+        {
+            var handled = await BudgetSchedule.SkipOccurrenceAsync(CurrentBudgetItemsUserId, item.BudgetId, item.DueDate);
+            previewStatusMessage = handled
+                ? $"Skipped {item.BudgetName} for {item.DueDate:MMM d}."
+                : $"{item.BudgetName} was already handled or is no longer available.";
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"{ex.GetType()}: {ex.Message}";
+        }
+        finally
+        {
+            handlingOccurrenceKeys.Remove(item.OccurrenceKey);
+        }
+    }
+
+    private bool IsHandling(BudgetItemViewModel item) => handlingOccurrenceKeys.Contains(item.OccurrenceKey);
 
     private static decimal CalculateMonthlyAmount(decimal amount, int frequencyId, int budgetTypeId)
     {

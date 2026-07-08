@@ -36,6 +36,8 @@ else
                         <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Budget" : "")" ButtonStyle="ButtonStyle.Primary"
                                       Size="ButtonSize.Medium" Click="ShowAddBudgetAsync" />
                     }
+                    <RadzenButton Icon="calendar_month" Text="@(IsAtLeast(ScreenSize.Medium) ? "Preview" : "")" ButtonStyle="ButtonStyle.Secondary"
+                                  Size="ButtonSize.Medium" Click="ShowCalendarAsync" class="ms-2" title="Preview upcoming recurring Budget Items" />
                 </div>
             </div>
         </div>
@@ -123,6 +125,123 @@ else
                     }
                 </Columns>
             </RadzenDataGrid>
+        </div>
+    }
+    else if (currentView == ViewMode.Calendar)
+    {
+        <RadzenMediaQuery Query="(max-width: 575.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraSmall, matches))" />
+        <RadzenMediaQuery Query="(min-width: 576px) and (max-width: 767.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Small, matches))" />
+        <RadzenMediaQuery Query="(min-width: 768px) and (max-width: 991.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Medium, matches))" />
+        <RadzenMediaQuery Query="(min-width: 992px) and (max-width: 1199.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Large, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1200px) and (max-width: 1399.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraLarge, matches))" />
+        <RadzenMediaQuery Query="(min-width: 1400px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraExtraLarge, matches))" />
+
+        <div class="container">
+            <div class="row align-items-center gy-2">
+                <div class="col-auto">
+                    <h1>Recurring Preview</h1>
+                </div>
+                <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
+                    <RadzenButton Icon="arrow_back" Text="@(IsAtLeast(ScreenSize.Medium) ? "Budget Items" : "")" ButtonStyle="ButtonStyle.Light"
+                                  Size="ButtonSize.Medium" Click="ShowListAsync" title="Return to Budget Items" />
+                </div>
+            </div>
+
+            <div class="budget-preview-toolbar mt-3">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="10px" Wrap="FlexWrap.Wrap">
+                    <RadzenLabel Text="Window:" Component="previewDaysDropDown" />
+                    <RadzenDropDown @bind-Value="previewDays" TValue="int" Name="previewDaysDropDown"
+                                    Data="@previewWindowOptions" TextProperty="Text" ValueProperty="Value"
+                                    Change="@(args => OnPreviewDaysChangedAsync())"
+                                    Style="width: 120px;" />
+                    @if (!string.IsNullOrWhiteSpace(previewStatusMessage))
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2" class="text-success mb-0">@previewStatusMessage</RadzenText>
+                    }
+                </RadzenStack>
+            </div>
+
+            @if (previewItems.Count == 0)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter"
+                             AllowClose="false" Icon="event_available" class="mt-3">
+                    No recurring Budget Items are due in the selected window.
+                </RadzenAlert>
+            }
+            else
+            {
+                <div class="budget-preview-calendar mt-3">
+                    @foreach (var group in previewGroups)
+                    {
+                        <section class="budget-preview-day" aria-label="Budget Items due @group.Key.ToString("MMMM d, yyyy")">
+                            <div class="budget-preview-date">
+                                <span class="budget-preview-month">@group.Key.ToString("MMM")</span>
+                                <span class="budget-preview-number">@group.Key.Day</span>
+                                <span class="budget-preview-weekday">@group.Key.ToString("ddd")</span>
+                            </div>
+                            <div class="budget-preview-events">
+                                @foreach (var item in group)
+                                {
+                                    <article class="budget-preview-event @(item.IsIncome ? "income" : "expense") @(item.HasCategoryWarning ? "warning" : "")">
+                                        <div class="budget-preview-event-main">
+                                            <div class="budget-preview-title-row">
+                                                <span class="budget-preview-type">@(item.IsIncome ? "Income" : "Expense")</span>
+                                                @if (item.IsBill)
+                                                {
+                                                    <RadzenIcon Icon="receipt" title="Bill" class="budget-preview-icon" />
+                                                }
+                                                @if (item.IsAuto)
+                                                {
+                                                    <RadzenIcon Icon="schedule" title="Auto Pay" class="budget-preview-icon" />
+                                                }
+                                                <strong class="budget-preview-name">@item.BudgetName</strong>
+                                                <span class="budget-preview-amount">@item.Amount.ToString("C")</span>
+                                            </div>
+                                            <div class="budget-preview-meta">
+                                                @if (!string.IsNullOrWhiteSpace(item.Payee))
+                                                {
+                                                    <span>@item.Payee</span>
+                                                }
+                                                <span>@(string.IsNullOrWhiteSpace(item.Category) ? "No category" : item.Category)</span>
+                                                @if (!string.IsNullOrWhiteSpace(item.FrequencyName))
+                                                {
+                                                    <span>@item.FrequencyName</span>
+                                                }
+                                            </div>
+                                            @if (item.HasCategoryWarning)
+                                            {
+                                                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
+                                                             AllowClose="false" Icon="warning" class="budget-preview-warning">
+                                                    @item.CategoryWarning
+                                                </RadzenAlert>
+                                            }
+                                        </div>
+                                        <div class="budget-preview-actions">
+                                            @if (item.CanManageFinancialData)
+                                            {
+                                                <RadzenButton Icon="add_task" Text="@(IsAtLeast(ScreenSize.Small) ? "Record" : "")"
+                                                              ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+                                                              Click="() => RecordOccurrenceAsync(item)"
+                                                              Disabled="@(!item.CanRecordToCheckbook || IsHandling(item))"
+                                                              title="Record this occurrence to Checkbook" />
+                                                <RadzenButton Icon="skip_next" Text="@(IsAtLeast(ScreenSize.Small) ? "Skip" : "")"
+                                                              ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
+                                                              Click="() => SkipOccurrenceAsync(item)"
+                                                              Disabled="@IsHandling(item)"
+                                                              title="Skip this occurrence without creating a transaction" />
+                                                <RadzenButton Icon="edit" Text="@(IsAtLeast(ScreenSize.Medium) ? "Edit" : "")"
+                                                              ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                              Click="() => ShowEditBudgetAsync(item.BudgetId)"
+                                                              title="Edit Budget Item or category" />
+                                            }
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+            }
         </div>
     }
     else if (currentView == ViewMode.Edit)

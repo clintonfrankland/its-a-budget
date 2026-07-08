@@ -332,7 +332,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Components/Pages/Checkbook.razor(.cs)` | Transaction ledger with running balance and budget panel |
 | `Components/Pages/Budget.razor(.cs)` | Budget forecast chart and upcoming items list |
 | `Components/Pages/Insights.razor(.cs)` | Authenticated spending reports by category, recent category trend, and top payees |
-| `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items |
+| `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items plus near-term record/skip preview calendar |
 | `Components/Pages/Accounts.razor(.cs)` | Account list with balances and details |
 | `Components/Pages/Payees.razor(.cs)` | Payee search, edit, transaction drill-in, active/deleted filtering, and selected-row duplicate merge workflow |
 | `Components/Pages/Profile.razor(.cs)` | User preferences and notification settings |
@@ -353,6 +353,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/BillDueNotificationWorker.cs` | Hosted service — 15-min tick, sends bill-due emails per user timezone |
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
+| `Services/BudgetScheduleService.cs` | Forecast and recurring occurrence handling, including preview record/skip actions |
 | `Services/InsightsDataService.cs` | User-scoped expense reporting queries for the Insights page |
 | `Services/ReceiptAttachmentStorageService.cs` | Checkbook receipt validation, generated filenames, scanner hook, safe delete, and orphan cleanup |
 | `Services/IAttachmentMalwareScanner.cs` | Pluggable receipt attachment scan hook; default implementation is no-op |

@@ -35,6 +35,26 @@ public class BudgetScheduleService
         return ProjectForecast(startingBalance, budgets, DateTime.Today, endDate, includeEndDate, userId, writableSharedBudgetIds);
     }
 
+    public async Task<List<BudgetItemViewModel>> GetRecurringPreviewAsync(
+        int userId,
+        DateTime startDate,
+        int days)
+    {
+        if (days < 1)
+            throw new InvalidOperationException("Preview window must be at least 1 day.");
+
+        var budgets = await GetUserBudgetsWithLookupsAsync(userId);
+        var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
+        return ProjectForecast(
+            startingBalance: 0m,
+            budgets,
+            startDate.Date,
+            startDate.Date.AddDays(days - 1),
+            includeEndDate: true,
+            userId,
+            writableSharedBudgetIds);
+    }
+
     public async Task<(decimal LowestBalance, DateTime LowestDate)> GetLowestProjectedBalanceAsync(
         int userId,
         DateTime startDate,
@@ -77,6 +97,88 @@ public class BudgetScheduleService
         }
 
         await _db.SaveChangesAsync();
+    }
+
+    public async Task<bool> SkipOccurrenceAsync(int userId, int budgetId, DateTime occurrenceDate)
+    {
+        var budget = await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+        if (budget is null)
+            return false;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
+            return false;
+
+        if (!IsCurrentOccurrence(budget, occurrenceDate))
+            return false;
+
+        AdvanceBudgetOccurrence(budget);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RecordOccurrenceToCheckbookAsync(int userId, int budgetId, DateTime occurrenceDate)
+    {
+        var budget = await _db.Budgets
+            .Include(b => b.Category)
+            .Include(b => b.Payee)
+            .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
+
+        if (budget is null)
+            return false;
+
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
+            return false;
+
+        if (!IsCurrentOccurrence(budget, occurrenceDate))
+            return false;
+
+        var categoryWarning = GetCategoryWarning(budget);
+        if (!string.IsNullOrEmpty(categoryWarning))
+            throw new InvalidOperationException(categoryWarning);
+
+        var category = await _db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.CategoryId == budget.CategoryId);
+        categoryWarning = GetCategoryWarning(budget, category);
+        if (!string.IsNullOrEmpty(categoryWarning))
+            throw new InvalidOperationException(categoryWarning);
+
+        var account = budget.SharedBudgetId.HasValue
+            ? await _db.Accounts
+                .AsNoTracking()
+                .Where(a => a.SharedBudgetId == budget.SharedBudgetId)
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.AccountId)
+                .FirstOrDefaultAsync()
+            : await _db.Accounts
+                .AsNoTracking()
+                .Where(a => a.UserId == userId)
+                .OrderByDescending(a => a.IsDefault)
+                .ThenBy(a => a.AccountId)
+                .FirstOrDefaultAsync();
+
+        var payeeId = budget.PayeeId;
+        if (!payeeId.HasValue || payeeId <= 0)
+            payeeId = await GetOrCreatePayeeAsync(budget.BudgetName ?? string.Empty, userId);
+
+        if (!payeeId.HasValue || payeeId <= 0)
+            payeeId = await GetOrCreatePayeeAsync("Unknown", userId);
+
+        var amount = budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
+        _db.Transactions.Add(new Transaction
+        {
+            TransactionDate = DateOnly.FromDateTime(occurrenceDate.Date),
+            Amount = CurrencyPolicy.RoundSignedSqlAmount(amount, CurrencyPolicy.TransactionPrecision),
+            PayeeId = payeeId.Value,
+            CategoryId = budget.CategoryId,
+            AccountId = account?.AccountId ?? 1,
+            Cleared = budget.IsAutomatic ?? false,
+            UserId = budget.SharedBudgetId.HasValue ? userId : budget.UserId ?? userId,
+            SharedBudgetId = budget.SharedBudgetId,
+            Notes = $"Recorded from Budget Item: {budget.BudgetName}".Trim()
+        });
+
+        AdvanceBudgetOccurrence(budget);
+        await _db.SaveChangesAsync();
+        return true;
     }
 
     public async Task CreateEditedNextOccurrenceAsync(
@@ -209,7 +311,12 @@ public class BudgetScheduleService
         int userId,
         IReadOnlyCollection<int> writableSharedBudgetIds)
     {
-        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee, bool CanManageFinancialData)>();
+        var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee, bool CanManageFinancialData, string CategoryWarning)>();
+        var categoriesById = budgets
+            .Select(b => b.Category)
+            .OfType<Category>()
+            .GroupBy(c => c.CategoryId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         foreach (var budget in budgets)
         {
@@ -232,7 +339,8 @@ public class BudgetScheduleService
                     budget.IsBill ?? false,
                     budget.IsLate ?? false,
                     budget.Payee?.PayeeName ?? string.Empty,
-                    CanManageFinancialData(userId, writableSharedBudgetIds, budget.SharedBudgetId, budget.UserId)));
+                    CanManageFinancialData(userId, writableSharedBudgetIds, budget.SharedBudgetId, budget.UserId),
+                    GetCategoryWarning(budget, categoriesById.GetValueOrDefault(budget.CategoryId))));
 
                 if (frequencyId == 0)
                     break;
@@ -259,7 +367,9 @@ public class BudgetScheduleService
                 IsBill = item.IsBill,
                 IsLate = item.IsLate,
                 Payee = item.Payee,
-                CanManageFinancialData = item.CanManageFinancialData
+                CanManageFinancialData = item.CanManageFinancialData,
+                HasCategoryWarning = !string.IsNullOrEmpty(item.CategoryWarning),
+                CategoryWarning = item.CategoryWarning
             });
         }
 
@@ -285,6 +395,47 @@ public class BudgetScheduleService
 
     private static bool HasEndDate(Budget budget) =>
         budget.EndDate.HasValue && budget.EndDate.Value != NoEndDate;
+
+    private static bool IsCurrentOccurrence(Budget budget, DateTime occurrenceDate) =>
+        (budget.NextDueDate ?? DateTime.Today).Date == occurrenceDate.Date;
+
+    private void AdvanceBudgetOccurrence(Budget budget)
+    {
+        var newNextDueDate = CalculateNextDueDate(budget.NextDueDate ?? DateTime.Today, budget.FrequencyId ?? 0);
+
+        if (ShouldDeleteAfterAdvance(budget, newNextDueDate))
+        {
+            _db.Budgets.Remove(budget);
+        }
+        else
+        {
+            budget.NextDueDate = newNextDueDate;
+        }
+    }
+
+    private static string GetCategoryWarning(Budget budget) =>
+        GetCategoryWarning(budget, budget.Category);
+
+    private static string GetCategoryWarning(Budget budget, Category? category)
+    {
+        if (category is null)
+            return "Category is missing. Edit the Budget Item and choose a valid category before recording.";
+
+        if (string.IsNullOrWhiteSpace(category.CategoryName))
+            return "Category is blank. Edit the Budget Item and choose a valid category before recording.";
+
+        if (budget.SharedBudgetId.HasValue)
+        {
+            if (category.SharedBudgetId != budget.SharedBudgetId)
+                return "Category is outside this budget. Edit the Budget Item and choose a category from the same budget before recording.";
+        }
+        else if (category.UserId != budget.UserId)
+        {
+            return "Category belongs to another user. Edit the Budget Item and choose one of your categories before recording.";
+        }
+
+        return string.Empty;
+    }
 
     private static bool IsWithinProjection(DateTime value, DateTime endDate, bool includeEndDate) =>
         includeEndDate ? value <= endDate : value < endDate;

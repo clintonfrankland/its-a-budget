@@ -15,6 +15,11 @@ public class BudgetItemViewModel
     public bool IsAuto { get; set; }
     public bool IsLate { get; set; }
     public bool CanManageFinancialData { get; set; }
+    public bool IsIncome => Amount >= 0;
+    public bool HasCategoryWarning { get; set; }
+    public string CategoryWarning { get; set; } = string.Empty;
+    public bool CanRecordToCheckbook => CanManageFinancialData && !HasCategoryWarning;
+    public string OccurrenceKey => $"{BudgetId}:{DueDate:yyyyMMdd}";
 
     // Additional fields for BudgetItems page
     public string EndDateName { get; set; } = string.Empty;

@@ -50,6 +50,20 @@ At the bottom of the **Monthly** column, the app totals the visible monthly amou
 
 Tip: If you only need to change a single upcoming occurrence (just this month’s bill is different), you may prefer doing that from **Budget Forecast** using **Edit Next**, so your recurring setup stays clean.
 
+## Preview upcoming recurring items
+
+Select **Preview** to open a calendar-style view of upcoming Budget Items.
+
+You can choose a near-term window like 7, 14, 30, 60, or 90 days. Items are grouped by due date and show whether they are income or expenses, the amount, payee, category, frequency, and bill or auto-pay context.
+
+For each item you can:
+
+- **Record**: create the matching Checkbook transaction for that due date, then advance the recurring item.
+- **Skip**: mark that occurrence handled without creating a transaction, using the same recurrence advancement rule.
+- **Edit**: return to the Budget Item editor to fix details.
+
+If the category is missing, blank, or belongs outside the current budget/user scope, the preview shows a warning and disables **Record**. Use **Edit** to choose a valid category first. **Skip** remains available when you intentionally want to move past the occurrence without creating a transaction.
+
 ## Search and filters
 
 Use the **Search** box to quickly narrow down the list.
