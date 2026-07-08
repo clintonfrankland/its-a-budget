@@ -30,6 +30,23 @@ public class RecurringPreviewTests
     }
 
     [Fact]
+    public async Task GetRecurringPreviewAsync_RollsOverdueItemsForwardToWindowStart()
+    {
+        await using var db = CreateDbContext();
+        SeedCoreData(db);
+        db.Budgets.AddRange(
+            Budget(1, 42, "Weekly Electric", 1, 2, new DateTime(2026, 7, 1), 120m, frequencyId: 1, isBill: true, payeeId: 1),
+            Budget(2, 42, "One Time Old Bill", 1, 2, new DateTime(2026, 7, 1), 60m, frequencyId: 0, isBill: true, payeeId: 1));
+        await db.SaveChangesAsync();
+
+        var preview = await new BudgetScheduleService(db).GetRecurringPreviewAsync(42, new DateTime(2026, 7, 10), 14);
+
+        Assert.Equal([new DateTime(2026, 7, 15), new DateTime(2026, 7, 22)], preview.Select(i => i.DueDate));
+        Assert.All(preview, i => Assert.Equal("Weekly Electric", i.BudgetName));
+        Assert.DoesNotContain(preview, i => i.DueDate < new DateTime(2026, 7, 10));
+    }
+
+    [Fact]
     public async Task RecordOccurrenceToCheckbookAsync_CreatesTransactionAndAdvancesOnce()
     {
         await using var db = CreateDbContext();
@@ -52,6 +69,26 @@ public class RecurringPreviewTests
         Assert.False(transaction.Cleared);
         Assert.Contains("Electric", transaction.Notes);
         Assert.Equal(new DateTime(2026, 8, 10), (await db.Budgets.FindAsync(1))!.NextDueDate);
+    }
+
+    [Fact]
+    public async Task RecordOccurrenceToCheckbookAsync_HandlesLaterProjectedOccurrenceOnce()
+    {
+        await using var db = CreateDbContext();
+        SeedCoreData(db);
+        db.Budgets.Add(Budget(1, 42, "Electric", 1, 2, new DateTime(2026, 7, 10), 120m, frequencyId: 1, isBill: true, payeeId: 1));
+        await db.SaveChangesAsync();
+
+        var service = new BudgetScheduleService(db);
+        var recorded = await service.RecordOccurrenceToCheckbookAsync(42, 1, new DateTime(2026, 7, 24));
+        var repeated = await service.RecordOccurrenceToCheckbookAsync(42, 1, new DateTime(2026, 7, 24));
+
+        Assert.True(recorded);
+        Assert.False(repeated);
+        var transaction = Assert.Single(await db.Transactions.ToListAsync());
+        Assert.Equal(new DateOnly(2026, 7, 24), transaction.TransactionDate);
+        Assert.Equal(-120m, transaction.Amount);
+        Assert.Equal(new DateTime(2026, 7, 31), (await db.Budgets.FindAsync(1))!.NextDueDate);
     }
 
     [Fact]
@@ -124,6 +161,24 @@ public class RecurringPreviewTests
         Assert.False(repeated);
         Assert.Empty(await db.Transactions.ToListAsync());
         Assert.Equal(new DateTime(2026, 7, 17), (await db.Budgets.FindAsync(1))!.NextDueDate);
+    }
+
+    [Fact]
+    public async Task SkipOccurrenceAsync_HandlesLaterProjectedOccurrenceOnceWithoutTransaction()
+    {
+        await using var db = CreateDbContext();
+        SeedCoreData(db);
+        db.Budgets.Add(Budget(1, 42, "Water", 1, 2, new DateTime(2026, 7, 10), 40m, frequencyId: 1, isBill: true));
+        await db.SaveChangesAsync();
+
+        var service = new BudgetScheduleService(db);
+        var skipped = await service.SkipOccurrenceAsync(42, 1, new DateTime(2026, 7, 24));
+        var repeated = await service.SkipOccurrenceAsync(42, 1, new DateTime(2026, 7, 24));
+
+        Assert.True(skipped);
+        Assert.False(repeated);
+        Assert.Empty(await db.Transactions.ToListAsync());
+        Assert.Equal(new DateTime(2026, 7, 31), (await db.Budgets.FindAsync(1))!.NextDueDate);
     }
 
     [Fact]

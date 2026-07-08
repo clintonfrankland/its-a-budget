@@ -108,10 +108,10 @@ public class BudgetScheduleService
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
             return false;
 
-        if (!IsCurrentOccurrence(budget, occurrenceDate))
+        if (!CanHandleOccurrence(budget, occurrenceDate))
             return false;
 
-        AdvanceBudgetOccurrence(budget);
+        AdvanceBudgetThroughOccurrence(budget, occurrenceDate);
         await _db.SaveChangesAsync();
         return true;
     }
@@ -129,7 +129,7 @@ public class BudgetScheduleService
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
             return false;
 
-        if (!IsCurrentOccurrence(budget, occurrenceDate))
+        if (!CanHandleOccurrence(budget, occurrenceDate))
             return false;
 
         var categoryWarning = GetCategoryWarning(budget);
@@ -176,7 +176,7 @@ public class BudgetScheduleService
             Notes = $"Recorded from Budget Item: {budget.BudgetName}".Trim()
         });
 
-        AdvanceBudgetOccurrence(budget);
+        AdvanceBudgetThroughOccurrence(budget, occurrenceDate);
         await _db.SaveChangesAsync();
         return true;
     }
@@ -323,6 +323,9 @@ public class BudgetScheduleService
             var nextDue = budget.NextDueDate ?? startDate;
             var budgetEndDate = HasEndDate(budget) ? budget.EndDate!.Value : endDate;
             var frequencyId = budget.FrequencyId ?? 0;
+            nextDue = RollForwardToProjectionStart(nextDue, frequencyId, startDate);
+            if (nextDue.Date < startDate.Date)
+                continue;
 
             while (IsWithinProjection(nextDue, endDate, includeEndDate) && IsWithinProjection(nextDue, budgetEndDate, includeEndDate))
             {
@@ -396,8 +399,30 @@ public class BudgetScheduleService
     private static bool HasEndDate(Budget budget) =>
         budget.EndDate.HasValue && budget.EndDate.Value != NoEndDate;
 
-    private static bool IsCurrentOccurrence(Budget budget, DateTime occurrenceDate) =>
-        (budget.NextDueDate ?? DateTime.Today).Date == occurrenceDate.Date;
+    private static bool CanHandleOccurrence(Budget budget, DateTime occurrenceDate)
+    {
+        var currentDueDate = budget.NextDueDate ?? DateTime.Today;
+        if (occurrenceDate.Date < currentDueDate.Date)
+            return false;
+
+        if (HasEndDate(budget) && occurrenceDate.Date > budget.EndDate!.Value.Date)
+            return false;
+
+        var frequencyId = budget.FrequencyId ?? 0;
+        while (currentDueDate.Date < occurrenceDate.Date)
+        {
+            if (frequencyId == 0)
+                return false;
+
+            var nextDueDate = CalculateNextDueDate(currentDueDate, frequencyId);
+            if (nextDueDate.Date <= currentDueDate.Date)
+                return false;
+
+            currentDueDate = nextDueDate;
+        }
+
+        return currentDueDate.Date == occurrenceDate.Date;
+    }
 
     private void AdvanceBudgetOccurrence(Budget budget)
     {
@@ -410,6 +435,14 @@ public class BudgetScheduleService
         else
         {
             budget.NextDueDate = newNextDueDate;
+        }
+    }
+
+    private void AdvanceBudgetThroughOccurrence(Budget budget, DateTime occurrenceDate)
+    {
+        while (budget.NextDueDate.HasValue && budget.NextDueDate.Value.Date <= occurrenceDate.Date && _db.Entry(budget).State != EntityState.Deleted)
+        {
+            AdvanceBudgetOccurrence(budget);
         }
     }
 
@@ -439,6 +472,23 @@ public class BudgetScheduleService
 
     private static bool IsWithinProjection(DateTime value, DateTime endDate, bool includeEndDate) =>
         includeEndDate ? value <= endDate : value < endDate;
+
+    private static DateTime RollForwardToProjectionStart(DateTime dueDate, int frequencyId, DateTime startDate)
+    {
+        while (dueDate.Date < startDate.Date)
+        {
+            if (frequencyId == 0)
+                return dueDate;
+
+            var nextDueDate = CalculateNextDueDate(dueDate, frequencyId);
+            if (nextDueDate.Date <= dueDate.Date)
+                return dueDate;
+
+            dueDate = nextDueDate;
+        }
+
+        return dueDate;
+    }
 
     private static DateTime CalculateSemiMonthly(DateTime currentDate) =>
         currentDate.Day == 1
