@@ -52,7 +52,8 @@ public class BudgetScheduleService
             startDate.Date.AddDays(days - 1),
             includeEndDate: true,
             userId,
-            writableSharedBudgetIds);
+            writableSharedBudgetIds,
+            rollForwardToStart: true);
     }
 
     public async Task<(decimal LowestBalance, DateTime LowestDate)> GetLowestProjectedBalanceAsync(
@@ -309,7 +310,8 @@ public class BudgetScheduleService
         DateTime endDate,
         bool includeEndDate,
         int userId,
-        IReadOnlyCollection<int> writableSharedBudgetIds)
+        IReadOnlyCollection<int> writableSharedBudgetIds,
+        bool rollForwardToStart = false)
     {
         var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee, bool CanManageFinancialData, string CategoryWarning)>();
         var categoriesById = budgets
@@ -323,9 +325,12 @@ public class BudgetScheduleService
             var nextDue = budget.NextDueDate ?? startDate;
             var budgetEndDate = HasEndDate(budget) ? budget.EndDate!.Value : endDate;
             var frequencyId = budget.FrequencyId ?? 0;
-            nextDue = RollForwardToProjectionStart(nextDue, frequencyId, startDate);
-            if (nextDue.Date < startDate.Date)
-                continue;
+            if (rollForwardToStart)
+            {
+                nextDue = RollForwardToProjectionStart(nextDue, frequencyId, startDate);
+                if (nextDue.Date < startDate.Date)
+                    continue;
+            }
 
             while (IsWithinProjection(nextDue, endDate, includeEndDate) && IsWithinProjection(nextDue, budgetEndDate, includeEndDate))
             {
