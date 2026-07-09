@@ -29,7 +29,7 @@ public class BillDueNotificationWorker : BackgroundService
         _logger.LogInformation("BillDueNotificationWorker starting");
 
         // Tick frequently enough to be reliable, but do real work only once per user per local day.
-        var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
+        var timer = new PeriodicTimer(TimeSpan.FromMinutes(15), _timeProvider);
 
         try
         {
@@ -67,7 +67,7 @@ public class BillDueNotificationWorker : BackgroundService
         var billSettings = await db.BillDueNotificationSettings.FirstOrDefaultAsync(x => x.Id == 1, ct);
         if (billSettings is null)
         {
-            billSettings = new BillDueNotificationSetting { Id = 1, UpdatedAtUtc = DateTime.UtcNow };
+            billSettings = new BillDueNotificationSetting { Id = 1, UpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime };
             db.BillDueNotificationSettings.Add(billSettings);
             await db.SaveChangesAsync(ct);
         }

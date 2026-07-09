@@ -228,6 +228,268 @@ public class BillDueNotificationWorkerTests
         Assert.Contains("Electric", email.Body);
     }
 
+    [Fact]
+    public async Task RunOnceAsync_ClassifiesBillNoticesFromEachUsersLocalDate()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 10, 3, 30, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db, dueSoonDays: 1);
+            db.Users.AddRange(
+                User(1, "newyork", "New York", "newyork@example.com", timezone: "America/New_York"),
+                User(2, "utc", "UTC", "utc@example.com", timezone: "UTC"));
+            db.Categories.AddRange(
+                new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 },
+                new Category { CategoryId = 2, CategoryName = "Utilities", UserId = 2 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Water", UserId = 2, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Electric", 1, new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc), 80m),
+                Bill(2, 2, 2, "Water", 2, new DateTime(2026, 7, 10), 45m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        Assert.Contains(sent, email => email.To == "newyork@example.com" && email.Subject.StartsWith("Bill due soon:", StringComparison.Ordinal));
+        Assert.Contains(sent, email => email.To == "utc@example.com" && email.Subject.StartsWith("Bill due today:", StringComparison.Ordinal));
+
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        Assert.Contains(await db.NotificationSendLogs.ToListAsync(), log =>
+            log.UserId == 1 &&
+            log.NoticeType == "DueSoon" &&
+            log.NoticeLocalDate == new DateTime(2026, 7, 9));
+        Assert.Contains(await db.NotificationSendLogs.ToListAsync(), log =>
+            log.UserId == 2 &&
+            log.NoticeType == "DueToday" &&
+            log.NoticeLocalDate == new DateTime(2026, 7, 10));
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_DeliveryTimeGateUsesEachUsersLocalTime()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 10, 12, 30, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db);
+            db.Users.AddRange(
+                User(1, "newyork", "New York", "newyork@example.com", timezone: "America/New_York", deliveryTime: new TimeOnly(8, 0)),
+                User(2, "losangeles", "Los Angeles", "losangeles@example.com", timezone: "America/Los_Angeles", deliveryTime: new TimeOnly(8, 0)));
+            db.Categories.AddRange(
+                new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 },
+                new Category { CategoryId = 2, CategoryName = "Utilities", UserId = 2 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Water", UserId = 2, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Electric", 1, new DateTime(2026, 7, 10), 80m),
+                Bill(2, 2, 2, "Water", 2, new DateTime(2026, 7, 10), 45m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        Assert.Single(sent, email => email.To == "newyork@example.com" && email.Subject.StartsWith("Bill due today:", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, email => email.To == "losangeles@example.com");
+    }
+
+    [Theory]
+    [InlineData(2026, 3, 8, 13)]
+    [InlineData(2026, 11, 1, 14)]
+    public async Task RunOnceAsync_NewYorkDstTransitionDatesDoNotShiftReminderClassifications(
+        int year,
+        int month,
+        int day,
+        int utcHour)
+    {
+        var localDate = new DateTime(year, month, day);
+        var nowUtc = new DateTimeOffset(year, month, day, utcHour, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db, dueSoonDays: 1, pastDueMaxDays: 1);
+            db.Users.Add(User(1, "newyork", "New York", "newyork@example.com", timezone: "America/New_York", deliveryTime: new TimeOnly(8, 0)));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Water", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 3, PayeeName = "Gas", UserId = 1, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Due Today", 1, localDate, 80m),
+                Bill(2, 1, 1, "Due Soon", 2, localDate.AddDays(1), 45m),
+                Bill(3, 1, 1, "Past Due", 3, localDate.AddDays(-1), 30m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var logs = await db.NotificationSendLogs.OrderBy(log => log.BudgetId).ToListAsync();
+        Assert.Collection(
+            logs,
+            log =>
+            {
+                Assert.Equal(1, log.BudgetId);
+                Assert.Equal("DueToday", log.NoticeType);
+                Assert.Equal(localDate, log.NoticeLocalDate);
+            },
+            log =>
+            {
+                Assert.Equal(2, log.BudgetId);
+                Assert.Equal("DueSoon", log.NoticeType);
+                Assert.Equal(localDate, log.NoticeLocalDate);
+            },
+            log =>
+            {
+                Assert.Equal(3, log.BudgetId);
+                Assert.Equal("PastDue", log.NoticeType);
+                Assert.Equal(localDate, log.NoticeLocalDate);
+            });
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_DueSoonAndPastDueSettingsHonorBoundaryValues()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db, dueSoonDays: 2, pastDueEnabled: true, pastDueMaxDays: 2);
+            db.Users.Add(User(1, "user", "User", "user@example.com", timezone: "UTC"));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "One", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Two", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 3, PayeeName = "Three", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 4, PayeeName = "Four", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 5, PayeeName = "Five", UserId = 1, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Today", 1, new DateTime(2026, 7, 10), 10m),
+                Bill(2, 1, 1, "Soon Boundary", 2, new DateTime(2026, 7, 12), 20m),
+                Bill(3, 1, 1, "Soon Outside", 3, new DateTime(2026, 7, 13), 30m),
+                Bill(4, 1, 1, "Past Boundary", 4, new DateTime(2026, 7, 8), 40m),
+                Bill(5, 1, 1, "Past Outside", 5, new DateTime(2026, 7, 7), 50m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var logs = await db.NotificationSendLogs.OrderBy(log => log.BudgetId).ToListAsync();
+        Assert.Collection(
+            logs,
+            log =>
+            {
+                Assert.Equal(1, log.BudgetId);
+                Assert.Equal("DueToday", log.NoticeType);
+            },
+            log =>
+            {
+                Assert.Equal(2, log.BudgetId);
+                Assert.Equal("DueSoon", log.NoticeType);
+            },
+            log =>
+            {
+                Assert.Equal(4, log.BudgetId);
+                Assert.Equal("PastDue", log.NoticeType);
+            });
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_ZeroDayDueSoonAndPastDueWindowsSuppressNonTodayNotices()
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db, dueSoonDays: 0, pastDueEnabled: true, pastDueMaxDays: 0);
+            db.Users.Add(User(1, "user", "User", "user@example.com", timezone: "UTC"));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.AddRange(
+                new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 2, PayeeName = "Water", UserId = 1, IsDeleted = false },
+                new Payee { PayeeId = 3, PayeeName = "Gas", UserId = 1, IsDeleted = false });
+            db.Budgets.AddRange(
+                Bill(1, 1, 1, "Today", 1, new DateTime(2026, 7, 10), 10m),
+                Bill(2, 1, 1, "Tomorrow", 2, new DateTime(2026, 7, 11), 20m),
+                Bill(3, 1, 1, "Yesterday", 3, new DateTime(2026, 7, 9), 30m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var log = Assert.Single(await db.NotificationSendLogs.ToListAsync());
+        Assert.Equal(1, log.BudgetId);
+        Assert.Equal("DueToday", log.NoticeType);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Not/AZone")]
+    public async Task RunOnceAsync_InvalidOrBlankTimezoneFallsBackToUtc(string timezone)
+    {
+        var nowUtc = new DateTimeOffset(2026, 7, 10, 0, 30, 0, TimeSpan.Zero);
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(nowUtc, sent, db =>
+        {
+            SeedSettings(db, dueSoonDays: 1);
+            db.Users.Add(User(1, "user", "User", "user@example.com", timezone: timezone));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false });
+            db.Budgets.Add(Bill(1, 1, 1, "Electric", 1, new DateTime(2026, 7, 10), 80m));
+        });
+
+        await RunWorkerAsync(provider);
+
+        var email = Assert.Single(sent);
+        Assert.StartsWith("Bill due today:", email.Subject, StringComparison.Ordinal);
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var log = Assert.Single(await db.NotificationSendLogs.ToListAsync());
+        Assert.Equal(new DateTime(2026, 7, 10), log.NoticeLocalDate);
+        Assert.Equal("DueToday", log.NoticeType);
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_SendLogSuppressesSameLocalDayDuplicatesAndAllowsLaterLocalDay()
+    {
+        var timeProvider = new MutableTimeProvider(new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero));
+        var sent = new List<SentEmail>();
+        await using var provider = CreateProvider(timeProvider, sent, db =>
+        {
+            SeedSettings(db, pastDueMaxDays: 5);
+            db.Users.Add(User(1, "user", "User", "user@example.com", timezone: "UTC"));
+            db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Utilities", UserId = 1 });
+            db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Power", UserId = 1, IsDeleted = false });
+            db.Budgets.Add(Bill(1, 1, 1, "Electric", 1, new DateTime(2026, 7, 9), 80m));
+        });
+
+        await RunWorkerAsync(provider);
+        await RunWorkerAsync(provider);
+        timeProvider.SetUtcNow(new DateTimeOffset(2026, 7, 11, 13, 0, 0, TimeSpan.Zero));
+        await RunWorkerAsync(provider);
+
+        Assert.Equal(2, sent.Count(email => email.Subject.StartsWith("Past due bill:", StringComparison.Ordinal)));
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var logs = await db.NotificationSendLogs.OrderBy(log => log.NoticeLocalDate).ToListAsync();
+        Assert.Collection(
+            logs,
+            log =>
+            {
+                Assert.Equal("PastDue", log.NoticeType);
+                Assert.Equal(new DateTime(2026, 7, 10), log.NoticeLocalDate);
+            },
+            log =>
+            {
+                Assert.Equal("PastDue", log.NoticeType);
+                Assert.Equal(new DateTime(2026, 7, 11), log.NoticeLocalDate);
+            });
+    }
+
     private static async Task RunWorkerAsync(ServiceProvider provider)
     {
         var worker = new BillDueNotificationWorker(
@@ -256,13 +518,21 @@ public class BillDueNotificationWorkerTests
         List<SentEmail> sent,
         Action<ClintonFranklandDbContext> seed)
     {
+        return CreateProvider(new FixedTimeProvider(nowUtc), sent, seed);
+    }
+
+    private static ServiceProvider CreateProvider(
+        TimeProvider timeProvider,
+        List<SentEmail> sent,
+        Action<ClintonFranklandDbContext> seed)
+    {
         var databaseRoot = new InMemoryDatabaseRoot();
         var dbOptions = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString(), databaseRoot)
             .Options;
         var services = new ServiceCollection();
         services.AddScoped(_ => new ClintonFranklandDbContext(dbOptions));
-        services.AddSingleton<TimeProvider>(new FixedTimeProvider(nowUtc));
+        services.AddSingleton(timeProvider);
         services.AddSingleton(sent);
         services.AddScoped<IEmailSender, CapturingEmailSender>();
         services.AddLogging();
@@ -276,15 +546,19 @@ public class BillDueNotificationWorkerTests
         return provider;
     }
 
-    private static void SeedSettings(ClintonFranklandDbContext db)
+    private static void SeedSettings(
+        ClintonFranklandDbContext db,
+        int dueSoonDays = 3,
+        bool pastDueEnabled = true,
+        int pastDueMaxDays = 30)
     {
         db.BillDueNotificationSettings.Add(new BillDueNotificationSetting
         {
             Id = 1,
             IsEnabled = true,
-            DueSoonDays = 3,
-            PastDueEnabled = true,
-            PastDueMaxDays = 30,
+            DueSoonDays = dueSoonDays,
+            PastDueEnabled = pastDueEnabled,
+            PastDueMaxDays = pastDueMaxDays,
             UpdatedAtUtc = DateTime.UtcNow
         });
         db.SmtpSettings.Add(new SmtpSetting
@@ -351,7 +625,9 @@ public class BillDueNotificationWorkerTests
         string displayName,
         string? email,
         bool receiveDaily = true,
-        bool receiveWeekly = true) => new()
+        bool receiveWeekly = true,
+        string timezone = "UTC",
+        TimeOnly? deliveryTime = null) => new()
     {
         UserId = id,
         SiteId = 1,
@@ -360,8 +636,8 @@ public class BillDueNotificationWorkerTests
         EmailAddress = email,
         ReceiveBillDueNotices = receiveDaily,
         ReceiveWeeklyUpcomingBillDigest = receiveWeekly,
-        NotificationTimezone = "UTC",
-        NotificationDeliveryTime = TimeOnly.MinValue,
+        NotificationTimezone = timezone,
+        NotificationDeliveryTime = deliveryTime ?? TimeOnly.MinValue,
         IsAdmin = false,
         Salt = "salt",
         PasswordHash = "hash",
@@ -393,6 +669,23 @@ public class BillDueNotificationWorkerTests
         private readonly DateTimeOffset _nowUtc;
 
         public FixedTimeProvider(DateTimeOffset nowUtc)
+        {
+            _nowUtc = nowUtc;
+        }
+
+        public override DateTimeOffset GetUtcNow() => _nowUtc;
+    }
+
+    private sealed class MutableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _nowUtc;
+
+        public MutableTimeProvider(DateTimeOffset nowUtc)
+        {
+            _nowUtc = nowUtc;
+        }
+
+        public void SetUtcNow(DateTimeOffset nowUtc)
         {
             _nowUtc = nowUtc;
         }

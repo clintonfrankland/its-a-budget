@@ -16,6 +16,13 @@ This is a lightweight manual test plan for the first version of bill-due email n
   - `IsBill = true`
   - `NextDueDate` populated
 
+## Scheduling assumptions
+
+- `NextDueDate` is a date-only local business date. Reminder classification compares only date components after converting the current UTC instant into the opted-in user's `NotificationTimezone`.
+- `NotificationDeliveryTime` is evaluated in that same user-local timezone. A single worker tick can be before delivery time for one user and after delivery time for another.
+- `NotificationSendLog.NoticeLocalDate` is the user's local notice date and remains the idempotency key for daily reminders.
+- Blank or invalid `NotificationTimezone` values fall back to UTC.
+
 ## Cases
 
 ### 1) Due soon
