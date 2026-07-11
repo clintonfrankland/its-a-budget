@@ -111,7 +111,9 @@ public class InsightsDataService
         if (transaction.Category is null)
             return UncategorizedCategoryName;
 
-        if (!transaction.SharedBudgetId.HasValue && transaction.Category.UserId != userId)
+        if (transaction.SharedBudgetId.HasValue
+            ? transaction.Category.SharedBudgetId != transaction.SharedBudgetId
+            : transaction.Category.SharedBudgetId.HasValue || transaction.Category.UserId != userId)
             return UncategorizedCategoryName;
 
         return string.IsNullOrWhiteSpace(transaction.Category.CategoryName)

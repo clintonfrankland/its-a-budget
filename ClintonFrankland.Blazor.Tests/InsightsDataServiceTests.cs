@@ -65,6 +65,42 @@ public class InsightsDataServiceTests
     }
 
     [Fact]
+    public async Task GetCategoryTrendAsync_DoesNotExposeMismatchedCategoryLabelOnReadableSharedTransaction()
+    {
+        await using var db = CreateDbContext();
+        SeedLookups(db);
+        db.SharedBudgets.Add(new SharedBudget { SharedBudgetId = 10, Name = "Readable", OwnerUserId = 99 });
+        db.BudgetMembers.Add(new BudgetMember
+        {
+            BudgetMemberId = 1,
+            SharedBudgetId = 10,
+            UserId = 42,
+            Role = BudgetMemberRole.Viewer,
+            Status = BudgetMemberStatus.Active
+        });
+        db.Accounts.Add(new Account { AccountId = 10, AccountName = "Shared", AccountTypeId = 1, UserId = 99, SharedBudgetId = 10 });
+        db.Transactions.Add(new Transaction
+        {
+            TransactionId = 10,
+            UserId = 99,
+            SharedBudgetId = 10,
+            AccountId = 10,
+            CategoryId = 3,
+            PayeeId = 1,
+            TransactionDate = new DateOnly(2026, 6, 10),
+            Amount = -45m
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new InsightsDataService(db).GetCategoryTrendAsync(42, new DateOnly(2026, 6, 1));
+
+        var row = Assert.Single(result);
+        Assert.Equal(InsightsDataService.UncategorizedCategoryName, row.CategoryName);
+        Assert.Equal(45m, row.MonthlyTotals[^1]);
+        Assert.DoesNotContain(result, item => item.CategoryName == "Other User Category");
+    }
+
+    [Fact]
     public async Task GetTopPayeesAsync_OrdersBySpendIncludesDeletedHistoricalNamesAndScopesUsers()
     {
         await using var db = CreateDbContext();

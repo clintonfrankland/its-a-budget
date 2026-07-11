@@ -69,6 +69,69 @@ public class ReportsDataServiceTests
         Assert.Equal(900m, report.History[0].Value);
     }
 
+    [Fact]
+    public async Task AllReports_IncludeReadableSharedBudgetAndExcludeUnreadableAndSecondUserData()
+    {
+        await using var db = CreateDb();
+        SeedBase(db);
+        db.SharedBudgets.AddRange(
+            new SharedBudget { SharedBudgetId = 10, Name = "Readable", OwnerUserId = 2 },
+            new SharedBudget { SharedBudgetId = 20, Name = "Hidden", OwnerUserId = 2 });
+        db.BudgetMembers.Add(new BudgetMember
+        {
+            BudgetMemberId = 1, SharedBudgetId = 10, UserId = 1,
+            Role = BudgetMemberRole.Viewer, Status = BudgetMemberStatus.Active
+        });
+        db.Categories.AddRange(
+            new Category { CategoryId = 10, CategoryName = "Shared Food", UserId = 2, SharedBudgetId = 10 },
+            new Category { CategoryId = 20, CategoryName = "Hidden Food", UserId = 2, SharedBudgetId = 20 });
+        db.Accounts.AddRange(
+            new Account { AccountId = 10, AccountName = "Shared", AccountTypeId = 1, UserId = 2, SharedBudgetId = 10, BeginningBalance = 200m },
+            new Account { AccountId = 20, AccountName = "Hidden", AccountTypeId = 1, UserId = 2, SharedBudgetId = 20, BeginningBalance = 9000m },
+            new Account { AccountId = 30, AccountName = "Second user", AccountTypeId = 1, UserId = 2, BeginningBalance = 8000m });
+        db.CategoryBudgetTargets.AddRange(
+            new CategoryBudgetTarget { UserId = 2, SharedBudgetId = 10, CategoryId = 10, BudgetMonth = new(2026, 7, 1), PlannedAmount = 80m },
+            new CategoryBudgetTarget { UserId = 2, SharedBudgetId = 20, CategoryId = 20, BudgetMonth = new(2026, 7, 1), PlannedAmount = 900m });
+        db.Transactions.AddRange(
+            SharedTx(10, 10, 10, 10, new(2026, 7, 2), -25m),
+            SharedTx(20, 20, 20, 20, new(2026, 7, 2), -700m),
+            Tx(30, 2, 20, new(2026, 7, 2), -600m, 30));
+        db.Budgets.AddRange(
+            new Budget { BudgetId = 10, UserId = 2, SharedBudgetId = 10, CategoryId = 10, BudgetTypeId = 1, Amount = 30m, NextDueDate = new(2026, 7, 12), FrequencyId = 0 },
+            new Budget { BudgetId = 20, UserId = 2, SharedBudgetId = 20, CategoryId = 20, BudgetTypeId = 1, Amount = 500m, NextDueDate = new(2026, 7, 12), FrequencyId = 0 });
+        await db.SaveChangesAsync();
+        var service = new ReportsDataService(db);
+
+        var spend = await service.GetSpendVsPlanAsync(1, new(2026, 7, 15));
+        var trends = await service.GetCategoryTrendsAsync(1, new(2026, 7, 15));
+        var cashflow = await service.GetCashflowAsync(1, 30, new(2026, 7, 11));
+        var netWorth = await service.GetNetWorthAsync(1, new(2026, 7, 1), new(2026, 7, 11));
+
+        Assert.Equal((80m, 25m), (spend.Single(x => x.CategoryName == "Shared Food").Planned, spend.Single(x => x.CategoryName == "Shared Food").Actual));
+        Assert.DoesNotContain(spend, x => x.CategoryName == "Hidden Food");
+        Assert.Equal(25m, trends.Single(x => x.CategoryName == "Shared Food").MonthlyTotals[^1]);
+        Assert.DoesNotContain(trends, x => x.CategoryName == "Hidden Food");
+        Assert.Equal(1175m, cashflow.StartingBalance);
+        Assert.Equal(1145m, cashflow.LowestBalance);
+        Assert.Equal(1175m, netWorth.CurrentTotal);
+    }
+
+    [Fact]
+    public async Task CategoryTrends_UsesExactSevenMonthBoundaryAndZeroFillsGaps()
+    {
+        await using var db = CreateDb(); SeedBase(db);
+        db.Transactions.AddRange(
+            Tx(1, 1, 1, new(2025, 12, 31), -999m),
+            Tx(2, 1, 1, new(2026, 1, 1), -10m),
+            Tx(3, 1, 1, new(2026, 7, 31), -20m),
+            Tx(4, 1, 1, new(2026, 8, 1), -999m));
+        await db.SaveChangesAsync();
+
+        var row = Assert.Single(await new ReportsDataService(db).GetCategoryTrendsAsync(1, new(2026, 7, 15)));
+
+        Assert.Equal([10m, 0m, 0m, 0m, 0m, 0m, 20m], row.MonthlyTotals);
+    }
+
     private static ClintonFranklandDbContext CreateDb() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
     private static void SeedBase(ClintonFranklandDbContext db)
     {
@@ -77,4 +140,9 @@ public class ReportsDataServiceTests
         db.Payees.Add(new() { PayeeId = 1, PayeeName = "Store", UserId = 1 });
     }
     private static Transaction Tx(int id, int userId, int categoryId, DateOnly date, decimal amount, int accountId = 1) => new() { TransactionId = id, UserId = userId, AccountId = accountId, CategoryId = categoryId, PayeeId = 1, TransactionDate = date, Amount = amount };
+    private static Transaction SharedTx(int id, int sharedBudgetId, int accountId, int categoryId, DateOnly date, decimal amount) => new()
+    {
+        TransactionId = id, UserId = 2, SharedBudgetId = sharedBudgetId, AccountId = accountId,
+        CategoryId = categoryId, PayeeId = 1, TransactionDate = date, Amount = amount
+    };
 }
