@@ -205,6 +205,7 @@ builder.Services.AddScoped<CategoryBudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
 builder.Services.AddScoped<DashboardDataService>();
 builder.Services.AddScoped<InsightsDataService>();
+builder.Services.AddScoped<ReportsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.Configure<CategoryBudgetAlertOptions>(builder.Configuration.GetSection(CategoryBudgetAlertOptions.SectionName));
