@@ -91,6 +91,28 @@ public class BudgetItemActionsTests : BunitContext
         Assert.Equal(0, invoked);
     }
 
+    [Fact]
+    public void MoreButtonExplicitlyOpensAndMenuActionClosesTheOverflow()
+    {
+        var invoked = false;
+        var cut = Render("Checkbook", true, onSkip: () => invoked = true);
+        var more = cut.Find(".budget-item-more");
+
+        Assert.Equal("false", more.GetAttribute("aria-expanded"));
+        Assert.DoesNotContain("open", cut.Find(".budget-item-overflow").ClassList);
+
+        more.Click();
+
+        Assert.Equal("true", more.GetAttribute("aria-expanded"));
+        Assert.Contains("open", cut.Find(".budget-item-overflow").ClassList);
+
+        cut.Find("[aria-label='Skip']").Click();
+
+        Assert.True(invoked);
+        Assert.Equal("false", more.GetAttribute("aria-expanded"));
+        Assert.DoesNotContain("open", cut.Find(".budget-item-overflow").ClassList);
+    }
+
     [Theory]
     [MemberData(nameof(PageLayouts))]
     public void EveryActionPathInvokesItsExistingWorkflowCallback(string page, string primary, string[] menu)
@@ -126,6 +148,8 @@ public class BudgetItemActionsTests : BunitContext
         Assert.DoesNotContain("min-width:44px", css);
         Assert.DoesNotContain("min-height:44px", css);
         Assert.Contains(".budget-item-actions { display:inline-flex; align-items:center", css);
+        Assert.Contains("width:1.5rem; min-width:1.5rem; padding-inline:0", css);
+        Assert.Contains(".budget-item-overflow.open .budget-item-menu { display:grid; }", css);
     }
 
     [Theory]

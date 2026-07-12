@@ -65,7 +65,7 @@ Each row supports quick actions:
 - **Mark Paid**: mark the current occurrence as handled.
 - **Edit Next**: adjust the next occurrence without changing the long-term pattern.
 
-Forecast rows keep the original small Radzen **Edit** pencil button followed by a matching small three-dot **More actions** button. The menu uses the app's original icons with visible text for Record to Checkbook, Skip, and Edit Next.
+Forecast rows keep the original small Radzen **Edit** pencil button followed by a narrow three-dot **More actions** button. Tapping the trigger explicitly opens the menu, which uses the app's original icons with visible text for Record to Checkbook, Skip, and Edit Next.
 
 “Edit Next” is perfect for real life, where bills are *usually* the same but not always. It helps you stay accurate without breaking your recurring setup.
 

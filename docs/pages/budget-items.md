@@ -62,7 +62,7 @@ For each item you can:
 - **Skip**: mark that occurrence handled without creating a transaction, using the same recurrence advancement rule.
 - **Edit**: return to the Budget Item editor to fix details.
 
-The main Budget Items list uses the original small Radzen **Edit** pencil button immediately followed by a matching small three-dot **More actions** button. Hover or keyboard focus shows a descriptive tooltip; the More actions menu keeps the app's original icons plus text for Record to Checkbook, Skip, and Edit Next.
+The main Budget Items list uses the original small Radzen **Edit** pencil button immediately followed by a narrow three-dot **More actions** button. Hover or keyboard focus shows a descriptive tooltip; tapping the trigger explicitly opens the More actions menu, which keeps the app's original icons plus text for Record to Checkbook, Skip, and Edit Next.
 
 If the category is missing, blank, or belongs outside the current budget/user scope, the preview shows a warning and disables **Record**. Use **Edit** to choose a valid category first. **Skip** remains available when you intentionally want to move past the occurrence without creating a transaction.
 

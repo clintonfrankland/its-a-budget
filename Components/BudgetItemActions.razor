@@ -4,11 +4,12 @@
         <RadzenButton Icon="@PrimaryIcon" ButtonStyle="@PrimaryButtonStyle" Size="ButtonSize.Small"
                       class="budget-item-primary" title="@PrimaryAction" aria-label="@PrimaryAction"
                       Disabled="@PrimaryDisabled" Click="InvokePrimaryAsync" />
-        <details class="budget-item-overflow">
-            <summary class="rz-button rz-button-sm rz-variant-filled rz-light budget-item-more"
-                     aria-label="More budget item actions" title="More budget item actions">
+        <div class="budget-item-overflow @(isMenuOpen ? "open" : null)">
+            <button type="button" class="rz-button rz-button-sm rz-variant-filled rz-light budget-item-more"
+                    aria-label="More budget item actions" title="More budget item actions"
+                    aria-expanded="@isMenuOpen.ToString().ToLowerInvariant()" disabled="@IsInProgress" @onclick="ToggleMenu">
                 <RadzenIcon Icon="more_vert" />
-            </summary>
+            </button>
             <div class="budget-item-menu" role="menu" aria-label="More budget item actions">
                 @foreach (var action in OverflowActions)
                 {
@@ -19,7 +20,7 @@
                     </button>
                 }
             </div>
-        </details>
+        </div>
     </div>
 }
 
@@ -39,6 +40,7 @@
     [Parameter] public EventCallback OnEditNext { get; set; }
 
     private bool IsCheckbook => Page.Equals("Checkbook", StringComparison.OrdinalIgnoreCase);
+    private bool isMenuOpen;
     private string PrimaryAction => IsCheckbook ? Record : Edit;
     private string PrimaryIcon => IsCheckbook ? "add_task" : "edit";
     private ButtonStyle PrimaryButtonStyle => IsCheckbook ? ButtonStyle.Success : ButtonStyle.Light;
@@ -57,19 +59,21 @@
     };
 
     private bool IsRecordDisabled(string action) => action == Record && !CanRecordToCheckbook;
+    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
     private Task InvokePrimaryAsync() => InvokeAsync(PrimaryAction);
-    private Task InvokeAsync(string action)
+    private async Task InvokeAsync(string action)
     {
         if (IsInProgress || IsRecordDisabled(action))
-            return Task.CompletedTask;
+            return;
 
-        return action switch
+        isMenuOpen = false;
+        await (action switch
         {
             Record => OnRecord.InvokeAsync(),
             Skip => OnSkip.InvokeAsync(),
             Edit => OnEdit.InvokeAsync(),
             EditNext => OnEditNext.InvokeAsync(),
             _ => Task.CompletedTask
-        };
+        });
     }
 }
