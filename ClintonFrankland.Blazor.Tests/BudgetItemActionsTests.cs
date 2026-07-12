@@ -21,6 +21,8 @@ namespace ClintonFrankland.Blazor.Tests;
 
 public class BudgetItemActionsTests : BunitContext
 {
+    public BudgetItemActionsTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     public static TheoryData<string, string, string[]> PageLayouts => new()
     {
         { "Checkbook", "Record to Checkbook", ["Skip", "Edit", "Edit Next"] },
@@ -105,12 +107,16 @@ public class BudgetItemActionsTests : BunitContext
 
         Assert.Equal("true", more.GetAttribute("aria-expanded"));
         Assert.Contains("open", cut.Find(".budget-item-overflow").ClassList);
+        Assert.Contains(JSInterop.Invocations, invocation =>
+            invocation.Identifier == "budgetApp.setBudgetItemMenu" && invocation.Arguments[^1] is true);
 
         cut.Find("[aria-label='Skip']").Click();
 
         Assert.True(invoked);
         Assert.Equal("false", more.GetAttribute("aria-expanded"));
         Assert.DoesNotContain("open", cut.Find(".budget-item-overflow").ClassList);
+        Assert.Contains(JSInterop.Invocations, invocation =>
+            invocation.Identifier == "budgetApp.setBudgetItemMenu" && invocation.Arguments[^1] is false);
     }
 
     [Theory]
@@ -149,10 +155,15 @@ public class BudgetItemActionsTests : BunitContext
         Assert.DoesNotContain("min-height:44px", css);
         Assert.Contains(".budget-item-actions { display:inline-flex; align-items:center", css);
         Assert.Contains("inline-size:1.5rem !important; min-inline-size:1.5rem !important; max-inline-size:1.5rem !important; padding-inline:0 !important", css);
-        Assert.Contains(".budget-item-overflow.open .budget-item-menu { display:grid; }", css);
-        Assert.Contains(".rz-data-row:nth-last-child(-n+3) .budget-item-menu { top:auto; bottom:100%; }", css);
-        Assert.Contains(".rz-data-row:has(.budget-item-overflow.open) { position:relative; z-index:1001; }", css);
-        Assert.Contains(".rz-data-row > td:has(.budget-item-overflow.open) { position:relative; z-index:1001; overflow:visible !important; }", css);
+        Assert.Contains(".budget-item-menu { display:none; position:fixed;", css);
+        Assert.Contains(".budget-item-menu:popover-open { display:grid; }", css);
+        Assert.DoesNotContain("nth-last-child", css);
+        Assert.DoesNotContain(":has(.budget-item-overflow.open)", css);
+
+        var script = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "wwwroot/js/download.js"));
+        Assert.Contains("menu.showPopover()", script);
+        Assert.Contains("trigger.getBoundingClientRect()", script);
+        Assert.Contains("const openUp =", script);
     }
 
     [Fact]

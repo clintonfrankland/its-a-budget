@@ -7,10 +7,11 @@
         <div class="budget-item-overflow @(isMenuOpen ? "open" : null)">
             <button type="button" class="rz-button rz-button-sm rz-variant-filled rz-light budget-item-more"
                     aria-label="More budget item actions" title="More budget item actions"
-                    aria-expanded="@isMenuOpen.ToString().ToLowerInvariant()" disabled="@IsInProgress" @onclick="ToggleMenu">
+                    aria-expanded="@isMenuOpen.ToString().ToLowerInvariant()" disabled="@IsInProgress" @onclick="ToggleMenu"
+                    @ref="moreButton">
                 <RadzenIcon Icon="more_vert" />
             </button>
-            <div class="budget-item-menu" role="menu" aria-label="More budget item actions">
+            <div class="budget-item-menu" role="menu" aria-label="More budget item actions" popover="manual" @ref="menu">
                 @foreach (var action in OverflowActions)
                 {
                     <button type="button" role="menuitem" disabled="@(IsInProgress || IsRecordDisabled(action))"
@@ -25,6 +26,8 @@
 }
 
 @code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
     public const string Record = "Record to Checkbook";
     public const string Skip = "Skip";
     public const string Edit = "Edit";
@@ -41,6 +44,9 @@
 
     private bool IsCheckbook => Page.Equals("Checkbook", StringComparison.OrdinalIgnoreCase);
     private bool isMenuOpen;
+    private bool menuStateChanged;
+    private ElementReference moreButton;
+    private ElementReference menu;
     private string PrimaryAction => IsCheckbook ? Record : Edit;
     private string PrimaryIcon => IsCheckbook ? "add_task" : "edit";
     private ButtonStyle PrimaryButtonStyle => IsCheckbook ? ButtonStyle.Success : ButtonStyle.Light;
@@ -59,7 +65,20 @@
     };
 
     private bool IsRecordDisabled(string action) => action == Record && !CanRecordToCheckbook;
-    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
+    private void ToggleMenu()
+    {
+        isMenuOpen = !isMenuOpen;
+        menuStateChanged = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!menuStateChanged)
+            return;
+
+        menuStateChanged = false;
+        await JS.InvokeVoidAsync("budgetApp.setBudgetItemMenu", moreButton, menu, isMenuOpen);
+    }
     private Task InvokePrimaryAsync() => InvokeAsync(PrimaryAction);
     private async Task InvokeAsync(string action)
     {
@@ -67,6 +86,7 @@
             return;
 
         isMenuOpen = false;
+        menuStateChanged = true;
         await (action switch
         {
             Record => OnRecord.InvokeAsync(),
