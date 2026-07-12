@@ -2,14 +2,21 @@
 {
     <div class="budget-item-actions" data-page="@Page" aria-busy="@IsInProgress.ToString().ToLowerInvariant()">
         <button type="button" class="btn btn-sm @PrimaryButtonClass budget-item-primary"
-                aria-label="@PrimaryAction" disabled="@PrimaryDisabled" @onclick="InvokePrimaryAsync">@PrimaryAction</button>
+                aria-label="@PrimaryAction" title="@PrimaryAction" disabled="@PrimaryDisabled" @onclick="InvokePrimaryAsync">
+            <span class="rz-icon" aria-hidden="true">@ActionIcon(PrimaryAction)</span>
+        </button>
         <details class="budget-item-overflow">
-            <summary class="btn btn-sm btn-light budget-item-more" aria-label="More budget item actions">⋮</summary>
+            <summary class="btn btn-sm btn-light budget-item-more" aria-label="More budget item actions" title="More budget item actions">
+                <span class="rz-icon" aria-hidden="true">more_vert</span>
+            </summary>
             <div class="budget-item-menu" role="menu" aria-label="More budget item actions">
                 @foreach (var action in OverflowActions)
                 {
                     <button type="button" role="menuitem" disabled="@(IsInProgress || IsRecordDisabled(action))"
-                            aria-label="@action" @onclick="() => InvokeAsync(action)">@action</button>
+                            aria-label="@action" @onclick="() => InvokeAsync(action)">
+                        <span class="rz-icon" aria-hidden="true">@ActionIcon(action)</span>
+                        <span>@action</span>
+                    </button>
                 }
             </div>
         </details>
@@ -40,6 +47,14 @@
         : [Record, Skip, EditNext];
 
     private bool IsRecordDisabled(string action) => action == Record && !CanRecordToCheckbook;
+    private static string ActionIcon(string action) => action switch
+    {
+        Record => "add_task",
+        Skip => "skip_next",
+        Edit => "edit",
+        EditNext => "event_repeat",
+        _ => "more_horiz"
+    };
     private Task InvokePrimaryAsync() => InvokeAsync(PrimaryAction);
     private Task InvokeAsync(string action)
     {

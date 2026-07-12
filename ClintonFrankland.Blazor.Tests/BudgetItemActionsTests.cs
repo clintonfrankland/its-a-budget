@@ -30,12 +30,25 @@ public class BudgetItemActionsTests : BunitContext
 
     [Theory]
     [MemberData(nameof(PageLayouts))]
-    public void ManageableRowRendersPrimaryAndOrderedAccessibleOverflow(string page, string primary, string[] menu)
+    public void ManageableRowRendersIconOnlyPrimaryAndOrderedAccessibleOverflow(string page, string primary, string[] menu)
     {
         var cut = Render(page, canManage: true);
-        Assert.Equal(primary, cut.Find(".budget-item-primary").TextContent.Trim());
-        Assert.Equal("More budget item actions", cut.Find(".budget-item-more").GetAttribute("aria-label"));
-        Assert.Equal(menu, cut.FindAll("[role=menuitem]").Select(x => x.TextContent.Trim()));
+        var primaryButton = cut.Find(".budget-item-primary");
+        var moreButton = cut.Find(".budget-item-more");
+        Assert.Equal(primary, primaryButton.GetAttribute("aria-label"));
+        Assert.Equal(primary, primaryButton.GetAttribute("title"));
+        Assert.DoesNotContain(primary, primaryButton.TextContent.Trim());
+        Assert.Equal("More budget item actions", moreButton.GetAttribute("aria-label"));
+        Assert.Equal("More budget item actions", moreButton.GetAttribute("title"));
+        Assert.DoesNotContain("More budget item actions", moreButton.TextContent.Trim());
+        Assert.Equal(menu, cut.FindAll("[role=menuitem]").Select(MenuItemLabel));
+        Assert.All(cut.FindAll("[role=menuitem]"), menuItem =>
+        {
+            Assert.Equal(MenuItemLabel(menuItem), menuItem.GetAttribute("aria-label"));
+            Assert.Single(menuItem.QuerySelectorAll(".rz-icon"));
+        });
+        Assert.Single(primaryButton.QuerySelectorAll(".rz-icon"));
+        Assert.Single(moreButton.QuerySelectorAll(".rz-icon"));
         Assert.DoesNotContain("Mark Paid", cut.Markup);
     }
 
@@ -63,9 +76,24 @@ public class BudgetItemActionsTests : BunitContext
         var calls = new List<string>();
         var cut = Render(page, true, onRecord: () => calls.Add("record"), onSkip: () => calls.Add("skip"),
             onEdit: () => calls.Add("edit"), onEditNext: () => calls.Add("edit-next"));
-        foreach (var label in new[] { primary }.Concat(menu))
-            cut.FindAll("button").Single(button => button.TextContent.Trim() == label).Click();
+        Assert.Equal(primary, cut.Find(".budget-item-primary").GetAttribute("aria-label"));
+        cut.Find(".budget-item-primary").Click();
+        foreach (var label in menu)
+            cut.FindAll("[role=menuitem]").Single(button => button.GetAttribute("aria-label") == label).Click();
         Assert.Equal(page == "Checkbook" ? ["record", "skip", "edit", "edit-next"] : ["edit", "record", "skip", "edit-next"], calls);
+    }
+
+    [Theory]
+    [InlineData("Components/Pages/Checkbook.razor")]
+    [InlineData("Components/Pages/Budget.razor")]
+    [InlineData("Components/Pages/BudgetItems.razor")]
+    public void EveryBudgetItemListUsesTheSharedCompactActionPair(string relativePath)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var markup = File.ReadAllText(Path.Combine(repositoryRoot, relativePath));
+
+        Assert.Equal(2, CountOccurrences(markup, "<BudgetItemActions"));
+        Assert.Equal(2, CountOccurrences(markup, "Width=\"96px\""));
     }
 
     [Theory]
@@ -157,4 +185,17 @@ public class BudgetItemActionsTests : BunitContext
             .Add(x => x.OnSkip, EventCallback.Factory.Create(this, onSkip ?? (() => { })))
             .Add(x => x.OnEdit, EventCallback.Factory.Create(this, onEdit ?? (() => { })))
             .Add(x => x.OnEditNext, EventCallback.Factory.Create(this, onEditNext ?? (() => { }))));
+
+    private static int CountOccurrences(string value, string search) => value.Split(search, StringSplitOptions.None).Length - 1;
+
+    private static string MenuItemLabel(AngleSharp.Dom.IElement menuItem) => menuItem.Children.Last().TextContent.Trim();
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ClintonFrankland.Blazor.csproj")))
+            directory = directory.Parent;
+
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root was not found.");
+    }
 }

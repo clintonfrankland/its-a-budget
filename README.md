@@ -451,4 +451,4 @@ All tables use the `cf` prefix.
 | jQuery | 3.7.1 | DataTables dependency (CDN) |
 # Budget item actions
 
-Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. The page's most common action remains visible and the other actions are grouped in an accessible compact overflow menu.
+Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. The page's most common action is a compact, icon-only button immediately beside an icon-only More actions trigger; both expose descriptive accessible names and tooltips. The overflow menu retains an icon and visible label for each remaining command. The paired controls have 44px touch targets and a fixed 96px list column so they remain adjacent and usable on narrow screens, whether list actions are placed on the left or right.

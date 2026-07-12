@@ -68,7 +68,7 @@ else
                     @* Actions column (moveable left/right based on profile setting) *@
                     @if (!AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                     {
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="96px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
                                 <BudgetItemActions Page="Budget Items" CanManage="@item.CanManageFinancialData"
                                     CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsHandling(item)"
@@ -112,7 +112,7 @@ else
 
                     @if (AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                     {
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="96px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
                                 <BudgetItemActions Page="Budget Items" CanManage="@item.CanManageFinancialData"
                                     CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsHandling(item)"
@@ -217,17 +217,17 @@ else
                                         <div class="budget-preview-actions">
                                             @if (item.CanManageFinancialData)
                                             {
-                                                <RadzenButton Icon="add_task" Text="@(IsAtLeast(ScreenSize.Small) ? "Record" : "")"
+                                                <RadzenButton Icon="add_task"
                                                               ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
                                                               Click="() => RecordOccurrenceAsync(item)"
                                                               Disabled="@(!item.CanRecordToCheckbook || IsHandling(item))"
                                                               title="Record this occurrence to Checkbook" />
-                                                <RadzenButton Icon="skip_next" Text="@(IsAtLeast(ScreenSize.Small) ? "Skip" : "")"
+                                                <RadzenButton Icon="skip_next"
                                                               ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small"
                                                               Click="() => SkipOccurrenceAsync(item)"
                                                               Disabled="@IsHandling(item)"
                                                               title="Skip this occurrence without creating a transaction" />
-                                                <RadzenButton Icon="edit" Text="@(IsAtLeast(ScreenSize.Medium) ? "Edit" : "")"
+                                                <RadzenButton Icon="edit"
                                                               ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                               Click="() => ShowEditBudgetAsync(item.BudgetId)"
                                                               title="Edit Budget Item or category" />
