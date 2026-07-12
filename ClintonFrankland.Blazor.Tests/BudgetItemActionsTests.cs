@@ -102,6 +102,15 @@ public class BudgetItemActionsTests : BunitContext
         Assert.Equal(2, CountOccurrences(markup, "Width=\"96px\""));
     }
 
+    [Fact]
+    public void CompactActionPairKeepsExplicitPhoneTouchTargets()
+    {
+        var css = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "wwwroot/css/app.css"));
+
+        Assert.Contains(".budget-item-primary { display:inline-grid; place-items:center; min-width:44px; min-height:44px", css);
+        Assert.Contains(".budget-item-more { display:grid; place-items:center; border-radius:0 .25rem .25rem 0; min-width:44px; min-height:44px", css);
+    }
+
     [Theory]
     [InlineData("/budgetitems?edit=101", "Edit Budget")]
     [InlineData("/budget?editNext=101", "Edit Next Occurrence")]
