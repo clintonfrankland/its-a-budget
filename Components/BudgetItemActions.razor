@@ -1,0 +1,58 @@
+@if (CanManage)
+{
+    <div class="budget-item-actions" data-page="@Page" aria-busy="@IsInProgress.ToString().ToLowerInvariant()">
+        <button type="button" class="btn btn-sm @PrimaryButtonClass budget-item-primary"
+                aria-label="@PrimaryAction" disabled="@PrimaryDisabled" @onclick="InvokePrimaryAsync">@PrimaryAction</button>
+        <details class="budget-item-overflow">
+            <summary class="btn btn-sm btn-light budget-item-more" aria-label="More budget item actions">⋮</summary>
+            <div class="budget-item-menu" role="menu" aria-label="More budget item actions">
+                @foreach (var action in OverflowActions)
+                {
+                    <button type="button" role="menuitem" disabled="@(IsInProgress || IsRecordDisabled(action))"
+                            aria-label="@action" @onclick="() => InvokeAsync(action)">@action</button>
+                }
+            </div>
+        </details>
+    </div>
+}
+
+@code {
+    public const string Record = "Record to Checkbook";
+    public const string Skip = "Skip";
+    public const string Edit = "Edit";
+    public const string EditNext = "Edit Next";
+
+    [Parameter, EditorRequired] public string Page { get; set; } = string.Empty;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public bool CanRecordToCheckbook { get; set; } = true;
+    [Parameter] public bool IsInProgress { get; set; }
+    [Parameter] public EventCallback OnRecord { get; set; }
+    [Parameter] public EventCallback OnSkip { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback OnEditNext { get; set; }
+
+    private bool IsCheckbook => Page.Equals("Checkbook", StringComparison.OrdinalIgnoreCase);
+    private string PrimaryAction => IsCheckbook ? Record : Edit;
+    private string PrimaryButtonClass => IsCheckbook ? "btn-success" : "btn-light";
+    private bool PrimaryDisabled => IsInProgress || (IsCheckbook && !CanRecordToCheckbook);
+    private IReadOnlyList<string> OverflowActions => IsCheckbook
+        ? [Skip, Edit, EditNext]
+        : [Record, Skip, EditNext];
+
+    private bool IsRecordDisabled(string action) => action == Record && !CanRecordToCheckbook;
+    private Task InvokePrimaryAsync() => InvokeAsync(PrimaryAction);
+    private Task InvokeAsync(string action)
+    {
+        if (IsInProgress || IsRecordDisabled(action))
+            return Task.CompletedTask;
+
+        return action switch
+        {
+            Record => OnRecord.InvokeAsync(),
+            Skip => OnSkip.InvokeAsync(),
+            Edit => OnEdit.InvokeAsync(),
+            EditNext => OnEditNext.InvokeAsync(),
+            _ => Task.CompletedTask
+        };
+    }
+}

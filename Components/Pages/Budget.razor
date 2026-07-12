@@ -97,26 +97,10 @@ else
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Medium))
-                                    {
-                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                                      Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
-                                                      Click="() => MarkPaidAsync(item.BudgetId)" title="Mark Paid" />
-                                        <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
-                                                      Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
-                                    }
-                                    else if (item.CanManageFinancialData)
-                                    {
-                                        <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
-                                            <ChildContent>
-                                                <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
-                                                <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
-                                                <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
-                                            </ChildContent>
-                                        </RadzenSplitButton>
-                                    }
+                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
+                                        CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
+                                        OnSkip="@(() => MarkPaidAsync(item.BudgetId))" OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))"
+                                        OnEditNext="@(() => ShowEditNextAsync(item.BudgetId))" />
                                 </Template>
                             </RadzenDataGridColumn>
                         }
@@ -148,26 +132,10 @@ else
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="@(IsAtLeast(ScreenSize.Medium) ? "115px" : "70px")" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    @if (item.CanManageFinancialData && IsAtLeast(ScreenSize.Medium))
-                                    {
-                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
-                                                      Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
-                                                      Click="() => MarkPaidAsync(item.BudgetId)" title="Mark Paid" />
-                                        <RadzenButton Icon="edit_calendar" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
-                                                      Click="() => ShowEditNextAsync(item.BudgetId)" title="Edit Next" />
-                                    }
-                                    else if (item.CanManageFinancialData)
-                                    {
-                                        <RadzenSplitButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                           Click="@((RadzenSplitButtonItem args) => OnBudgetGridActionSelectedOrDefaultAsync(args, item))">
-                                            <ChildContent>
-                                                <RadzenSplitButtonItem Text="Edit" Icon="edit" Value="edit" />
-                                                <RadzenSplitButtonItem Text="Mark Paid" Icon="check" Value="paid" />
-                                                <RadzenSplitButtonItem Text="Edit Next" Icon="edit_calendar" Value="editnext" />
-                                            </ChildContent>
-                                        </RadzenSplitButton>
-                                    }
+                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
+                                        CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
+                                        OnSkip="@(() => MarkPaidAsync(item.BudgetId))" OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))"
+                                        OnEditNext="@(() => ShowEditNextAsync(item.BudgetId))" />
                                 </Template>
                             </RadzenDataGridColumn>
                         }

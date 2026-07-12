@@ -326,6 +326,8 @@ public partial class Checkbook
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
     }
+    private void EditBudgetItem(int budgetId) => Navigation.NavigateTo($"/budgetitems?edit={budgetId}");
+    private void EditNextBudgetItem(int budgetId) => Navigation.NavigateTo($"/budget?editNext={budgetId}");
     private async Task MarkBudgetPaidAsync(int budgetId)
     {
         var userId = CurrentUser.UserId;

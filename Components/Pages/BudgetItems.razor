@@ -70,11 +70,10 @@ else
                     {
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                @if (item.CanManageFinancialData)
-                                {
-                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                  Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                                }
+                                <BudgetItemActions Page="Budget Items" CanManage="@item.CanManageFinancialData"
+                                    CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsHandling(item)"
+                                    OnRecord="@(() => RecordOccurrenceAsync(item))" OnSkip="@(() => SkipOccurrenceAsync(item))"
+                                    OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))" OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />
                             </Template>
                         </RadzenDataGridColumn>
                     }
@@ -115,11 +114,10 @@ else
                     {
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
-                                @if (item.CanManageFinancialData)
-                                {
-                                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                  Click="() => ShowEditBudgetAsync(item.BudgetId)" title="Edit" />
-                                }
+                                <BudgetItemActions Page="Budget Items" CanManage="@item.CanManageFinancialData"
+                                    CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsHandling(item)"
+                                    OnRecord="@(() => RecordOccurrenceAsync(item))" OnSkip="@(() => SkipOccurrenceAsync(item))"
+                                    OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))" OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />
                             </Template>
                         </RadzenDataGridColumn>
                     }

@@ -447,3 +447,6 @@ All tables use the `cf` prefix.
 | Moment.js | 2.30.1 | Date labels for Chart.js (CDN) |
 | DataTables | — | Table search/sort/pagination (CDN) |
 | jQuery | 3.7.1 | DataTables dependency (CDN) |
+# Budget item actions
+
+Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. The page's most common action remains visible and the other actions are grouped in an accessible compact overflow menu.

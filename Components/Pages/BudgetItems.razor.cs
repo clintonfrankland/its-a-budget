@@ -213,6 +213,8 @@ public partial class BudgetItems
         }
     }
 
+    private void EditNextBudgetItem(int budgetId) => Navigation.NavigateTo($"/budget?editNext={budgetId}");
+
     private async Task SkipOccurrenceAsync(BudgetItemViewModel item)
     {
         if (!item.CanManageFinancialData || !handlingOccurrenceKeys.Add(item.OccurrenceKey))

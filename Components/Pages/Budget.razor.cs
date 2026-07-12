@@ -373,6 +373,14 @@ public partial class Budget
         }
     }
 
+    private async Task RecordBudgetAsync(BudgetItemViewModel item)
+    {
+        if (!item.CanRecordToCheckbook)
+            return;
+        await BudgetSchedule.RecordOccurrenceToCheckbookAsync(CurrentUser.UserId, item.BudgetId, item.DueDate);
+        await LoadDataAsync();
+    }
+
     private async Task ShowEditNextAsync(int budgetId)
     {
         try
