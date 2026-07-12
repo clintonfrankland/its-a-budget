@@ -29,6 +29,9 @@ public partial class Budget
     [Inject]
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
+    [SupplyParameterFromQuery(Name = "editNext")]
+    private int? InitialEditNextBudgetId { get; set; }
+
     private enum ViewMode { List, Edit, EditNext }
     private ViewMode currentView = ViewMode.List;
 
@@ -88,6 +91,8 @@ public partial class Budget
                 return;
             }
             await LoadDataAsync();
+            if (InitialEditNextBudgetId is > 0)
+                await ShowEditNextAsync(InitialEditNextBudgetId.Value);
             StateHasChanged();
         }
     }

@@ -39,6 +39,9 @@ public partial class BudgetItems
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
+    [SupplyParameterFromQuery(Name = "edit")]
+    private int? InitialEditBudgetId { get; set; }
+
     private enum ViewMode { List, Calendar, Edit }
     private ViewMode currentView = ViewMode.List;
 
@@ -112,6 +115,8 @@ public partial class BudgetItems
                 return;
             }
             await LoadDataAsync();
+            if (InitialEditBudgetId is > 0)
+                await ShowEditBudgetAsync(InitialEditBudgetId.Value);
             StateHasChanged();
         }
     }

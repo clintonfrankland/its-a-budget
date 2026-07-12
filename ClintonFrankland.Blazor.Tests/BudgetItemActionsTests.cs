@@ -6,6 +6,8 @@ namespace ClintonFrankland.Blazor.Tests;
 
 public class BudgetItemActionsTests : BunitContext
 {
+    private static readonly string RepoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
+
     public static TheoryData<string, string, string[]> PageLayouts => new()
     {
         { "Checkbook", "Record to Checkbook", ["Skip", "Edit", "Edit Next"] },
@@ -51,6 +53,26 @@ public class BudgetItemActionsTests : BunitContext
         foreach (var label in new[] { primary }.Concat(menu))
             cut.FindAll("button").Single(button => button.TextContent.Trim() == label).Click();
         Assert.Equal(page == "Checkbook" ? ["record", "skip", "edit", "edit-next"] : ["edit", "record", "skip", "edit-next"], calls);
+    }
+
+    [Fact]
+    public void CrossPageEditDestinationsOpenTheirAuthorizedPageLocalEditors()
+    {
+        var checkbook = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Checkbook.razor.cs"));
+        var budgetItems = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/BudgetItems.razor.cs"));
+        var budget = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Budget.razor.cs"));
+
+        Assert.Contains("NavigateTo($\"/budgetitems?edit={budgetId}\")", checkbook);
+        Assert.Contains("[SupplyParameterFromQuery(Name = \"edit\")]", budgetItems);
+        Assert.Contains("await ShowEditBudgetAsync(InitialEditBudgetId.Value)", budgetItems);
+
+        Assert.Contains("NavigateTo($\"/budget?editNext={budgetId}\")", checkbook);
+        Assert.Contains("NavigateTo($\"/budget?editNext={budgetId}\")", budgetItems);
+        Assert.Contains("[SupplyParameterFromQuery(Name = \"editNext\")]", budget);
+        Assert.Contains("await ShowEditNextAsync(InitialEditNextBudgetId.Value)", budget);
+
+        Assert.Contains("CanManageFinancialDataAsync", budgetItems);
+        Assert.Contains("CanManageFinancialDataAsync", budget);
     }
 
     private IRenderedComponent<BudgetItemActions> Render(string page, bool canManage, bool canRecord = true,
