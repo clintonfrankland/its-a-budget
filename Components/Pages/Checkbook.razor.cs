@@ -112,6 +112,9 @@ public partial class Checkbook
     private IBrowserFile? editAttachmentFile = null;
     private bool removeAttachment = false;
     private bool canManageEditFinancialData;
+    private int? editAccountId;
+    private bool ruleSuggestionReviewed;
+    private string ruleReviewMessage = string.Empty;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -404,6 +407,9 @@ public partial class Checkbook
         editIsDebit = true;
         editCleared = false;
         editNotes = string.Empty;
+        editAccountId = null;
+        ruleSuggestionReviewed = false;
+        ruleReviewMessage = string.Empty;
         editAttachmentPath = null;
         editAttachmentFile = null;
         removeAttachment = false;
@@ -427,6 +433,9 @@ public partial class Checkbook
         editIsDebit = budgetItem.Amount < 0;
         editCleared = false;
         editNotes = string.Empty;
+        editAccountId = null;
+        ruleSuggestionReviewed = false;
+        ruleReviewMessage = string.Empty;
         editAttachmentPath = null;
         editAttachmentFile = null;
         removeAttachment = false;
@@ -459,6 +468,9 @@ public partial class Checkbook
                 editAmount = Math.Abs(amount);
                 editCleared = transaction.Cleared;
                 editNotes = transaction.Notes ?? string.Empty;
+                editAccountId = transaction.AccountId;
+                ruleSuggestionReviewed = false;
+                ruleReviewMessage = string.Empty;
                 editAttachmentPath = transaction.AttachmentPath;
                 editAttachmentFile = null;
                 removeAttachment = false;
@@ -480,17 +492,24 @@ public partial class Checkbook
         shouldRestoreGridState = true;
     }
 
-    // Invoked before Save so the user can inspect or override all suggested values in the edit form.
-    private async Task ApplyMatchingRuleAsync()
+    // First save attempt applies the highest-priority match, then pauses so the user can review or override it.
+    private async Task<bool> ReviewMatchingRuleAsync()
     {
         var userId = CurrentUser.UserId;
-        var account = await CheckbookData.GetAccountForUserAsync(userId);
+        if (!editAccountId.HasValue)
+            editAccountId = (await CheckbookData.GetAccountForUserAsync(userId))?.AccountId;
         var signedAmount = editIsDebit ? -editAmount : editAmount;
-        var suggestion = await TransactionRules.SuggestAsync(userId, account?.AccountId, signedAmount, editPayee, editNotes);
-        if (suggestion is null) return;
+        var suggestion = await TransactionRules.SuggestAsync(userId, editAccountId, signedAmount, editPayee, editNotes);
+        ruleSuggestionReviewed = true;
+        if (suggestion is null) return false;
+        var changed = (!string.IsNullOrWhiteSpace(suggestion.CategoryName) && !string.Equals(editCategory, suggestion.CategoryName, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(suggestion.PayeeName) && !string.Equals(editPayee, suggestion.PayeeName, StringComparison.OrdinalIgnoreCase)) ||
+            (suggestion.Notes is not null && !string.Equals(editNotes, suggestion.Notes, StringComparison.Ordinal));
         if (!string.IsNullOrWhiteSpace(suggestion.CategoryName)) editCategory = suggestion.CategoryName;
         if (!string.IsNullOrWhiteSpace(suggestion.PayeeName)) editPayee = suggestion.PayeeName;
         if (suggestion.Notes is not null) editNotes = suggestion.Notes;
+        if (changed) ruleReviewMessage = "A matching rule filled the highlighted transaction values. Review or override them, then select Save again.";
+        return changed;
     }
 
     private async Task SaveTransactionAsync()
@@ -513,6 +532,8 @@ public partial class Checkbook
             }
 
             var userId = CurrentUser.UserId;
+            if (!ruleSuggestionReviewed && await ReviewMatchingRuleAsync())
+                return;
             var finalAmount = editIsDebit ? -editAmount : editAmount;
             finalAmount = CurrencyPolicy.Round(finalAmount);
             string? attachmentPath = editAttachmentPath;
