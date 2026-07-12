@@ -1,6 +1,7 @@
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClintonFrankland.Components.Layout;
 
@@ -14,7 +15,7 @@ public partial class MainLayout : IDisposable
     private CurrentUserContext CurrentUserContext { get; set; } = default!;
 
     [Inject]
-    private SharedBudgetDataService SharedBudgetsService { get; set; } = default!;
+    private IServiceScopeFactory ScopeFactory { get; set; } = default!;
 
     [Inject]
     private SiteInfoService SiteInfoService { get; set; } = default!;
@@ -42,7 +43,11 @@ public partial class MainLayout : IDisposable
             await AuthService.InitializeAsync();
             if (AuthService.IsAuthenticated)
             {
-                _budgetSwitcherOptions = await SharedBudgetsService.GetReadableSharedBudgetSummariesAsync(CurrentUserContext.UserId);
+                // Layout and routed page first renders can overlap in a Blazor circuit. Use an
+                // isolated scope so their EF queries never share the circuit-scoped DbContext.
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var sharedBudgetsService = scope.ServiceProvider.GetRequiredService<SharedBudgetDataService>();
+                _budgetSwitcherOptions = await sharedBudgetsService.GetReadableSharedBudgetSummariesAsync(CurrentUserContext.UserId);
                 _selectedSwitcherBudgetId = _budgetSwitcherOptions.FirstOrDefault()?.SharedBudgetId ?? 0;
             }
             StateHasChanged();

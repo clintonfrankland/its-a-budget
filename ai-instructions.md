@@ -55,6 +55,7 @@ Use Semantic Versioning with an explicit build number for every development proj
 - Do not break workspace path conventions.
 - Do not hand-wave idempotency in automation tools.
 - Do not hold DbContexts across renders or across awaits.
+- Blazor layouts and routed pages can run first-render work concurrently. Any layout database load must use an isolated dependency-injection scope (or a context factory), never the circuit-scoped `DbContext` also used by the page.
 - Do not introduce another UI component library where one is already established.
 
 ## Workflow

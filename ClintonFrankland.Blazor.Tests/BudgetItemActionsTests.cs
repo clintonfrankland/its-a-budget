@@ -148,8 +148,18 @@ public class BudgetItemActionsTests : BunitContext
         Assert.DoesNotContain("min-width:44px", css);
         Assert.DoesNotContain("min-height:44px", css);
         Assert.Contains(".budget-item-actions { display:inline-flex; align-items:center", css);
-        Assert.Contains("width:1.5rem; min-width:1.5rem; padding-inline:0", css);
+        Assert.Contains("inline-size:1.5rem !important; min-inline-size:1.5rem !important; max-inline-size:1.5rem !important; padding-inline:0 !important", css);
         Assert.Contains(".budget-item-overflow.open .budget-item-menu { display:grid; }", css);
+    }
+
+    [Fact]
+    public void MainLayoutLoadsBudgetSwitcherInAnIsolatedDependencyInjectionScope()
+    {
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Components/Layout/MainLayout.razor.cs"));
+
+        Assert.Contains("ScopeFactory.CreateAsyncScope()", source);
+        Assert.Contains("scope.ServiceProvider.GetRequiredService<SharedBudgetDataService>()", source);
+        Assert.DoesNotContain("private SharedBudgetDataService SharedBudgetsService", source);
     }
 
     [Theory]
