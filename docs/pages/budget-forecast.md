@@ -65,7 +65,7 @@ Each row supports quick actions:
 - **Mark Paid**: mark the current occurrence as handled.
 - **Edit Next**: adjust the next occurrence without changing the long-term pattern.
 
-Forecast rows keep **Edit** as an icon-only primary control followed by an icon-only three-dot **More actions** trigger. The menu uses visible icon-and-text commands for Record to Checkbook, Skip, and Edit Next.
+Forecast rows keep **Edit** as an icon-only primary control followed by an icon-only three-dot **More actions** trigger. The menu uses visible icon-and-text commands for Record to Checkbook, Skip, and Edit Next. These controls use embedded SVG icons so they remain visible without an external icon font.
 
 “Edit Next” is perfect for real life, where bills are *usually* the same but not always. It helps you stay accurate without breaking your recurring setup.
 

@@ -62,7 +62,7 @@ For each item you can:
 - **Skip**: mark that occurrence handled without creating a transaction, using the same recurrence advancement rule.
 - **Edit**: return to the Budget Item editor to fix details.
 
-The main Budget Items list uses compact icon-only row controls: **Edit** is immediately followed by a three-dot **More actions** control. Hover or keyboard focus shows a descriptive tooltip; the More actions menu keeps both an icon and text for Record to Checkbook, Skip, and Edit Next.
+The main Budget Items list uses compact icon-only row controls: **Edit** is immediately followed by a three-dot **More actions** control. Hover or keyboard focus shows a descriptive tooltip; the More actions menu keeps both an icon and text for Record to Checkbook, Skip, and Edit Next. These controls use embedded SVG icons so they remain visible without an external icon font.
 
 If the category is missing, blank, or belongs outside the current budget/user scope, the preview shows a warning and disables **Record**. Use **Edit** to choose a valid category first. **Skip** remains available when you intentionally want to move past the occurrence without creating a transaction.
 

@@ -45,10 +45,16 @@ public class BudgetItemActionsTests : BunitContext
         Assert.All(cut.FindAll("[role=menuitem]"), menuItem =>
         {
             Assert.Equal(MenuItemLabel(menuItem), menuItem.GetAttribute("aria-label"));
-            Assert.Single(menuItem.QuerySelectorAll(".rz-icon"));
+            Assert.Single(menuItem.QuerySelectorAll("svg.budget-item-action-icon"));
+            Assert.Empty(menuItem.QuerySelectorAll(".rz-icon"));
         });
-        Assert.Single(primaryButton.QuerySelectorAll(".rz-icon"));
-        Assert.Single(moreButton.QuerySelectorAll(".rz-icon"));
+        Assert.Single(primaryButton.QuerySelectorAll("svg.budget-item-action-icon"));
+        Assert.Single(moreButton.QuerySelectorAll("svg.budget-item-action-icon"));
+        Assert.Empty(cut.FindAll(".rz-icon"));
+        Assert.DoesNotContain("add_task", cut.Markup);
+        Assert.DoesNotContain("more_vert", cut.Markup);
+        Assert.DoesNotContain("skip_next", cut.Markup);
+        Assert.DoesNotContain("event_repeat", cut.Markup);
         Assert.DoesNotContain("Mark Paid", cut.Markup);
     }
 
