@@ -150,6 +150,7 @@ public class BudgetItemActionsTests : BunitContext
         Assert.Contains(".budget-item-actions { display:inline-flex; align-items:center", css);
         Assert.Contains("inline-size:1.5rem !important; min-inline-size:1.5rem !important; max-inline-size:1.5rem !important; padding-inline:0 !important", css);
         Assert.Contains(".budget-item-overflow.open .budget-item-menu { display:grid; }", css);
+        Assert.Contains(".rz-data-row:nth-last-child(-n+3) .budget-item-menu { top:auto; bottom:100%; }", css);
         Assert.Contains(".rz-data-row:has(.budget-item-overflow.open) { position:relative; z-index:1001; }", css);
         Assert.Contains(".rz-data-row > td:has(.budget-item-overflow.open) { position:relative; z-index:1001; overflow:visible !important; }", css);
     }
