@@ -1,13 +1,26 @@
 using Bunit;
 using ClintonFrankland.Components;
+using ClintonFrankland.Components.Pages;
+using ClintonFrankland.Data;
+using ClintonFrankland.Models;
+using ClintonFrankland.Models.Entities;
+using ClintonFrankland.Services;
+using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.JSInterop;
+using Radzen;
+using Radzen.Blazor;
 using Microsoft.AspNetCore.Components;
+using System.Reflection;
 
 namespace ClintonFrankland.Blazor.Tests;
 
 public class BudgetItemActionsTests : BunitContext
 {
-    private static readonly string RepoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
-
     public static TheoryData<string, string, string[]> PageLayouts => new()
     {
         { "Checkbook", "Record to Checkbook", ["Skip", "Edit", "Edit Next"] },
@@ -55,24 +68,84 @@ public class BudgetItemActionsTests : BunitContext
         Assert.Equal(page == "Checkbook" ? ["record", "skip", "edit", "edit-next"] : ["edit", "record", "skip", "edit-next"], calls);
     }
 
-    [Fact]
-    public void CrossPageEditDestinationsOpenTheirAuthorizedPageLocalEditors()
+    [Theory]
+    [InlineData("/budgetitems?edit=101", "Edit Budget")]
+    [InlineData("/budget?editNext=101", "Edit Next Occurrence")]
+    public void QueryDrivenEditDestinationsOpenAuthorizedPageLocalEditors(string uri, string heading)
     {
-        var checkbook = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Checkbook.razor.cs"));
-        var budgetItems = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/BudgetItems.razor.cs"));
-        var budget = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Budget.razor.cs"));
+        ConfigurePageServices(BudgetMemberRole.Editor);
+        Services.GetRequiredService<NavigationManager>().NavigateTo(uri);
 
-        Assert.Contains("NavigateTo($\"/budgetitems?edit={budgetId}\")", checkbook);
-        Assert.Contains("[SupplyParameterFromQuery(Name = \"edit\")]", budgetItems);
-        Assert.Contains("await ShowEditBudgetAsync(InitialEditBudgetId.Value)", budgetItems);
+        var cut = RenderRouter();
 
-        Assert.Contains("NavigateTo($\"/budget?editNext={budgetId}\")", checkbook);
-        Assert.Contains("NavigateTo($\"/budget?editNext={budgetId}\")", budgetItems);
-        Assert.Contains("[SupplyParameterFromQuery(Name = \"editNext\")]", budget);
-        Assert.Contains("await ShowEditNextAsync(InitialEditNextBudgetId.Value)", budget);
+        cut.WaitForAssertion(() => Assert.Contains(heading, cut.Markup));
+        Assert.Contains("Managed budget", cut.Markup);
+        Assert.Contains("Save", cut.Markup);
+    }
 
-        Assert.Contains("CanManageFinancialDataAsync", budgetItems);
-        Assert.Contains("CanManageFinancialDataAsync", budget);
+    [Theory]
+    [InlineData("/budgetitems?edit=101", "Edit Budget")]
+    [InlineData("/budget?editNext=101", "Edit Next Occurrence")]
+    public void QueryDrivenEditDestinationsDenyReadOnlyBudgetItems(string uri, string forbiddenHeading)
+    {
+        ConfigurePageServices(BudgetMemberRole.Viewer);
+        Services.GetRequiredService<NavigationManager>().NavigateTo(uri);
+
+        var cut = RenderRouter();
+
+        cut.WaitForAssertion(() => Assert.Contains("Read-only budget", cut.Markup));
+        Assert.DoesNotContain(forbiddenHeading, cut.Markup);
+    }
+
+    private IRenderedComponent<Router> RenderRouter() => Render<Router>(parameters => parameters
+        .Add(x => x.AppAssembly, typeof(ClintonFrankland.Components.Pages.Budget).Assembly)
+        .Add(x => x.Found, routeData => builder =>
+        {
+            builder.OpenComponent<RouteView>(0);
+            builder.AddAttribute(1, nameof(RouteView.RouteData), routeData);
+            builder.CloseComponent();
+        }));
+
+    private void ConfigurePageServices(BudgetMemberRole role)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        ComponentFactories.AddStub<RadzenChart>();
+        Services.AddRadzenComponents();
+        var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        var db = new ClintonFranklandDbContext(options);
+        db.Users.Add(new User { UserId = 7, UserName = "tester", DisplayName = "Tester" });
+        db.SharedBudgets.Add(new SharedBudget { SharedBudgetId = 50, Name = "Test household", OwnerUserId = 8 });
+        db.BudgetMembers.Add(new BudgetMember { SharedBudgetId = 50, UserId = 7, Role = role });
+        db.Categories.Add(new Category { CategoryId = 10, CategoryName = "Housing", UserId = 8, SharedBudgetId = 50 });
+        db.Frequencies.Add(new Frequency { FrequencyId = 1, FrequencyName = "Monthly", Sort = 1 });
+        db.Budgets.AddRange(
+            new ClintonFrankland.Models.Entities.Budget { BudgetId = 101, BudgetName = role == BudgetMemberRole.Viewer ? "Read-only budget" : "Managed budget", BudgetTypeId = 1, CategoryId = 10, FrequencyId = 1, UserId = 8, SharedBudgetId = 50, NextDueDate = DateTime.Today, Amount = 25m },
+            new ClintonFrankland.Models.Entities.Budget { BudgetId = 102, BudgetName = "Read-only budget", BudgetTypeId = 1, CategoryId = 10, FrequencyId = 1, UserId = 8, SharedBudgetId = 50, NextDueDate = DateTime.Today.AddDays(1), Amount = 30m });
+        db.SaveChanges();
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AppSettings:DefaultUserId"] = "7"
+        }).Build();
+        var auth = new AuthService(configuration,
+            new ProtectedSessionStorage(JSInterop.JSRuntime, new EphemeralDataProtectionProvider()),
+            db, new Microsoft.AspNetCore.Http.HttpContextAccessor());
+        typeof(AuthService).GetField("_currentUser", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(auth, new UserInfo { UserId = 7, UserName = "tester", DisplayName = "Tester", IsLoggedIn = true });
+        typeof(AuthService).GetField("_isInitialized", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(auth, true);
+        var shared = new SharedBudgetDataService(db);
+        Services.AddSingleton(db);
+        Services.AddSingleton(auth);
+        Services.AddSingleton(new SiteInfoService(configuration));
+        Services.AddSingleton<CurrentUserContext>();
+        Services.AddSingleton(shared);
+        Services.AddSingleton(new BudgetDataService(db, shared));
+        Services.AddSingleton(new BudgetItemsDataService(db, shared));
+        Services.AddSingleton(new BudgetScheduleService(db, shared));
+        Services.AddSingleton(new CheckbookDataService(db, shared));
+        Services.AddSingleton<BudgetItemsExportService>();
+        Services.AddSingleton<DialogService>();
     }
 
     private IRenderedComponent<BudgetItemActions> Render(string page, bool canManage, bool canRecord = true,
