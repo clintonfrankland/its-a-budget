@@ -25,6 +25,9 @@ public partial class Checkbook
     private CheckbookDataService CheckbookData { get; set; } = default!;
 
     [Inject]
+    private TransactionRulesDataService TransactionRules { get; set; } = default!;
+
+    [Inject]
     private BudgetScheduleService BudgetSchedule { get; set; } = default!;
 
     [Inject]
@@ -475,6 +478,19 @@ public partial class Checkbook
         canManageEditFinancialData = false;
         currentView = ViewMode.List;
         shouldRestoreGridState = true;
+    }
+
+    // Invoked before Save so the user can inspect or override all suggested values in the edit form.
+    private async Task ApplyMatchingRuleAsync()
+    {
+        var userId = CurrentUser.UserId;
+        var account = await CheckbookData.GetAccountForUserAsync(userId);
+        var signedAmount = editIsDebit ? -editAmount : editAmount;
+        var suggestion = await TransactionRules.SuggestAsync(userId, account?.AccountId, signedAmount, editPayee, editNotes);
+        if (suggestion is null) return;
+        if (!string.IsNullOrWhiteSpace(suggestion.CategoryName)) editCategory = suggestion.CategoryName;
+        if (!string.IsNullOrWhiteSpace(suggestion.PayeeName)) editPayee = suggestion.PayeeName;
+        if (suggestion.Notes is not null) editNotes = suggestion.Notes;
     }
 
     private async Task SaveTransactionAsync()

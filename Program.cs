@@ -203,6 +203,7 @@ builder.Services.AddScoped<BudgetScheduleService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CategoryBudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();
+builder.Services.AddScoped<TransactionRulesDataService>();
 builder.Services.AddScoped<DashboardDataService>();
 builder.Services.AddScoped<InsightsDataService>();
 builder.Services.AddScoped<ReportsDataService>();

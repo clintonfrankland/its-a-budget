@@ -370,6 +370,7 @@ else
 
                 <RadzenRow>
                     <RadzenColumn Size="12" class="text-center">
+                        <RadzenButton Text="Apply matching rule" ButtonStyle="ButtonStyle.Secondary" Click="ApplyMatchingRuleAsync" class="me-2" Disabled="@(!canManageEditFinancialData)" />
                         <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Click="SaveTransactionAsync" class="me-2" Disabled="@(!canManageEditFinancialData)" />
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>

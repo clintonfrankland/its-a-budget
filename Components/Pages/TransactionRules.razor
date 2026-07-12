@@ -1,0 +1,42 @@
+@page "/transaction-rules"
+@rendermode InteractiveServer
+@using ClintonFrankland.Models.Entities
+@using ClintonFrankland.Models.ViewModels
+@using ClintonFrankland.Services
+@inject AuthService AuthService
+@inject CurrentUserContext CurrentUser
+@inject TransactionRulesDataService Rules
+@inject NavigationManager Navigation
+
+<PageTitle>Transaction Rules</PageTitle>
+@if (!AuthService.IsAuthenticated) { <p>Redirecting to login...</p> }
+else { <div class="container mt-3"><h1>Transaction Rules</h1>
+<p class="text-muted">Rules run from top to bottom. Amounts are signed: expenses are negative and income is positive.</p>
+@if (!string.IsNullOrEmpty(error)) { <div class="alert alert-danger">@error</div> }
+<RadzenCard class="mb-3"><h5>@(editingId is null ? "New rule" : "Edit rule")</h5>
+<RadzenTextBox @bind-Value="contains" Placeholder="Text to find in payee or notes" Style="width:100%" />
+<div class="row mt-2"><div class="col"><RadzenNumeric @bind-Value="min" TValue="decimal?" Placeholder="Minimum signed amount" /></div><div class="col"><RadzenNumeric @bind-Value="max" TValue="decimal?" Placeholder="Maximum signed amount" /></div></div>
+<div class="row mt-2"><div class="col"><RadzenTextBox @bind-Value="category" Placeholder="Set category" Style="width:100%" /></div><div class="col"><RadzenTextBox @bind-Value="payee" Placeholder="Set payee" Style="width:100%" /></div></div>
+<RadzenTextArea @bind-Value="notes" Placeholder="Set notes" Rows="2" Style="width:100%" class="mt-2" />
+<RadzenCheckBox @bind-Value="enabled" TValue="bool" /> <span>Enabled</span>
+<RadzenButton Text="Save rule" Click="Save" class="ms-2" /> <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="Reset" class="ms-2" />
+</RadzenCard>
+<RadzenCard><h5>Priority (first match wins)</h5>
+@foreach (var r in rules) { <div class="border-bottom py-2 d-flex align-items-center gap-2"><span class="flex-grow-1"><strong>@r.ContainsText</strong> → @Outputs(r) @(!r.IsEnabled ? "(disabled)" : "")</span><RadzenButton Icon="keyboard_arrow_up" Size="ButtonSize.Small" Click="@(() => Move(r, -1))" /><RadzenButton Icon="keyboard_arrow_down" Size="ButtonSize.Small" Click="@(() => Move(r, 1))" /><RadzenButton Text="Edit" Size="ButtonSize.Small" Click="@(() => Edit(r))" /><RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => Delete(r.TransactionRuleId))" /></div> }
+</RadzenCard>
+<RadzenCard class="mt-3"><h5>Preview existing transactions</h5><RadzenButton Text="Preview" Click="Preview" /> @if (preview.Count > 0) { <RadzenButton Text="Apply previewed changes" ButtonStyle="ButtonStyle.Warning" Click="Apply" class="ms-2" /> <ul class="mt-2">@foreach (var p in preview) { <li>#@p.TransactionId: @p.CurrentPayee → @(p.NewPayee ?? p.CurrentPayee), @p.CurrentCategory → @(p.NewCategory ?? p.CurrentCategory)</li> }</ul> } else { <span class="ms-2 text-muted">No pending preview changes.</span> }</RadzenCard>
+</div> }
+
+@code {
+ private List<TransactionRule> rules = []; private List<TransactionRulePreviewItem> preview = []; private string? error; private int? editingId; private string contains = ""; private decimal? min; private decimal? max; private string? category; private string? payee; private string? notes; private bool enabled = true;
+ protected override async Task OnAfterRenderAsync(bool first) { if (!first) return; await AuthService.InitializeAsync(); if (!AuthService.IsAuthenticated) { Navigation.NavigateTo("/login?Return=%2Ftransaction-rules"); return; } await Load(); StateHasChanged(); }
+ private async Task Load() => rules = await Rules.GetRulesAsync(CurrentUser.UserId);
+ private async Task Save() { try { await Rules.SaveAsync(CurrentUser.UserId, new(editingId, contains, null, min, max, category, payee, notes, enabled)); Reset(); await Load(); } catch (Exception ex) { error = ex.Message; } }
+ private void Edit(TransactionRule r) { editingId=r.TransactionRuleId; contains=r.ContainsText; min=r.MinimumAmount; max=r.MaximumAmount; category=r.CategoryName; payee=r.PayeeName; notes=r.Notes; enabled=r.IsEnabled; }
+ private void Reset() { editingId=null; contains=""; min=max=null; category=payee=notes=null; enabled=true; error=null; }
+ private async Task Delete(int id) { await Rules.DeleteAsync(CurrentUser.UserId, id); await Load(); }
+ private async Task Move(TransactionRule r, int delta) { var ids=rules.Select(x=>x.TransactionRuleId).ToList(); var i=ids.IndexOf(r.TransactionRuleId); var target=i+delta; if(target<0||target>=ids.Count)return; (ids[i],ids[target])=(ids[target],ids[i]); await Rules.ReorderAsync(CurrentUser.UserId,ids); await Load(); }
+ private async Task Preview() { preview=await Rules.PreviewAsync(CurrentUser.UserId); }
+ private async Task Apply() { await Rules.ApplyAsync(CurrentUser.UserId, preview.Select(p=>p.TransactionId).ToArray()); await Preview(); }
+ private static string Outputs(TransactionRule r) => string.Join(", ", new[] { r.CategoryName is null ? null : $"category: {r.CategoryName}", r.PayeeName is null ? null : $"payee: {r.PayeeName}", r.Notes is null ? null : "notes" }.Where(x => x is not null));
+}

@@ -24,6 +24,7 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<Frequency> Frequencies => Set<Frequency>();
     public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<TransactionRule> TransactionRules => Set<TransactionRule>();
     public DbSet<User> Users => Set<User>();
     public DbSet<AuthLoginAudit> AuthLoginAudits => Set<AuthLoginAudit>();
     public DbSet<SmtpSetting> SmtpSettings => Set<SmtpSetting>();
@@ -265,6 +266,17 @@ public class ClintonFranklandDbContext : DbContext
                 .IsRequired()
                 .HasDefaultValueSql("SYSUTCDATETIME()");
             entity.HasIndex(x => x.OccurredAt);
+        });
+
+        modelBuilder.Entity<TransactionRule>(entity =>
+        {
+            entity.HasKey(r => r.TransactionRuleId);
+            entity.Property(r => r.ContainsText).HasMaxLength(256).IsRequired();
+            entity.Property(r => r.CategoryName).HasMaxLength(128);
+            entity.Property(r => r.PayeeName).HasMaxLength(255);
+            entity.Property(r => r.Notes).HasMaxLength(500);
+            entity.Property(r => r.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(r => new { r.UserId, r.Priority });
         });
 
         // Configure User notification preferences with defaults
