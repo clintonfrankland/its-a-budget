@@ -92,6 +92,6 @@ For each upcoming item, you can:
 - **Record to Checkbook**: creates a matching transaction in your register.
 - **Skip**: marks the item handled without adding a transaction.
 
-In the upcoming-items list, **Record to Checkbook** is the icon-only primary control and sits beside the icon-only three-dot **More actions** control. The overflow menu shows labeled icon commands for Skip, Edit, and Edit Next. These controls use embedded SVG icons so they remain visible without an external icon font.
+In the upcoming-items list, the original small green Radzen **Record to Checkbook** icon button sits beside a matching small three-dot **More actions** button. The overflow menu shows the app's original icons plus text for Skip, Edit, and Edit Next.
 
 This is one of the app’s best quality-of-life features. It helps you move from “planning” to “recording” without doing the same work twice.

@@ -28,6 +28,13 @@ public class BudgetItemActionsTests : BunitContext
         { "Budget Items", "Edit", ["Record to Checkbook", "Skip", "Edit Next"] }
     };
 
+    public static TheoryData<string, string, string, string[]> OriginalIcons => new()
+    {
+        { "Checkbook", "add_task", "success", ["skip_next", "edit", "edit_calendar"] },
+        { "Budget Forecast", "edit", "light", ["add_task", "skip_next", "edit_calendar"] },
+        { "Budget Items", "edit", "light", ["add_task", "skip_next", "edit_calendar"] }
+    };
+
     [Theory]
     [MemberData(nameof(PageLayouts))]
     public void ManageableRowRendersIconOnlyPrimaryAndOrderedAccessibleOverflow(string page, string primary, string[] menu)
@@ -45,17 +52,26 @@ public class BudgetItemActionsTests : BunitContext
         Assert.All(cut.FindAll("[role=menuitem]"), menuItem =>
         {
             Assert.Equal(MenuItemLabel(menuItem), menuItem.GetAttribute("aria-label"));
-            Assert.Single(menuItem.QuerySelectorAll("svg.budget-item-action-icon"));
-            Assert.Empty(menuItem.QuerySelectorAll(".rz-icon"));
+            Assert.Single(menuItem.QuerySelectorAll(".rzi"));
         });
-        Assert.Single(primaryButton.QuerySelectorAll("svg.budget-item-action-icon"));
-        Assert.Single(moreButton.QuerySelectorAll("svg.budget-item-action-icon"));
-        Assert.Empty(cut.FindAll(".rz-icon"));
-        Assert.DoesNotContain("add_task", cut.Markup);
-        Assert.DoesNotContain("more_vert", cut.Markup);
-        Assert.DoesNotContain("skip_next", cut.Markup);
-        Assert.DoesNotContain("event_repeat", cut.Markup);
+        Assert.Single(primaryButton.QuerySelectorAll(".rzi"));
+        Assert.Single(moreButton.QuerySelectorAll(".rzi"));
         Assert.DoesNotContain("Mark Paid", cut.Markup);
+    }
+
+    [Theory]
+    [MemberData(nameof(OriginalIcons))]
+    public void UsesTheExactOriginalRadzenButtonSizeShapeAndIcons(string page, string primaryIcon,
+        string buttonStyle, string[] menuIcons)
+    {
+        var cut = Render(page, canManage: true);
+        var primary = cut.Find(".budget-item-primary");
+
+        Assert.Contains("rz-button-sm", primary.ClassList);
+        Assert.Contains($"rz-{buttonStyle}", primary.ClassList);
+        Assert.Equal(primaryIcon, primary.QuerySelector(".rzi")?.TextContent.Trim());
+        Assert.Equal("more_vert", cut.Find(".budget-item-more .rzi").TextContent.Trim());
+        Assert.Equal(menuIcons, cut.FindAll("[role=menuitem] .rzi").Select(icon => icon.TextContent.Trim()));
     }
 
     [Theory]
@@ -99,16 +115,17 @@ public class BudgetItemActionsTests : BunitContext
         var markup = File.ReadAllText(Path.Combine(repositoryRoot, relativePath));
 
         Assert.Equal(2, CountOccurrences(markup, "<BudgetItemActions"));
-        Assert.Equal(2, CountOccurrences(markup, "Width=\"96px\""));
+        Assert.Equal(2, CountOccurrences(markup, "Width=\"70px\""));
     }
 
     [Fact]
-    public void CompactActionPairKeepsExplicitPhoneTouchTargets()
+    public void CompactActionPairDoesNotOverrideTheOriginalSmallButtonGeometry()
     {
         var css = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "wwwroot/css/app.css"));
 
-        Assert.Contains(".budget-item-primary { display:inline-grid; place-items:center; min-width:44px; min-height:44px", css);
-        Assert.Contains(".budget-item-more { display:grid; place-items:center; border-radius:0 .25rem .25rem 0; min-width:44px; min-height:44px", css);
+        Assert.DoesNotContain("min-width:44px", css);
+        Assert.DoesNotContain("min-height:44px", css);
+        Assert.Contains(".budget-item-actions { display:inline-flex; align-items:center", css);
     }
 
     [Theory]

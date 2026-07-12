@@ -95,7 +95,7 @@ else
                     <Columns>
                         @if (!AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                         {
-                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="96px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
                                     <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
                                         CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
@@ -130,7 +130,7 @@ else
 
                         @if (AuthService.CurrentUser.ListButtonsRight && filteredBudgetItems.Any(i => i.CanManageFinancialData))
                         {
-                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="96px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
                                     <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
                                         CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
