@@ -1,7 +1,9 @@
 using ClintonFrankland.Data;
+using ClintonFrankland.Components.Layout;
 using ClintonFrankland.Migrations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.JSInterop;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -26,15 +28,20 @@ public class NavigationAndBootstrapContractTests
     }
 
     [Fact]
-    public void MobileNavigation_ClosesBootstrapCollapseAfterEnhancedNavigation()
+    public async Task MobileNavigation_IsVersionedAndCannotBreakTheCircuitWhenTheScriptIsStale()
     {
         var layout = Read("Components/Layout/MainLayout.razor.cs");
         var javascript = Read("wwwroot/js/download.js");
+        var app = Read("Components/App.razor");
 
         Assert.Contains("budgetApp.collapseNavbar", layout);
         Assert.Contains("OnLocationChanged", layout);
+        Assert.Contains("catch (JSException)", layout);
         Assert.Contains("Collapse.getOrCreateInstance", javascript);
         Assert.Contains(".hide()", javascript);
+        Assert.Contains("js/download.js?v=", app);
+
+        await MainLayout.TryCollapseNavbarAsync(new MissingNavbarFunctionJsRuntime(), "navbar");
     }
 
     [Fact]
@@ -85,4 +92,16 @@ public class NavigationAndBootstrapContractTests
     }
 
     private static string Read(string path) => File.ReadAllText(Path.Combine(RepoRoot, path));
+
+    private sealed class MissingNavbarFunctionJsRuntime : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            throw new JSException("The value 'budgetApp.collapseNavbar' is not a function.");
+
+        public ValueTask<TValue> InvokeAsync<TValue>(
+            string identifier,
+            CancellationToken cancellationToken,
+            object?[]? args) =>
+            throw new JSException("The value 'budgetApp.collapseNavbar' is not a function.");
+    }
 }

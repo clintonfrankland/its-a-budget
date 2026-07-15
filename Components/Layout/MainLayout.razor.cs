@@ -54,11 +54,13 @@ public partial class MainLayout : IDisposable
         }
     }
 
-    private async Task CollapseNavbar()
+    private Task CollapseNavbar() => TryCollapseNavbarAsync(JS, "navbar");
+
+    internal static async Task TryCollapseNavbarAsync(IJSRuntime js, string elementId)
     {
         try
         {
-            await JS.InvokeVoidAsync("budgetApp.collapseNavbar", "navbar");
+            await js.InvokeVoidAsync("budgetApp.collapseNavbar", elementId);
         }
         catch (InvalidOperationException)
         {
@@ -67,6 +69,11 @@ public partial class MainLayout : IDisposable
         catch (JSDisconnectedException)
         {
             // The circuit can disconnect while a navigation event is being handled.
+        }
+        catch (JSException)
+        {
+            // Navbar collapse is cosmetic. A stale or unavailable script must never
+            // terminate the circuit and interrupt the destination page's data load.
         }
     }
 
