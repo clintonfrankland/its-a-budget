@@ -15,6 +15,7 @@ public class NavigationAndBootstrapContractTests
     public void MainNavigation_IsGroupedAndDoesNotExposeDuplicateInsightsLink()
     {
         var markup = Read("Components/Layout/MainLayout.razor");
+        var app = Read("Components/App.razor");
 
         Assert.Contains(">Home</a>", markup);
         Assert.Contains(">Checkbook</a>", markup);
@@ -23,6 +24,9 @@ public class NavigationAndBootstrapContractTests
         Assert.Contains(">Manage</button>", markup);
         Assert.Contains("data-bs-target=\"#navbar\"", markup);
         Assert.Contains("Profile &amp; Notifications", markup);
+        Assert.Contains("<strong class=\"d-block\">Forecast</strong>", markup);
+        Assert.Contains("<small class=\"d-block text-secondary mt-1\">Projected balances and upcoming items</small>", markup);
+        Assert.Contains("css/app.css?v=", app);
         Assert.DoesNotContain("href=\"insights\"", markup, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Insights</a>", markup, StringComparison.OrdinalIgnoreCase);
     }

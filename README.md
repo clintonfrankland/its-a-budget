@@ -450,6 +450,9 @@ All tables use the `cf` prefix.
 | Moment.js | 2.30.1 | Date labels for Chart.js (CDN) |
 | DataTables | — | Table search/sort/pagination (CDN) |
 | jQuery | 3.7.1 | DataTables dependency (CDN) |
+
+Local application CSS and JavaScript URLs include the application version. This prevents a deployment from combining new markup or interop calls with stale browser-cached assets. Navigation dropdown labels also use Bootstrap display utilities so their title-and-description layout remains readable even before refreshed application CSS is available.
+
 # Budget item actions
 
 Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. The page's most common action uses the original small Radzen icon button and original icon immediately beside a fixed 1.5rem-wide icon-only More actions trigger; both expose descriptive accessible names and tooltips. The fixed inline size overrides the Radzen theme loaded later in the document, so the trigger stays narrow on phones. The trigger uses explicit application state so tapping it reliably opens the overflow menu, which retains the app's original icon and a visible label for each remaining command. The menu is rendered in the browser's top-layer popover and positioned against its trigger in viewport coordinates. It automatically opens above or below according to available space, but remains outside the grid's scroll geometry so opening it never adds a list scrollbar or clips it behind another row. The compact pair uses a 70px list column so it remains adjacent and visible on narrow screens, whether list actions are placed on the left or right. The layout loads the shared-budget switcher in an isolated dependency-injection scope because layout and page first-render work can overlap in a Blazor circuit; this prevents refresh-time EF operations from sharing one `DbContext`.
