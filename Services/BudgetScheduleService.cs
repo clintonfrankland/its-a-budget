@@ -271,14 +271,12 @@ public class BudgetScheduleService
     private async Task<decimal> GetCurrentBalanceAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        var account = await _db.Accounts
+        var startingBalance = await _db.Accounts
             .AsNoTracking()
-            .Where(a => a.SharedBudgetId.HasValue
+            .Where(a => !(a.IsDeleted ?? false) && (a.SharedBudgetId.HasValue
                 ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
-                : a.UserId == userId)
-            .OrderByDescending(a => a.IsDefault)
-            .ThenBy(a => a.AccountId)
-            .FirstOrDefaultAsync();
+                : a.UserId == userId))
+            .SumAsync(a => (decimal?)a.BeginningBalance) ?? 0m;
         var transactionSum = await _db.Transactions
             .AsNoTracking()
             .Where(t => t.SharedBudgetId.HasValue
@@ -286,7 +284,7 @@ public class BudgetScheduleService
                 : t.UserId == userId)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-        return (account?.BeginningBalance ?? 0m) + transactionSum;
+        return CurrencyPolicy.Round(startingBalance + transactionSum);
     }
 
     private async Task<List<Budget>> GetUserBudgetsWithLookupsAsync(int userId)

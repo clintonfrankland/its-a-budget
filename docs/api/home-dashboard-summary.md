@@ -59,7 +59,7 @@ If authentication fails, the endpoint returns `401 Unauthorized`.
 
 ## Field notes
 
-- `todayBalance`: same value as Home card "Today's balance".
+- `todayBalance`: same value as Home card "Today's balance", calculated across all readable accounts and posted transactions.
 - `upcomingBillsTotal`: sum of `upcomingBills` in the next 7 days.
 - `safeToSpend`: same value as Home card "Safe-to-spend (Lowest bal)".
 - `safeToSpendDate`: date when lowest projected balance occurs.

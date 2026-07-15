@@ -1,6 +1,15 @@
 # Reports
 
-`/reports` is an authenticated, read-only dashboard. Unauthenticated visitors are sent to `/login?Return=%2Freports`. The reporting month defaults to the current month; the cashflow horizon defaults to 30 days and is independent of that month.
+`/reports` is the single authenticated, read-only reporting destination. Unauthenticated visitors are sent to `/login?Return=%2Freports`. The former `/insights` route redirects to `/reports?view=spending`.
+
+Reports is divided into four focused sections:
+
+- **Overview:** monthly plan, lowest projected balance, current net worth, and links to the relevant editing workflows.
+- **Spending:** Spend vs Plan, top payees, and seven-month category trends.
+- **Cash Flow:** a compact starting/lowest-balance summary and the next five changes, with a link to the full interactive Forecast.
+- **Net Worth:** the current total and seven month-end values.
+
+The reporting month defaults to the current month. The cash-flow horizon defaults to 30 days and is independent of that month.
 
 ## Formulas and boundaries
 
@@ -13,4 +22,7 @@ Missing, blank, deleted, or inaccessible category references are labeled **Uncat
 
 ## Scope and limitations
 
-Every query includes personal rows owned by the signed-in user and shared-budget rows for active readable memberships. Account ownership is checked as well as transaction ownership, preventing unrelated data and labels from entering a report. The dashboard reconstructs values from current accounts, transactions, targets, and recurring items; it does not persist snapshots and introduces no migration. Historical figures therefore reflect corrections made to historical transactions or beginning balances.
+Every query includes personal rows owned by the signed-in user and shared-budget rows for active readable memberships. Account ownership is checked as well as transaction ownership, preventing unrelated data and labels from entering a report. The dashboard reconstructs values from current accounts, transactions, targets, and recurring items; it does not persist snapshots. Historical figures therefore reflect corrections made to historical transactions or beginning balances.
+
+Account balance entry represents the current account balance. Saving it rebases that account's opening balance against posted transactions so Home, Checkbook, Forecast, and Reports agree.
+During the one-time account-balance reconciliation migration, a nonzero account with no transactions and a zero opening balance is initialized from its saved balance. Existing accounts with ledger activity are not rewritten.

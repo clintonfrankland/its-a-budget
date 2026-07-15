@@ -32,6 +32,22 @@ public class ReportsPageContractTests
         Assert.Contains("cashflow is not null", markup);
         Assert.Contains("netWorthError", markup);
         Assert.Contains("netWorth is not null", markup);
-        Assert.Equal(4, code.Split("catch {", StringSplitOptions.None).Length - 1);
+        Assert.Contains("payeeError", markup);
+        Assert.Contains("topPayees.Count == 0", markup);
+        Assert.Equal(5, code.Split("catch {", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void Reports_UsesFourReadableSectionsAndLinksToEditingWorkflows()
+    {
+        var markup = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Reports.razor"));
+
+        Assert.Contains(">Overview</button>", markup);
+        Assert.Contains(">Spending</button>", markup);
+        Assert.Contains(">Cash Flow</button>", markup);
+        Assert.Contains(">Net Worth</button>", markup);
+        Assert.Contains("href=\"/category-budgets\"", markup);
+        Assert.Contains("href=\"/budget\"", markup);
+        Assert.Contains("Take(5)", markup);
     }
 }

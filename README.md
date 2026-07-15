@@ -40,7 +40,7 @@ The app is a **Blazor Server** application — all rendering and logic runs on t
 
 SproutPenny keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
 
-Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to manage members, create email or username invites for Viewer, Editor, or Admin access, resend/revoke pending invites, update non-owner roles, and remove non-owner members. Members can leave budgets where they are not the current Owner; Owners transfer ownership to another active member before leaving. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users. Dashboard totals, Insights reports, bill-due notices, and Monday weekly upcoming-bills summaries are scoped to active readable memberships; Viewer members can receive read-only summaries, removed members receive nothing, and multi-budget email summaries identify each budget by name.
+Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to manage members, create email or username invites for Viewer, Editor, or Admin access, resend/revoke pending invites, update non-owner roles, and remove non-owner members. Members can leave budgets where they are not the current Owner; Owners transfer ownership to another active member before leaving. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users. Dashboard totals, Reports, bill-due notices, and Monday weekly upcoming-bills summaries are scoped to active readable memberships; Viewer members can receive read-only summaries, removed members receive nothing, and multi-budget email summaries identify each budget by name.
 
 ---
 
@@ -171,7 +171,7 @@ flowchart TD
     F --> G[Checkbook\nenter & clear transactions]
     F --> H[Budget Items\nmanage recurring bills/income]
     F --> I[Budget Forecast\nview chart · mark paid · edit next]
-    F --> J[Insights\ncategory spend · trends · top payees]
+    F --> J[Reports\nspending · cash flow · net worth]
     F --> K[Accounts\nmanage balances & account details]
     F --> L[Profile\nnotification prefs · timezone]
     F --> P[Payees\nsearch · edit · select and merge duplicates]
@@ -183,13 +183,13 @@ flowchart TD
 **Typical daily use:**
 1. Open Home to check today's balance and upcoming bills
 2. Open Checkbook to record any new transactions and clear settled ones
-3. Open Insights to review this month's spending by category and payee
-4. Optionally open Budget Forecast to see the shape of the next few weeks
+3. Open Reports to review this month's spending by category and payee
+4. Optionally open Forecast to see the shape of the next few weeks
 
 **First-time setup:**
-1. Accounts → create your accounts
-2. Budget Items → add recurring bills and income
-3. Checkbook → enter your opening balance transaction
+1. Manage → Accounts → create your accounts and enter their current balances
+2. Plan → Budget Items → add recurring bills and income
+3. Checkbook → enter day-to-day transactions
 4. Settings (admin) → configure SMTP if you want bill-due email reminders
 5. Profile → opt in to notifications and set your timezone
 
@@ -284,8 +284,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Transaction** | A ledger entry recording income or expenditure against an account. |
 | **Budget item** | A recurring income or expense rule that drives the forecast and optionally triggers bill-due notifications. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
-| **Insights** | Simple expense reports for the signed-in user: selected-month category totals, recent category trends, and top payees. |
-| **Reports** | Read-only Spend vs Plan, seven-month category trends and net worth, plus a forward recurring cashflow forecast. See [Reports](docs/pages/reports.md). |
+| **Reports** | One read-only reporting destination with Overview, Spending, Cash Flow, and Net Worth sections. The former Insights route redirects to Spending. See [Reports](docs/pages/reports.md). |
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
 | **Payee** | A user-owned named entity representing who a payment is made to or received from. Active payees can be selected in bulk and merged into one kept payee while transactions and budget items are reassigned. |
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
@@ -334,8 +333,8 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Components/Pages/Login.razor(.cs)` | Dedicated sign-in page |
 | `Components/Pages/Checkbook.razor(.cs)` | Transaction ledger with running balance and budget panel |
 | `Components/Pages/Budget.razor(.cs)` | Budget forecast chart and upcoming items list |
-| `Components/Pages/Insights.razor(.cs)` | Authenticated spending reports by category, recent category trend, and top payees |
-| `Components/Pages/Reports.razor(.cs)` | Authenticated consolidated financial reporting dashboard |
+| `Components/Pages/Insights.razor(.cs)` | Legacy route redirect to the Spending section of Reports |
+| `Components/Pages/Reports.razor(.cs)` | Authenticated reporting dashboard with four focused sections |
 | `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items plus near-term record/skip preview calendar |
 | `Components/Pages/Accounts.razor(.cs)` | Account list with balances and details |
 | `Components/Pages/Payees.razor(.cs)` | Payee search, edit, transaction drill-in, active/deleted filtering, and selected-row duplicate merge workflow |
@@ -358,7 +357,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
 | `Services/BudgetScheduleService.cs` | Forecast and recurring occurrence handling, including preview record/skip actions |
-| `Services/InsightsDataService.cs` | User-scoped expense reporting queries for the Insights page |
+| `Services/InsightsDataService.cs` | User-scoped expense reporting queries used by the Spending reports |
 | `Services/ReportsDataService.cs` | Readable-budget-scoped plan, trend, cashflow, and net-worth calculations |
 | `Services/ReceiptAttachmentStorageService.cs` | Checkbook receipt validation, generated filenames, scanner hook, safe delete, and orphan cleanup |
 | `Services/IAttachmentMalwareScanner.cs` | Pluggable receipt attachment scan hook; default implementation is no-op |

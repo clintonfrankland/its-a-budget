@@ -354,6 +354,7 @@ public partial class Settings
             return;
         }
 
+        int? createdUserId = null;
         if (IsNewUser)
         {
             var nextId = await DbContext.Users.Select(u => (int?)u.UserId).MaxAsync() ?? 0;
@@ -376,6 +377,7 @@ public partial class Settings
             };
 
             DbContext.Users.Add(user);
+            createdUserId = user.UserId;
             Message = $"User created. Temporary password: {tempPassword}";
             MessageCss = "alert-info";
         }
@@ -396,6 +398,8 @@ public partial class Settings
         }
 
         await DbContext.SaveChangesAsync();
+        if (createdUserId.HasValue)
+            await new SharedBudgetDataService(DbContext).GetDefaultSharedBudgetIdAsync(createdUserId.Value);
         CloseEditModal();
         await LoadUsersAsync();
         UserErrorMessage = null;

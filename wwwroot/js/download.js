@@ -1,5 +1,18 @@
 window.budgetApp = window.budgetApp || {};
 
+window.budgetApp.collapseNavbar = (elementId) => {
+    const navbar = document.getElementById(elementId);
+    if (!navbar || !navbar.classList.contains("show")) return;
+
+    if (window.bootstrap?.Collapse) {
+        window.bootstrap.Collapse.getOrCreateInstance(navbar, { toggle: false }).hide();
+        return;
+    }
+
+    navbar.classList.remove("show");
+    document.querySelector(`[data-bs-target="#${elementId}"]`)?.setAttribute("aria-expanded", "false");
+};
+
 window.budgetApp.setBudgetItemMenu = (trigger, menu, open) => {
     if (!trigger || !menu) return;
 

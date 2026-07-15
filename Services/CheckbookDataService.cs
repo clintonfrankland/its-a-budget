@@ -63,6 +63,20 @@ public class CheckbookDataService
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
     }
 
+    public async Task<decimal> GetBeginningBalanceTotalAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        return await _db.Accounts
+            .AsNoTracking()
+            .Where(a => !(a.IsDeleted ?? false) && (a.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
+                : a.UserId == userId))
+            .SumAsync(a => (decimal?)a.BeginningBalance) ?? 0m;
+    }
+
+    public async Task<decimal> GetCurrentBalanceAsync(int userId) =>
+        CurrencyPolicy.Round(await GetBeginningBalanceTotalAsync(userId) + await GetTransactionSumAsync(userId));
+
     public async Task<List<Budget>> GetBudgetsForUserAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);

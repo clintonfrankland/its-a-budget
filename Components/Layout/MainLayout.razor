@@ -2,32 +2,38 @@
 @implements IDisposable
 
 <RadzenComponents @rendermode="InteractiveAuto" />
-<nav class="navbar navbar-expand-xl navbar-dark fixed-top bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="/" @onclick="CollapseNavbar">
             <i class="@GetIconClass()"></i>&nbsp;@SiteInfoService.SiteInfo.SiteName
         </a>
-        <button class="navbar-toggler" type="button" @onclick="ToggleNavbar" @onclick:stopPropagation="true">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div id="navbar" class="navbar-collapse @NavbarCollapseClass">
+        <div id="navbar" class="collapse navbar-collapse">
             @if (AuthService.IsAuthenticated)
             {
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="checkbook" @onclick="CollapseNavbar">Checkbook</a></li>
-                    <li class="nav-item"><a class="nav-link" href="transaction-rules" @onclick="CollapseNavbar">Transaction Rules</a></li>
-                    <li class="nav-item"><a class="nav-link" href="budget" @onclick="CollapseNavbar">Budget Forecast</a></li>
-                    <li class="nav-item"><a class="nav-link" href="category-budgets" @onclick="CollapseNavbar">Category Budgets</a></li>
-                    <li class="nav-item"><a class="nav-link" href="insights" @onclick="CollapseNavbar">Insights</a></li>
-                    <li class="nav-item"><a class="nav-link" href="reports" @onclick="CollapseNavbar">Reports</a></li>
-                    <li class="nav-item"><a class="nav-link" href="budgetitems" @onclick="CollapseNavbar">Budget Items</a></li>
-                    <li class="nav-item"><a class="nav-link" href="payees" @onclick="CollapseNavbar">Payees</a></li>
-                    <li class="nav-item"><a class="nav-link" href="accounts" @onclick="CollapseNavbar">Accounts</a></li>
-                    <li class="nav-item"><a class="nav-link" href="sharing" @onclick="CollapseNavbar">Sharing</a></li>
-                    @if (AuthService.CurrentUser.IsAdmin)
-                    {
-                        <li class="nav-item"><a class="nav-link" href="settings" @onclick="CollapseNavbar">Settings</a></li>
-                    }
+                <ul class="navbar-nav me-auto app-primary-nav">
+                    <li class="nav-item"><a class="nav-link" href="/" @onclick="CollapseNavbar">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/checkbook" @onclick="CollapseNavbar">Checkbook</a></li>
+                    <li class="nav-item dropdown">
+                        <button class="nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Plan</button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/budget" @onclick="CollapseNavbar"><strong>Forecast</strong><small>Projected balances and upcoming items</small></a></li>
+                            <li><a class="dropdown-item" href="/budgetitems" @onclick="CollapseNavbar"><strong>Budget Items</strong><small>Recurring income and expenses</small></a></li>
+                            <li><a class="dropdown-item" href="/category-budgets" @onclick="CollapseNavbar"><strong>Category Budgets</strong><small>Monthly spending targets</small></a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/reports" @onclick="CollapseNavbar">Reports</a></li>
+                    <li class="nav-item dropdown">
+                        <button class="nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/accounts" @onclick="CollapseNavbar"><strong>Accounts</strong><small>Balances and account details</small></a></li>
+                            <li><a class="dropdown-item" href="/payees" @onclick="CollapseNavbar"><strong>Payees</strong><small>Names and duplicate cleanup</small></a></li>
+                            <li><a class="dropdown-item" href="/transaction-rules" @onclick="CollapseNavbar"><strong>Transaction Rules</strong><small>Automatic categorization</small></a></li>
+                            <li><a class="dropdown-item" href="/sharing" @onclick="CollapseNavbar"><strong>Sharing</strong><small>Members and invitations</small></a></li>
+                        </ul>
+                    </li>
                 </ul>
             }
             <ul class="nav ms-auto">
@@ -44,15 +50,19 @@
                             </select>
                         </li>
                     }
-                    <li class="nav-item">
-                        <a class="nav-link" href="/profile" @onclick="CollapseNavbar">
-                            <i class="fa fa-user"></i>&nbsp;&nbsp;@AuthService.CurrentUser.DisplayName
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" @onclick="HandleLogoutClick" @onclick:preventDefault="true">
-                            <i class="fa fa-sign-out-alt"></i>&nbsp;&nbsp;Logout
-                        </a>
+                    <li class="nav-item dropdown user-menu">
+                        <button class="nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fa fa-user"></i>&nbsp;@AuthService.CurrentUser.DisplayName
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/profile" @onclick="CollapseNavbar">Profile &amp; Notifications</a></li>
+                            @if (AuthService.CurrentUser.IsAdmin)
+                            {
+                                <li><a class="dropdown-item" href="/settings" @onclick="CollapseNavbar">Settings</a></li>
+                            }
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><a class="dropdown-item" href="#" @onclick="HandleLogoutClick" @onclick:preventDefault="true"><i class="fa fa-sign-out-alt"></i>&nbsp;Logout</a></li>
+                        </ul>
                     </li>
                 }
                 else
@@ -68,13 +78,7 @@
     </div>
 </nav>
 
-@* Overlay to detect clicks outside navbar when expanded *@
-@if (_navbarExpanded)
-{
-    <div class="navbar-overlay" @onclick="CollapseNavbar"></div>
-}
-
-<div class="container" @onclick="CollapseNavbar">
+<div class="container">
     @if (AuthService.IsAuthenticated && AuthService.CurrentUser.IsAdmin && StartupDiagnostics.Checked && StartupDiagnostics.HasIssue)
     {
         <div class="alert alert-danger mt-3" role="alert">

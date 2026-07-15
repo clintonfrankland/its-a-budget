@@ -81,10 +81,23 @@ public class AccountsDataService
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
             return;
 
+        var postedAmount = isNew
+            ? 0m
+            : await _db.Transactions
+                .Where(t => t.AccountId == account.AccountId)
+                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+        var clearedPostedAmount = isNew
+            ? 0m
+            : await _db.Transactions
+                .Where(t => t.AccountId == account.AccountId && t.Cleared)
+                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+
         account.AccountName = accountName;
         account.AccountNumber = accountNumber;
         account.AccountTypeId = accountTypeId;
         account.Balance = roundedBalance;
+        account.BeginningBalance = CurrencyPolicy.Round(roundedBalance - postedAmount);
+        account.ClearedBalance = CurrencyPolicy.Round(account.BeginningBalance + clearedPostedAmount);
         account.CreditLimit = roundedCreditLimit;
         account.AvailableCredit = roundedAvailableCredit;
         account.DueDate = dueDate;

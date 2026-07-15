@@ -78,6 +78,56 @@ html {
     cursor: pointer;
 }
 
+.navbar .dropdown-toggle {
+    background: transparent;
+    border: 0;
+}
+
+.navbar .dropdown-menu {
+    min-width: 18rem;
+    padding: 0.45rem;
+}
+
+.navbar .dropdown-item {
+    border-radius: 0.35rem;
+    padding: 0.55rem 0.7rem;
+}
+
+.navbar .dropdown-item strong,
+.navbar .dropdown-item small {
+    display: block;
+}
+
+.navbar .dropdown-item small {
+    color: #6c757d;
+    font-size: 0.78rem;
+    margin-top: 0.1rem;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse.show {
+        max-height: calc(100vh - 56px);
+        overflow-y: auto;
+        padding-bottom: 0.75rem;
+    }
+
+    .navbar .dropdown-menu {
+        background: rgba(255, 255, 255, 0.06);
+        border: 0;
+        margin: 0 0 0.5rem;
+        min-width: 0;
+    }
+
+    .navbar .dropdown-item,
+    .navbar .dropdown-item small {
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .navbar .dropdown-item strong {
+        color: rgba(255, 255, 255, 0.95);
+    }
+}
+
 .budget-switcher {
     max-width: 16rem;
 }
@@ -95,6 +145,126 @@ html {
 .sharing-management-table th,
 .sharing-management-table td {
     white-space: nowrap;
+}
+
+.page-header {
+    margin-bottom: 1rem;
+}
+
+.reports-page {
+    max-width: 1200px;
+}
+
+.report-filter {
+    min-width: 11rem;
+}
+
+.report-tabs {
+    border-bottom: 1px solid #dee2e6;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+}
+
+.report-tabs .nav-link {
+    min-height: 2.75rem;
+}
+
+.report-section {
+    margin-top: 0.25rem;
+}
+
+.report-summary-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem;
+}
+
+.report-summary-card span,
+.cashflow-summary span,
+.report-list small,
+.net-worth-history span {
+    color: #6c757d;
+}
+
+.report-summary-card strong {
+    font-size: 1.65rem;
+    margin: 0.2rem 0;
+}
+
+.cashflow-summary {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+
+.cashflow-summary > div,
+.net-worth-history > div {
+    background: #f8f9fa;
+    border-radius: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+}
+
+.cashflow-summary strong,
+.net-worth-history strong {
+    font-size: 1.15rem;
+}
+
+.report-list > div {
+    align-items: center;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: 0.65rem 0;
+}
+
+.report-list > div:last-child {
+    border-bottom: 0;
+}
+
+.report-list span,
+.report-list small {
+    display: block;
+}
+
+.net-worth-history {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+@media (max-width: 767.98px) {
+    .page-header {
+        align-items: stretch !important;
+    }
+
+    .report-filter {
+        width: 100%;
+    }
+
+    .report-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cashflow-summary,
+    .net-worth-history {
+        grid-template-columns: 1fr;
+    }
+
+    .reports-page .table-responsive {
+        border: 1px solid #dee2e6;
+        border-radius: 0.4rem;
+    }
 }
 
 .budget-preview-toolbar {

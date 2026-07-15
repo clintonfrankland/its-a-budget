@@ -46,11 +46,8 @@ public class DashboardDataService
             AsOfDate = today.Date
         };
 
-        // Today's balance: BeginningBalance + sum(all transactions)
-        var account = await checkbook.GetAccountForUserAsync(userId);
-        var startingBalance = account?.BeginningBalance ?? 0m;
-        var transactionSum = await checkbook.GetTransactionSumAsync(userId);
-        snapshot.TodayBalance = startingBalance + transactionSum;
+        // Today's balance: all readable account opening balances plus posted transactions.
+        snapshot.TodayBalance = await checkbook.GetCurrentBalanceAsync(userId);
 
         // Upcoming bills: budgets flagged as bills, due within next 14 days (default snapshot window)
         var budgets = await checkbook.GetBudgetsForUserAsync(userId);

@@ -26,7 +26,7 @@ At the top you'll see three snapshot cards:
 
 | Card | What it shows |
 |---|---|
-| **Today's balance** | Your current running balance as of today |
+| **Today's balance** | The sum of all readable account opening balances plus posted transactions as of today |
 | **Upcoming bills (7 days)** | Total of bills due soon or already past due |
 | **Safe-to-spend (Lowest bal)** | The lowest projected balance over the next 6 months, and the date it occurs |
 
@@ -57,7 +57,7 @@ If you're setting up the app for the first time:
 
 1. **Budget Items** — create your recurring bills and income
 2. **Checkbook** — enter day-to-day transactions and keep the running balance accurate
-3. **Budget Forecast** — use it when you want to see what's coming up
+3. **Forecast** — use it when you want to see what's coming up
 4. **Accounts** — keep your account list current so balances stay meaningful
 
 Once those are set up, the Home dashboard becomes a useful daily check-in.

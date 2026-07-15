@@ -10,38 +10,76 @@
 }
 else
 {
-    <div class="container">
-        <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
-            <h1 class="mb-0">Reports</h1>
-            <div class="d-flex flex-wrap gap-3">
-                <div><label class="form-label" for="reportMonth">Reporting month</label><input id="reportMonth" class="form-control" type="month" value="@SelectedMonthInput" @onchange="OnMonthChanged" /></div>
-                <div><label class="form-label" for="forecastHorizon">Cashflow horizon</label><select id="forecastHorizon" class="form-select" value="@horizonDays" @onchange="OnHorizonChanged"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180">180 days</option></select></div>
+    <div class="container reports-page">
+        <header class="page-header d-flex flex-wrap align-items-end justify-content-between gap-3">
+            <div>
+                <h1 class="mb-1">Reports</h1>
+                <p class="text-muted mb-0">Review spending, cash flow, and net worth without changing your financial data.</p>
             </div>
-        </div>
+            <div class="report-filter">
+                <label class="form-label" for="reportMonth">Reporting month</label>
+                <input id="reportMonth" class="form-control" type="month" value="@SelectedMonthInput" @onchange="OnMonthChanged" />
+            </div>
+        </header>
 
-        @if (loading) { <div class="placeholder-glow mt-3" aria-live="polite"><span class="placeholder col-12"></span><span class="visually-hidden">Loading reports</span></div> }
-        <div class="row g-3 mt-1">
-            <div class="col-12 col-xl-6"><RadzenCard class="h-100"><h2 class="h5">Spend vs Plan</h2>
-                @if (!string.IsNullOrEmpty(spendError)) { <div class="alert alert-warning" role="alert">@spendError</div> }
-                else if (spendPlan.Count == 0) { <p class="text-muted">No plans or spending for this month.</p> }
-                else { <div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Monthly planned and actual spending by category</caption><thead><tr><th>Category</th><th class="text-end">Plan</th><th class="text-end">Actual</th><th class="text-end">Variance</th><th>Status</th></tr></thead><tbody>
-                    @foreach (var row in spendPlan) { <tr><td>@row.CategoryName</td><td class="text-end">@row.Planned.ToString("C")</td><td class="text-end">@row.Actual.ToString("C")</td><td class="text-end">@row.Variance.ToString("C")</td><td>@row.Status</td></tr> }
-                    <tr class="fw-bold"><td>Total</td><td class="text-end">@spendPlan.Sum(x => x.Planned).ToString("C")</td><td class="text-end">@spendPlan.Sum(x => x.Actual).ToString("C")</td><td class="text-end">@spendPlan.Sum(x => x.Variance).ToString("C")</td><td></td></tr>
-                </tbody></table></div> }
+        <nav class="report-tabs nav nav-pills" aria-label="Report sections">
+            <button class="nav-link @(activeView == "overview" ? "active" : null)" @onclick='() => SetView("overview")'>Overview</button>
+            <button class="nav-link @(activeView == "spending" ? "active" : null)" @onclick='() => SetView("spending")'>Spending</button>
+            <button class="nav-link @(activeView == "cashflow" ? "active" : null)" @onclick='() => SetView("cashflow")'>Cash Flow</button>
+            <button class="nav-link @(activeView == "networth" ? "active" : null)" @onclick='() => SetView("networth")'>Net Worth</button>
+        </nav>
+
+        @if (loading)
+        {
+            <div class="placeholder-glow mt-3" aria-live="polite"><span class="placeholder col-12"></span><span class="visually-hidden">Loading reports</span></div>
+        }
+
+        @if (activeView == "overview")
+        {
+            <div class="row g-3 report-section">
+                <div class="col-12 col-md-4"><div class="report-summary-card"><span>Planned this month</span><strong>@spendPlan.Sum(x => x.Planned).ToString("C")</strong><small>@spendPlan.Sum(x => x.Actual).ToString("C") spent</small></div></div>
+                <div class="col-12 col-md-4"><div class="report-summary-card"><span>Lowest projected balance</span><strong class="@(cashflow?.LowestBalance < 0 ? "text-danger" : null)">@(cashflow?.LowestBalance.ToString("C") ?? "—")</strong><small>@(cashflow is null ? "Cash flow unavailable" : $"On {cashflow.LowestDate:MMM d}")</small></div></div>
+                <div class="col-12 col-md-4"><div class="report-summary-card"><span>Current net worth</span><strong>@(netWorth?.CurrentTotal.ToString("C") ?? "—")</strong><small>As of @(netWorth?.CurrentAsOfDate.ToString("MMM d") ?? "today")</small></div></div>
+                <div class="col-12 col-lg-6"><RadzenCard class="h-100"><h2 class="h5">Spending plan</h2><p class="text-muted">See planned versus actual spending, top payees, and category trends.</p><button class="btn btn-outline-primary" @onclick='() => SetView("spending")'>View spending</button> <a class="btn btn-link" href="/category-budgets">Edit category budgets</a></RadzenCard></div>
+                <div class="col-12 col-lg-6"><RadzenCard class="h-100"><h2 class="h5">Cash flow</h2><p class="text-muted">See the next projected changes and your lowest expected balance.</p><button class="btn btn-outline-primary" @onclick='() => SetView("cashflow")'>View cash flow</button> <a class="btn btn-link" href="/budget">Open full forecast</a></RadzenCard></div>
+            </div>
+        }
+        else if (activeView == "spending")
+        {
+            <div class="row g-3 report-section">
+                <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><h2 class="h5">Spend vs Plan</h2><a href="/category-budgets">Edit category budgets</a></div>
+                    @if (!string.IsNullOrEmpty(spendError)) { <div class="alert alert-warning" role="alert">@spendError</div> }
+                    else if (spendPlan.Count == 0) { <p class="text-muted">No plans or spending for this month.</p> }
+                    else { <div class="table-responsive"><table class="table table-sm align-middle"><caption class="visually-hidden">Monthly planned and actual spending by category</caption><thead><tr><th>Category</th><th class="text-end">Plan</th><th class="text-end">Actual</th><th class="text-end">Remaining</th><th>Status</th></tr></thead><tbody>
+                        @foreach (var row in spendPlan) { <tr><td>@row.CategoryName</td><td class="text-end">@row.Planned.ToString("C")</td><td class="text-end">@row.Actual.ToString("C")</td><td class="text-end">@row.Variance.ToString("C")</td><td>@row.Status</td></tr> }
+                        <tr class="fw-bold"><td>Total</td><td class="text-end">@spendPlan.Sum(x => x.Planned).ToString("C")</td><td class="text-end">@spendPlan.Sum(x => x.Actual).ToString("C")</td><td class="text-end">@spendPlan.Sum(x => x.Variance).ToString("C")</td><td></td></tr>
+                    </tbody></table></div> }
+                </RadzenCard></div>
+                <div class="col-12 col-lg-5"><RadzenCard class="h-100"><h2 class="h5">Top Payees</h2>
+                    @if (!string.IsNullOrEmpty(payeeError)) { <div class="alert alert-warning" role="alert">@payeeError</div> }
+                    else if (topPayees.Count == 0) { <p class="text-muted">No payee spending to show for this month.</p> }
+                    else { <div class="report-list">@foreach (var payee in topPayees) { <div><span>@payee.PayeeName <small>@payee.TransactionCount transaction@(payee.TransactionCount == 1 ? "" : "s")</small></span><strong>@payee.Total.ToString("C")</strong></div> }</div> }
+                </RadzenCard></div>
+                <div class="col-12 col-lg-7"><RadzenCard class="h-100"><h2 class="h5">Category Trends</h2>
+                    @if (!string.IsNullOrEmpty(trendError)) { <div class="alert alert-warning" role="alert">@trendError</div> }
+                    else if (trends.Count == 0) { <p class="text-muted">No expense spending in this seven-month window.</p> }
+                    else { <div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Seven-month expense trends by category</caption><thead><tr><th>Category</th>@foreach (var month in months) { <th class="text-end">@month.Label</th> }</tr></thead><tbody>@foreach (var row in trends) { <tr><td>@row.CategoryName</td>@foreach (var value in row.MonthlyTotals) { <td class="text-end">@value.ToString("C")</td> }</tr> }</tbody></table></div> }
+                </RadzenCard></div>
+            </div>
+        }
+        else if (activeView == "cashflow")
+        {
+            <div class="report-section"><RadzenCard><div class="d-flex flex-wrap justify-content-between align-items-end gap-3"><div><h2 class="h5">Cash Flow Summary</h2><p class="text-muted mb-0">A compact look at upcoming recurring items. Use Forecast to edit or inspect the full projection.</p></div><div><label class="form-label" for="forecastHorizon">Horizon</label><select id="forecastHorizon" class="form-select" value="@horizonDays" @onchange="OnHorizonChanged"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180">180 days</option></select></div></div>
+                @if (!string.IsNullOrEmpty(cashflowError)) { <div class="alert alert-warning mt-3" role="alert">@cashflowError</div> }
+                else if (cashflow is not null) { <div class="cashflow-summary"><div><span>Starting</span><strong>@cashflow.StartingBalance.ToString("C")</strong></div><div><span>Lowest</span><strong class="@(cashflow.LowestBalance < 0 ? "text-danger" : null)">@cashflow.LowestBalance.ToString("C")</strong></div><div><span>Low date</span><strong>@cashflow.LowestDate.ToString("MMM d")</strong></div></div><h3 class="h6 mt-4">Next changes</h3><div class="report-list">@foreach (var point in cashflow.Points.Where(x => !x.IsStartingBalance).Take(5)) { <div><span>@point.Description <small>@point.Date.ToString("MMM d")</small></span><strong class="@(point.Change < 0 ? "text-danger" : "text-success")">@point.Change.ToString("C")</strong></div> }</div><a class="btn btn-primary mt-3" href="/budget">Open full forecast</a> }
             </RadzenCard></div>
-            <div class="col-12 col-xl-6"><RadzenCard class="h-100"><h2 class="h5">Cashflow Forecast</h2>
-                @if (!string.IsNullOrEmpty(cashflowError)) { <div class="alert alert-warning" role="alert">@cashflowError</div> }
-                else if (cashflow is not null) { <p>Starting <strong>@cashflow.StartingBalance.ToString("C")</strong> as of @cashflow.StartDate.ToString("MM/dd/yyyy"). Lowest: <strong>@cashflow.LowestBalance.ToString("C")</strong> on @cashflow.LowestDate.ToString("MM/dd/yyyy").</p><div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Posted starting balance and future projected recurring items</caption><thead><tr><th>Date</th><th>Item</th><th class="text-end">Change</th><th class="text-end">Balance</th></tr></thead><tbody>@foreach (var point in cashflow.Points) { <tr><td>@point.Date.ToString("MM/dd/yyyy")</td><td>@point.Description</td><td class="text-end">@(point.IsStartingBalance ? "—" : point.Change.ToString("C"))</td><td class="text-end">@point.Balance.ToString("C")</td></tr> }</tbody></table></div> }
-            </RadzenCard></div>
-            <div class="col-12"><RadzenCard><h2 class="h5">Category Trends</h2>
-                @if (!string.IsNullOrEmpty(trendError)) { <div class="alert alert-warning" role="alert">@trendError</div> }
-                else if (trends.Count == 0) { <p class="text-muted">No expense spending in this seven-month window.</p> }
-                else { <div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Seven-month expense trends by category</caption><thead><tr><th>Category</th>@foreach (var month in months) { <th class="text-end">@month.Label</th> }</tr></thead><tbody>@foreach (var row in trends) { <tr><td>@row.CategoryName</td>@foreach (var value in row.MonthlyTotals) { <td class="text-end">@value.ToString("C")</td> }</tr> }</tbody></table></div> }
-            </RadzenCard></div>
-            <div class="col-12"><RadzenCard><h2 class="h5">Net Worth</h2>
+        }
+        else
+        {
+            <div class="report-section"><RadzenCard><h2 class="h5">Net Worth</h2>
                 @if (!string.IsNullOrEmpty(netWorthError)) { <div class="alert alert-warning" role="alert">@netWorthError</div> }
-                else if (netWorth is not null) { <p>Current total as of @netWorth.CurrentAsOfDate.ToString("MM/dd/yyyy"): <strong>@netWorth.CurrentTotal.ToString("C")</strong></p><div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Seven month-end net worth values</caption><thead><tr>@foreach (var point in netWorth.History) { <th class="text-end">@point.Date.ToString("MMM yyyy")</th> }</tr></thead><tbody><tr>@foreach (var point in netWorth.History) { <td class="text-end">@point.Value.ToString("C")</td> }</tr></tbody></table></div> }
+                else if (netWorth is not null) { <p>Current total as of @netWorth.CurrentAsOfDate.ToString("MM/dd/yyyy"): <strong>@netWorth.CurrentTotal.ToString("C")</strong></p><div class="net-worth-history">@foreach (var point in netWorth.History) { <div><span>@point.Date.ToString("MMM yyyy")</span><strong>@point.Value.ToString("C")</strong></div> }</div> }
             </RadzenCard></div>
-        </div>
+        }
     </div>
 }

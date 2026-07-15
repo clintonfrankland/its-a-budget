@@ -2,6 +2,7 @@ using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 
 namespace ClintonFrankland.Components.Layout;
 
@@ -23,12 +24,11 @@ public partial class MainLayout : IDisposable
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
-    private bool _navbarExpanded = false;
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
     private List<SharedBudgetMembershipSummary> _budgetSwitcherOptions = [];
     private int _selectedSwitcherBudgetId;
-
-    // CSS class for navbar collapse state
-    private string NavbarCollapseClass => _navbarExpanded ? "collapse show" : "collapse";
 
     protected override void OnInitialized()
     {
@@ -54,27 +54,29 @@ public partial class MainLayout : IDisposable
         }
     }
 
-    private void ToggleNavbar()
+    private async Task CollapseNavbar()
     {
-        _navbarExpanded = !_navbarExpanded;
-    }
-
-    private void CollapseNavbar()
-    {
-        if (_navbarExpanded)
+        try
         {
-            _navbarExpanded = false;
+            await JS.InvokeVoidAsync("budgetApp.collapseNavbar", "navbar");
+        }
+        catch (InvalidOperationException)
+        {
+            // JavaScript is unavailable during static prerendering.
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit can disconnect while a navigation event is being handled.
         }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        // Collapse navbar when navigating to a new page
-        if (_navbarExpanded)
+        _ = InvokeAsync(async () =>
         {
-            _navbarExpanded = false;
+            await CollapseNavbar();
             StateHasChanged();
-        }
+        });
     }
 
     private string GetIconClass()
@@ -91,7 +93,7 @@ public partial class MainLayout : IDisposable
 
     private async Task HandleLogoutClick()
     {
-        CollapseNavbar();
+        await CollapseNavbar();
         if (AuthService.IsAuthenticated)
         {
             await AuthService.LogoutAsync();
@@ -99,12 +101,12 @@ public partial class MainLayout : IDisposable
         }
     }
 
-    private void HandleBudgetSwitcherChange(ChangeEventArgs args)
+    private async Task HandleBudgetSwitcherChange(ChangeEventArgs args)
     {
         if (int.TryParse(args.Value?.ToString(), out var sharedBudgetId))
             _selectedSwitcherBudgetId = sharedBudgetId;
 
-        CollapseNavbar();
+        await CollapseNavbar();
         Navigation.NavigateTo("sharing");
     }
 

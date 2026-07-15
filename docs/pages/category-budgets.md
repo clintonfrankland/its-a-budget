@@ -2,7 +2,7 @@
 
 The Category Budgets page lets a signed-in user set monthly planned spending amounts for their own categories and compare those targets against actual expense transactions.
 
-Open it from the main navigation with **Category Budgets**. Guests are redirected to sign in before budget data is shown.
+Open it from **Plan > Category Budgets**. Guests are redirected to sign in before budget data is shown.
 
 ## Month selector
 

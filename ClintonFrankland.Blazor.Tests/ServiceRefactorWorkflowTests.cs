@@ -148,6 +148,8 @@ public class ServiceRefactorWorkflowTests
 
         var created = Assert.Single(await db.Accounts.Where(a => a.UserId == 42).ToListAsync());
         Assert.Equal(100.13m, created.Balance);
+        Assert.Equal(100.13m, created.BeginningBalance);
+        Assert.Equal(100.13m, created.ClearedBalance);
         Assert.Equal(200.13m, created.CreditLimit);
         Assert.Equal(3.46m, created.InterestRate);
 
@@ -163,6 +165,29 @@ public class ServiceRefactorWorkflowTests
 
         await service.DeleteAccountAsync(42, created.AccountId);
         Assert.Null(await db.Accounts.FindAsync(created.AccountId));
+    }
+
+    [Fact]
+    public async Task AccountBalanceEdits_RebaseOpeningBalanceSoEverySummaryMatchesCurrentBalance()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        db.Accounts.AddRange(
+            new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 100m, Balance = 75m, ClearedBalance = 100m, UserId = 42 },
+            new Account { AccountId = 2, AccountName = "Savings", AccountTypeId = 1, BeginningBalance = 400m, Balance = 400m, ClearedBalance = 400m, UserId = 42 });
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Food", UserId = 42 });
+        db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Market", UserId = 42 });
+        db.Transactions.Add(new Transaction { TransactionId = 1, UserId = 42, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 7, 1), Amount = -25m, Cleared = true });
+        await db.SaveChangesAsync();
+
+        await new AccountsDataService(db).SaveAccountAsync(42, 1, "Checking", "", 1, 250m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
+
+        var checking = await db.Accounts.FindAsync(1);
+        Assert.NotNull(checking);
+        Assert.Equal(275m, checking.BeginningBalance);
+        Assert.Equal(250m, checking.ClearedBalance);
+        Assert.Equal(650m, await new CheckbookDataService(db).GetCurrentBalanceAsync(42));
+        Assert.Equal(650m, (await new ReportsDataService(db).GetCashflowAsync(42, 30, new DateOnly(2026, 7, 2))).StartingBalance);
     }
 
     [Fact]
@@ -322,7 +347,7 @@ public class ServiceRefactorWorkflowTests
             "Components/Pages/BudgetItems.razor.cs",
             "Components/Pages/Payees.razor.cs",
             "Components/Pages/CategoryBudgets.razor.cs",
-            "Components/Pages/Insights.razor.cs"
+            "Components/Pages/Reports.razor.cs"
         };
 
         foreach (var page in targetPages)
