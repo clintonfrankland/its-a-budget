@@ -168,26 +168,30 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
-    public async Task AccountBalanceEdits_RebaseOpeningBalanceSoEverySummaryMatchesCurrentBalance()
+    public async Task AccountBalanceEdits_RebaseDefaultLedgerWithoutAddingOtherAccountBalances()
     {
         await using var db = CreateDbContext();
         SeedAccountTypes(db);
         db.Accounts.AddRange(
-            new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 100m, Balance = 75m, ClearedBalance = 100m, UserId = 42 },
+            new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 100m, Balance = 75m, ClearedBalance = 100m, IsDefault = true, UserId = 42 },
             new Account { AccountId = 2, AccountName = "Savings", AccountTypeId = 1, BeginningBalance = 400m, Balance = 400m, ClearedBalance = 400m, UserId = 42 });
         db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Food", UserId = 42 });
         db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Market", UserId = 42 });
-        db.Transactions.Add(new Transaction { TransactionId = 1, UserId = 42, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 7, 1), Amount = -25m, Cleared = true });
+        db.Transactions.AddRange(
+            new Transaction { TransactionId = 1, UserId = 42, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 7, 1), Amount = -25m, Cleared = true },
+            new Transaction { TransactionId = 2, UserId = 42, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 7, 2), Amount = -10m, Cleared = false });
         await db.SaveChangesAsync();
 
         await new AccountsDataService(db).SaveAccountAsync(42, 1, "Checking", "", 1, 250m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
 
         var checking = await db.Accounts.FindAsync(1);
         Assert.NotNull(checking);
-        Assert.Equal(275m, checking.BeginningBalance);
-        Assert.Equal(250m, checking.ClearedBalance);
-        Assert.Equal(650m, await new CheckbookDataService(db).GetCurrentBalanceAsync(42));
-        Assert.Equal(650m, (await new ReportsDataService(db).GetCashflowAsync(42, 30, new DateOnly(2026, 7, 2))).StartingBalance);
+        Assert.Equal(285m, checking.BeginningBalance);
+        Assert.Equal(260m, checking.ClearedBalance);
+        var checkbook = new CheckbookDataService(db);
+        Assert.Equal(250m, await checkbook.GetCurrentBalanceAsync(42));
+        Assert.Equal(260m, await checkbook.GetClearedBalanceAsync(42));
+        Assert.Equal(250m, (await new ReportsDataService(db).GetCashflowAsync(42, 30, new DateOnly(2026, 7, 2))).StartingBalance);
     }
 
     [Fact]

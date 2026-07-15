@@ -24,7 +24,7 @@ public class ReportsDataServiceTests
     }
 
     [Fact]
-    public async Task Cashflow_StartsWithAllAccountsAndPostedTransactions_ThenFutureItemsOnly()
+    public async Task Cashflow_StartsWithDefaultLedgerAndPostedTransactions_ThenFutureItemsOnly()
     {
         await using var db = CreateDb();
         SeedBase(db);
@@ -37,9 +37,9 @@ public class ReportsDataServiceTests
 
         var report = await new ReportsDataService(db).GetCashflowAsync(1, 30, new(2026, 7, 11));
 
-        Assert.Equal(700m, report.StartingBalance);
-        Assert.Equal([700m, 650m, 950m], report.Points.Select(p => p.Balance));
-        Assert.Equal((650m, new DateOnly(2026, 7, 12)), (report.LowestBalance, report.LowestDate));
+        Assert.Equal(900m, report.StartingBalance);
+        Assert.Equal([900m, 850m, 1150m], report.Points.Select(p => p.Balance));
+        Assert.Equal((850m, new DateOnly(2026, 7, 12)), (report.LowestBalance, report.LowestDate));
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class ReportsDataServiceTests
         Assert.DoesNotContain(spend, x => x.CategoryName == "Hidden Food");
         Assert.Equal(25m, trends.Single(x => x.CategoryName == "Shared Food").MonthlyTotals[^1]);
         Assert.DoesNotContain(trends, x => x.CategoryName == "Hidden Food");
-        Assert.Equal(1175m, cashflow.StartingBalance);
-        Assert.Equal(1145m, cashflow.LowestBalance);
+        Assert.Equal(975m, cashflow.StartingBalance);
+        Assert.Equal(945m, cashflow.LowestBalance);
         Assert.Equal(1175m, netWorth.CurrentTotal);
     }
 
@@ -135,7 +135,7 @@ public class ReportsDataServiceTests
     private static ClintonFranklandDbContext CreateDb() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
     private static void SeedBase(ClintonFranklandDbContext db)
     {
-        db.Accounts.Add(new() { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, UserId = 1, BeginningBalance = 1000m });
+        db.Accounts.Add(new() { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, UserId = 1, BeginningBalance = 1000m, IsDefault = true });
         db.Categories.AddRange(new() { CategoryId = 1, CategoryName = "Food", UserId = 1 }, new() { CategoryId = 2, CategoryName = "Secret", UserId = 2 });
         db.Payees.Add(new() { PayeeId = 1, PayeeName = "Store", UserId = 1 });
     }

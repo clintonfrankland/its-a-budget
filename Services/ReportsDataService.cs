@@ -60,7 +60,11 @@ public class ReportsDataService
         var posted = await ReadableTransactions(userId, readable)
             .Where(t => accountIds.Contains(t.AccountId) && t.TransactionDate <= today)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
-        var starting = CurrencyPolicy.Round(accounts.Sum(a => a.BeginningBalance) + posted);
+        var ledgerAccount = accounts
+            .OrderByDescending(a => a.IsDefault)
+            .ThenBy(a => a.AccountId)
+            .FirstOrDefault();
+        var starting = CurrencyPolicy.Round((ledgerAccount?.BeginningBalance ?? 0m) + posted);
         var budgets = await _db.Budgets.AsNoTracking()
             .Where(b => b.SharedBudgetId.HasValue ? readable.Contains(b.SharedBudgetId.Value) : b.UserId == userId)
             .ToListAsync();

@@ -46,7 +46,7 @@ public class DashboardDataService
             AsOfDate = today.Date
         };
 
-        // Today's balance: all readable account opening balances plus posted transactions.
+        // Today's balance: default ledger opening balance plus posted transactions.
         snapshot.TodayBalance = await checkbook.GetCurrentBalanceAsync(userId);
 
         // Upcoming bills: budgets flagged as bills, due within next 14 days (default snapshot window)

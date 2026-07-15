@@ -20,9 +20,9 @@ public class CheckbookDataService
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         return await _db.Accounts
             .AsNoTracking()
-            .Where(a => a.SharedBudgetId.HasValue
+            .Where(a => !(a.IsDeleted ?? false) && (a.SharedBudgetId.HasValue
                 ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
-                : a.UserId == userId)
+                : a.UserId == userId))
             .OrderByDescending(a => a.IsDefault)
             .ThenBy(a => a.AccountId)
             .FirstOrDefaultAsync();
@@ -63,19 +63,24 @@ public class CheckbookDataService
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
     }
 
-    public async Task<decimal> GetBeginningBalanceTotalAsync(int userId)
-    {
-        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Accounts
-            .AsNoTracking()
-            .Where(a => !(a.IsDeleted ?? false) && (a.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(a.SharedBudgetId.Value)
-                : a.UserId == userId))
-            .SumAsync(a => (decimal?)a.BeginningBalance) ?? 0m;
-    }
+    public async Task<decimal> GetBeginningBalanceAsync(int userId) =>
+        CurrencyPolicy.Round((await GetAccountForUserAsync(userId))?.BeginningBalance ?? 0m);
 
     public async Task<decimal> GetCurrentBalanceAsync(int userId) =>
-        CurrencyPolicy.Round(await GetBeginningBalanceTotalAsync(userId) + await GetTransactionSumAsync(userId));
+        CurrencyPolicy.Round(await GetBeginningBalanceAsync(userId) + await GetTransactionSumAsync(userId));
+
+    public async Task<decimal> GetClearedBalanceAsync(int userId)
+    {
+        var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var clearedAmount = await _db.Transactions
+            .AsNoTracking()
+            .Where(t => t.Cleared && (t.SharedBudgetId.HasValue
+                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
+                : t.UserId == userId))
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+
+        return CurrencyPolicy.Round(await GetBeginningBalanceAsync(userId) + clearedAmount);
+    }
 
     public async Task<List<Budget>> GetBudgetsForUserAsync(int userId)
     {

@@ -26,7 +26,7 @@ At the top you'll see three snapshot cards:
 
 | Card | What it shows |
 |---|---|
-| **Today's balance** | The sum of all readable account opening balances plus posted transactions as of today |
+| **Today's balance** | The default ledger account's opening balance plus posted transactions as of today |
 | **Upcoming bills (7 days)** | Total of bills due soon or already past due |
 | **Safe-to-spend (Lowest bal)** | The lowest projected balance over the next 6 months, and the date it occurs |
 

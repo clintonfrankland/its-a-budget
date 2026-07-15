@@ -164,7 +164,7 @@ public partial class Checkbook
             var userId = CurrentUser.UserId;
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
-            var startingBalance = await CheckbookData.GetBeginningBalanceTotalAsync(userId);
+            var startingBalance = await CheckbookData.GetBeginningBalanceAsync(userId);
 
             var transactionsData = await CheckbookData.GetTransactionsForUserAsync(userId);
 
