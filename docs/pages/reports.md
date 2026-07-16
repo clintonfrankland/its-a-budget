@@ -13,9 +13,9 @@ The reporting month defaults to the current month. The cash-flow horizon default
 
 ## Formulas and boundaries
 
-- **Spend vs Plan:** saved `CategoryBudgetTarget.PlannedAmount` for the selected calendar month versus the absolute sum of negative transactions in `[month start, next month start)`. The visible union uses zero for a missing side. Variance is plan minus actual. Budget Items are not plans.
+- **Spend vs Plan:** spending-allowance Budget Item occurrences whose periods start in the selected calendar month versus the absolute sum of negative transactions in `[month start, next month start)`. An allowance becomes effective at the start of its first recurrence period; earlier saved `CategoryBudgetTarget` values remain the historical fallback. Plans are resolved by budget scope and category before same-named categories are combined for display. Variance is plan minus actual.
 - **Category Trends:** expense-only transactions for the selected month and six preceding calendar months. Months are chronological and missing values are zero.
-- **Cashflow Forecast:** the default ledger account's beginning balance plus posted transactions dated on or before today, followed only by Budget Item occurrences after today through the inclusive horizon end. Income stays positive and expenses negative. The low point uses the earliest date when balances tie. The reporting month never changes this projection.
+- **Cashflow Forecast:** the default ledger account's beginning balance plus posted transactions dated on or before today, followed by scheduled Budget Item occurrences and the unspent portion of allowance periods. Posted spending and separately scheduled expenses in the same category reduce the allowance reservation so they are not counted twice. Income stays positive and expenses negative.
 - **Net Worth:** for each historical month end and today, sum every readable account's `BeginningBalance + transactions dated on or before the as-of date`. Accounts without transactions remain included and signed liability balances are preserved.
 
 Missing, blank, deleted, or inaccessible category references are labeled **Uncategorized**. All money is rounded with `CurrencyPolicy` and rendered with the app's en-US culture.

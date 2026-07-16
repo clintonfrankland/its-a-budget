@@ -24,6 +24,68 @@ public class ReportsDataServiceTests
     }
 
     [Fact]
+    public async Task SpendVsPlan_UsesAllowanceFromItsEffectiveMonthAndPreservesEarlierTargets()
+    {
+        await using var db = CreateDb();
+        SeedBase(db);
+        db.CategoryBudgetTargets.Add(new()
+        {
+            UserId = 1,
+            CategoryId = 1,
+            BudgetMonth = new(2026, 6, 1),
+            PlannedAmount = 500m
+        });
+        db.Budgets.Add(new Budget
+        {
+            BudgetId = 50,
+            UserId = 1,
+            CategoryId = 1,
+            BudgetName = "Food",
+            BudgetTypeId = 1,
+            IsSpendingAllowance = true,
+            FrequencyId = 1,
+            NextDueDate = new DateTime(2026, 7, 18),
+            EndDate = new DateTime(1970, 1, 1),
+            Amount = 150m
+        });
+        await db.SaveChangesAsync();
+        var service = new ReportsDataService(db);
+
+        var june = Assert.Single(await service.GetSpendVsPlanAsync(1, new DateOnly(2026, 6, 15)));
+        var july = Assert.Single(await service.GetSpendVsPlanAsync(1, new DateOnly(2026, 7, 15)));
+
+        Assert.Equal(500m, june.Planned);
+        Assert.Equal(450m, july.Planned);
+    }
+
+    [Fact]
+    public async Task Cashflow_AsOfDateIncludesRemainingAllowance()
+    {
+        await using var db = CreateDb();
+        SeedBase(db);
+        db.Budgets.Add(new Budget
+        {
+            BudgetId = 60,
+            UserId = 1,
+            CategoryId = 1,
+            BudgetName = "Food",
+            BudgetTypeId = 1,
+            IsSpendingAllowance = true,
+            FrequencyId = 1,
+            NextDueDate = new DateTime(2026, 7, 18),
+            EndDate = new DateTime(1970, 1, 1),
+            Amount = 150m
+        });
+        db.Transactions.Add(Tx(1, 1, 1, new DateOnly(2026, 7, 12), -40m));
+        await db.SaveChangesAsync();
+
+        var report = await new ReportsDataService(db).GetCashflowAsync(1, 30, new DateOnly(2026, 7, 15));
+
+        Assert.Equal(960m, report.StartingBalance);
+        Assert.Contains(report.Points, point => point.Description.Contains("allowance", StringComparison.OrdinalIgnoreCase) && point.Change == -110m);
+    }
+
+    [Fact]
     public async Task Cashflow_StartsWithDefaultLedgerAndPostedTransactions_ThenFutureItemsOnly()
     {
         await using var db = CreateDb();

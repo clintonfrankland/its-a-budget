@@ -18,9 +18,8 @@ This app is designed to be simple, fast, and practical. It helps you:
 | Home | The landing page after opening the app | [Home](pages/home.md) |
 | Checkbook | Your day-to-day transactions and running balance | [Checkbook](pages/checkbook.md) |
 | Budget Forecast | Plan ahead and see your projected balance | [Budget Forecast](pages/budget-forecast.md) |
-| Category Budgets | Set monthly category targets and review overspend warnings | [Category Budgets](pages/category-budgets.md) |
 | Reports | Spending, cash flow, category trends, top payees, and net worth | [Reports](pages/reports.md) |
-| Budget Items | Manage your recurring bills/income list | [Budget Items](pages/budget-items.md) |
+| Budget Items | Manage scheduled income/expenses and recurring category spending allowances | [Budget Items](pages/budget-items.md) |
 | Accounts | Track accounts, balances, and key details | [Accounts](pages/accounts.md) |
 | Profile | Your personal settings, including bill-due notice preferences | [Profile](pages/profile.md) |
 | Sharing | Shared-budget member invites and invite acceptance | [Sharing](pages/sharing.md) |

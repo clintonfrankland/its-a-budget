@@ -97,7 +97,7 @@ else
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
+                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
                                         CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
                                         OnSkip="@(() => MarkPaidAsync(item.BudgetId))" OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))"
                                         OnEditNext="@(() => ShowEditNextAsync(item.BudgetId))" />
@@ -105,7 +105,7 @@ else
                             </RadzenDataGridColumn>
                         }
 
-                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due Date" Width="@(IsAtLeast(ScreenSize.Small) ? "90px" : "55px")" SortOrder="SortOrder.Ascending">
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="@(IsAtLeast(ScreenSize.Small) ? "100px" : "55px")" SortOrder="SortOrder.Ascending">
                             <Template Context="item">
                                 @(IsAtLeast(ScreenSize.Small) ? item.DueDate.ToString("MM/dd/yyyy") : item.DueDate.ToString("M/dd"))
                             </Template>
@@ -123,6 +123,7 @@ else
                             </Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" />
+                        <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BehaviorName" Title="Kind" Width="100px" Visible="@IsAtLeast(ScreenSize.Medium)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                         <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
@@ -132,7 +133,7 @@ else
                         {
                             <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="item">
-                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData"
+                                    <BudgetItemActions Page="Budget Forecast" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
                                         CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => RecordBudgetAsync(item))"
                                         OnSkip="@(() => MarkPaidAsync(item.BudgetId))" OnEdit="@(() => ShowEditBudgetAsync(item.BudgetId))"
                                         OnEditNext="@(() => ShowEditNextAsync(item.BudgetId))" />
@@ -160,6 +161,21 @@ else
 
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
+                        <RadzenLabel Text="Behavior:" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="8">
+                        <RadzenRadioButtonList @bind-Value="editIsSpendingAllowance" TValue="bool" Orientation="Orientation.Vertical" Gap="4px">
+                            <Items>
+                                <RadzenRadioButtonListItem Text="Scheduled transaction" Value="false" />
+                                <RadzenRadioButtonListItem Text="Spending allowance" Value="true" />
+                            </Items>
+                        </RadzenRadioButtonList>
+                        <small class="text-muted">Allowances reserve the unspent portion of a category without creating a Checkbook transaction.</small>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow Gap="0.5rem" class="mb-2">
+                    <RadzenColumn Size="4" class="text-end pt-2">
                         <RadzenLabel Text="Name:" Component="editBudgetNameTextBox" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
@@ -167,6 +183,8 @@ else
                     </RadzenColumn>
                 </RadzenRow>
 
+                @if (!editIsSpendingAllowance)
+                {
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
                         <RadzenLabel Text="Type:" />
@@ -180,10 +198,11 @@ else
                         </RadzenRadioButtonList>
                     </RadzenColumn>
                 </RadzenRow>
+                }
 
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
-                        <RadzenLabel Text="Amount:" Component="editAmountNumeric" />
+                        <RadzenLabel Text="@(editIsSpendingAllowance ? "Allowance:" : "Amount:")" Component="editAmountNumeric" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
                         <RadzenNumeric @bind-Value="editAmount" TValue="decimal" Name="editAmountNumeric"
@@ -193,7 +212,7 @@ else
 
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
-                        <RadzenLabel Text="Due Date:" Component="editNextDueDatePicker" />
+                        <RadzenLabel Text="@(editIsSpendingAllowance ? "Next Reset:" : "Due Date:")" Component="editNextDueDatePicker" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
                         <RadzenDatePicker @bind-Value="editNextDueDate" Name="editNextDueDatePicker" DateFormat="MM/dd/yyyy" Style="width: 150px;" />
@@ -222,6 +241,8 @@ else
                     </RadzenColumn>
                 </RadzenRow>
 
+                @if (!editIsSpendingAllowance)
+                {
                 <RadzenRow Gap="0.5rem" class="mb-2" AlignItems="AlignItems.Center">
                     <RadzenColumn Size="4" class="text-end">
                         <RadzenLabel Text="Is Bill:" Component="editIsBillCheckbox" />
@@ -261,6 +282,7 @@ else
                             </RadzenStack>
                         </RadzenColumn>
                     </RadzenRow>
+                }
                 }
 
                 <RadzenRow Gap="0.5rem" class="mb-2" AlignItems="AlignItems.Center">

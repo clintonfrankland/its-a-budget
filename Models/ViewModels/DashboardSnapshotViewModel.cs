@@ -26,10 +26,16 @@ public class DashboardSnapshotViewModel
 public class DashboardCategorySpendViewModel
 {
     public string CategoryName { get; set; } = string.Empty;
+    /// <summary>Expense spending in the current calendar month.</summary>
     public decimal Total { get; set; }
-    /// <summary>Monthly-normalised budget for this category. Null if no budget item exists.</summary>
+    /// <summary>Monthly-normalised spending allowance for this category. Null if no allowance exists.</summary>
     public decimal? BudgetedMonthly { get; set; }
     public bool IsOnBudget => BudgetedMonthly.HasValue && Math.Abs(Total - BudgetedMonthly.Value) <= 1m;
+    public decimal? AllowancePlanned { get; set; }
+    public decimal? AllowanceSpent { get; set; }
+    public decimal? AllowanceRemaining { get; set; }
+    public DateTime? AllowanceResetDate { get; set; }
+    public bool HasAllowance => AllowancePlanned.HasValue;
 }
 
 public class DashboardBillItemViewModel

@@ -8,6 +8,7 @@ public class DashboardDataService
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly CheckbookDataService _checkbook;
     private readonly BudgetScheduleService _budgetSchedule;
+    private readonly BudgetAllowanceService _budgetAllowance;
 
     [ActivatorUtilitiesConstructor]
     public DashboardDataService(IServiceScopeFactory scopeFactory)
@@ -15,29 +16,36 @@ public class DashboardDataService
         _scopeFactory = scopeFactory;
         _checkbook = null!;
         _budgetSchedule = null!;
+        _budgetAllowance = null!;
     }
 
-    internal DashboardDataService(CheckbookDataService checkbook, BudgetScheduleService budgetSchedule)
+    internal DashboardDataService(
+        CheckbookDataService checkbook,
+        BudgetScheduleService budgetSchedule,
+        BudgetAllowanceService budgetAllowance)
     {
         _checkbook = checkbook;
         _budgetSchedule = budgetSchedule;
+        _budgetAllowance = budgetAllowance;
     }
 
     public async Task<DashboardSnapshotViewModel> GetSnapshotAsync(int userId, DateTime today)
     {
         if (_scopeFactory is null)
-            return await BuildSnapshotAsync(_checkbook, _budgetSchedule, userId, today);
+            return await BuildSnapshotAsync(_checkbook, _budgetSchedule, _budgetAllowance, userId, today);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var checkbook = scope.ServiceProvider.GetRequiredService<CheckbookDataService>();
         var budgetSchedule = scope.ServiceProvider.GetRequiredService<BudgetScheduleService>();
+        var budgetAllowance = scope.ServiceProvider.GetRequiredService<BudgetAllowanceService>();
 
-        return await BuildSnapshotAsync(checkbook, budgetSchedule, userId, today);
+        return await BuildSnapshotAsync(checkbook, budgetSchedule, budgetAllowance, userId, today);
     }
 
     private static async Task<DashboardSnapshotViewModel> BuildSnapshotAsync(
         CheckbookDataService checkbook,
         BudgetScheduleService budgetSchedule,
+        BudgetAllowanceService budgetAllowance,
         int userId,
         DateTime today)
     {
@@ -93,23 +101,49 @@ public class DashboardDataService
         var monthlyExpenses = await checkbook.GetMonthlyExpensesByCategoryAsync(userId, today.Year, today.Month);
 
         var monthlyBudgetByCategory = budgets
-            .Where(b => b.BudgetTypeId != 0 && b.Amount.HasValue && (b.FrequencyId ?? 0) != 0)
+            .Where(b => b.IsSpendingAllowance && b.Amount.HasValue && (b.FrequencyId ?? 0) != 0)
             .GroupBy(b => b.Category?.CategoryName ?? "Uncategorized")
             .ToDictionary(
                 g => g.Key,
                 g => g.Sum(b => CurrencyPolicy.Round((b.Amount ?? 0m) * GetMonthlyMultiplier(b.FrequencyId ?? 4))));
-
-        snapshot.CategorySpend = monthlyExpenses
-            .Select(c =>
+        var monthlyExpensesByCategory = monthlyExpenses
+            .ToDictionary(c => c.Category, c => c.Total, StringComparer.OrdinalIgnoreCase);
+        var allowanceProgress = await budgetAllowance.GetCurrentProgressAsync(
+            userId,
+            budgets,
+            DateOnly.FromDateTime(today));
+        var allowanceCategories = budgets
+            .Where(b => allowanceProgress.ContainsKey(b.BudgetId))
+            .GroupBy(b => b.Category?.CategoryName ?? "Uncategorized", StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
             {
-                monthlyBudgetByCategory.TryGetValue(c.Category, out var budgeted);
+                var progress = group.Select(b => allowanceProgress[b.BudgetId]).ToList();
+                monthlyExpensesByCategory.TryGetValue(group.Key, out var monthlyTotal);
+                monthlyBudgetByCategory.TryGetValue(group.Key, out var monthlyBudget);
                 return new DashboardCategorySpendViewModel
                 {
-                    CategoryName = c.Category,
-                    Total = c.Total,
-                    BudgetedMonthly = budgeted > 0 ? budgeted : null
+                    CategoryName = group.Key,
+                    Total = monthlyTotal,
+                    BudgetedMonthly = monthlyBudget > 0m ? monthlyBudget : null,
+                    AllowancePlanned = CurrencyPolicy.Round(progress.Sum(p => p.PlannedAmount)),
+                    AllowanceSpent = CurrencyPolicy.Round(progress.Sum(p => p.SpentAmount)),
+                    AllowanceRemaining = CurrencyPolicy.Round(progress.Sum(p => p.RemainingAmount)),
+                    AllowanceResetDate = progress.Min(p => p.PeriodEnd).ToDateTime(TimeOnly.MinValue)
                 };
             })
+            .ToList();
+        var allowanceNames = allowanceCategories.Select(c => c.CategoryName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        snapshot.CategorySpend = allowanceCategories
+            .Concat(monthlyExpenses
+                .Where(c => !allowanceNames.Contains(c.Category))
+                .Select(c => new DashboardCategorySpendViewModel
+                {
+                    CategoryName = c.Category,
+                    Total = c.Total
+                }))
+            .OrderByDescending(c => c.HasAllowance)
+            .ThenByDescending(c => c.HasAllowance ? c.AllowanceSpent : c.Total)
+            .ThenBy(c => c.CategoryName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // Calculate lowest projected balance over next 6 months
@@ -124,20 +158,20 @@ public class DashboardDataService
 
     private static decimal GetMonthlyMultiplier(int frequencyId) => frequencyId switch
     {
-        1  => 52m / 12m,        // Weekly
-        2  => 26m / 12m,        // Bi-weekly
-        4  => 1m,               // Monthly
-        5  => 1m / 2m,          // Bi-monthly (every 2 months)
-        6  => 1m / 3m,          // Quarterly
-        7  => 365m / 35m / 12m, // Every 5 weeks
-        8  => 2m,               // Semi-monthly
-        9  => 1m / 12m,         // Yearly
+        1 => 52m / 12m,        // Weekly
+        2 => 26m / 12m,        // Bi-weekly
+        4 => 1m,               // Monthly
+        5 => 1m / 2m,          // Bi-monthly (every 2 months)
+        6 => 1m / 3m,          // Quarterly
+        7 => 365m / 35m / 12m, // Every 5 weeks
+        8 => 2m,               // Semi-monthly
+        9 => 1m / 12m,         // Yearly
         10 => 365m / 5m / 12m,  // Every 5 days
         11 => 365m / 42m / 12m, // Every 6 weeks
         12 => 365m / 21m / 12m, // Every 3 weeks
         13 => 365m / 28m / 12m, // Every 4 weeks
         14 => 1m / 6m,          // Semi-annually
-        _  => 1m
+        _ => 1m
     };
 
 }

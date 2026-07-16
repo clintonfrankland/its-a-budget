@@ -139,7 +139,8 @@ public class BillDueNotificationWorkerTests
         var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
         var dashboard = await new DashboardDataService(
             new CheckbookDataService(db),
-            new BudgetScheduleService(db))
+            new BudgetScheduleService(db),
+            new BudgetAllowanceService(db))
             .GetSnapshotAsync(42, new DateTime(2026, 7, 6));
         var insights = await new InsightsDataService(db).GetMonthlyCategoryTotalsAsync(42, new DateOnly(2026, 7, 1));
 

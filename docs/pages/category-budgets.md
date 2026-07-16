@@ -1,8 +1,12 @@
-# Category Budgets
+# Category Budgets (legacy route)
 
-The Category Budgets page lets a signed-in user set monthly planned spending amounts for their own categories and compare those targets against actual expense transactions.
+Category Budgets have been merged into **Budget Items** as the **Spending allowance** behavior. The old `/category-budgets` route redirects to `/budgetitems?kind=allowances` so the migrated allowances are shown immediately.
 
-Open it from **Plan > Category Budgets**. Guests are redirected to sign in before budget data is shown.
+The historical notes below describe the former monthly-target workflow. Existing targets are retained for historical reporting and their latest values are migrated into recurring allowance Budget Items.
+
+The former Category Budgets page let a signed-in user set monthly planned spending amounts for categories and compare those targets against actual expense transactions.
+
+Use **Plan > Budget Items** and choose **Spending allowance** for the current workflow.
 
 ## Month selector
 

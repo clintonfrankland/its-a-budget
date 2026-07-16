@@ -19,8 +19,15 @@ public class BudgetScheduleService
     }
 
     public async Task<List<BudgetItemViewModel>> GetForecastAsync(int userId, DateTime endDate, bool includeEndDate = false)
+        => await GetForecastAsync(userId, DateTime.Today, endDate, includeEndDate);
+
+    public async Task<List<BudgetItemViewModel>> GetForecastAsync(
+        int userId,
+        DateTime startDate,
+        DateTime endDate,
+        bool includeEndDate = false)
     {
-        var startingBalance = await GetCurrentBalanceAsync(userId);
+        var startingBalance = await GetCurrentBalanceAsync(userId, DateOnly.FromDateTime(startDate));
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
         var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
 
@@ -32,7 +39,8 @@ public class BudgetScheduleService
         if (incomeBudget?.NextDueDate > endDate)
             endDate = incomeBudget.NextDueDate.Value;
 
-        return ProjectForecast(startingBalance, budgets, DateTime.Today, endDate, includeEndDate, userId, writableSharedBudgetIds);
+        var allowances = await BuildAllowanceForecastAsync(userId, budgets, startDate, endDate, includeEndDate);
+        return ProjectForecast(startingBalance, budgets, startDate, endDate, includeEndDate, userId, writableSharedBudgetIds, allowances);
     }
 
     public async Task<List<BudgetItemViewModel>> GetRecurringPreviewAsync(
@@ -45,14 +53,17 @@ public class BudgetScheduleService
 
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
         var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
+        var endDate = startDate.Date.AddDays(days - 1);
+        var allowances = await BuildAllowanceForecastAsync(userId, budgets, startDate.Date, endDate, includeEndDate: true);
         return ProjectForecast(
             startingBalance: 0m,
             budgets,
             startDate.Date,
-            startDate.Date.AddDays(days - 1),
+            endDate,
             includeEndDate: true,
             userId,
             writableSharedBudgetIds,
+            allowances,
             rollForwardToStart: true);
     }
 
@@ -64,7 +75,8 @@ public class BudgetScheduleService
         var currentBalance = await GetCurrentBalanceAsync(userId);
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
         var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
-        var forecast = ProjectForecast(currentBalance, budgets, startDate, endDate, includeEndDate: true, userId, writableSharedBudgetIds);
+        var allowances = await BuildAllowanceForecastAsync(userId, budgets, startDate, endDate, includeEndDate: true);
+        var forecast = ProjectForecast(currentBalance, budgets, startDate, endDate, includeEndDate: true, userId, writableSharedBudgetIds, allowances);
 
         var lowest = forecast
             .OrderBy(i => i.Balance)
@@ -81,6 +93,9 @@ public class BudgetScheduleService
     {
         var budget = await _db.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId);
         if (budget is null)
+            return;
+
+        if (budget.IsSpendingAllowance)
             return;
 
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
@@ -106,6 +121,9 @@ public class BudgetScheduleService
         if (budget is null)
             return false;
 
+        if (budget.IsSpendingAllowance)
+            return false;
+
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
             return false;
 
@@ -125,6 +143,9 @@ public class BudgetScheduleService
             .FirstOrDefaultAsync(b => b.BudgetId == budgetId);
 
         if (budget is null)
+            return false;
+
+        if (budget.IsSpendingAllowance)
             return false;
 
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, budget.SharedBudgetId, budget.UserId))
@@ -210,6 +231,9 @@ public class BudgetScheduleService
         if (originalBudget is null)
             return;
 
+        if (originalBudget.IsSpendingAllowance)
+            return;
+
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, originalBudget.SharedBudgetId, originalBudget.UserId))
             return;
 
@@ -268,7 +292,7 @@ public class BudgetScheduleService
         };
     }
 
-    private async Task<decimal> GetCurrentBalanceAsync(int userId)
+    private async Task<decimal> GetCurrentBalanceAsync(int userId, DateOnly? asOf = null)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var account = await _db.Accounts
@@ -279,12 +303,14 @@ public class BudgetScheduleService
             .OrderByDescending(a => a.IsDefault)
             .ThenBy(a => a.AccountId)
             .FirstOrDefaultAsync();
-        var transactionSum = await _db.Transactions
+        var transactions = _db.Transactions
             .AsNoTracking()
             .Where(t => t.SharedBudgetId.HasValue
                 ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId)
-            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+                : t.UserId == userId);
+        if (asOf.HasValue)
+            transactions = transactions.Where(t => t.TransactionDate <= asOf.Value);
+        var transactionSum = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
         return CurrencyPolicy.Round((account?.BeginningBalance ?? 0m) + transactionSum);
     }
@@ -311,6 +337,7 @@ public class BudgetScheduleService
         bool includeEndDate,
         int userId,
         IReadOnlyCollection<int> writableSharedBudgetIds,
+        IReadOnlyDictionary<string, AllowanceForecastValue> allowanceForecast,
         bool rollForwardToStart = false)
     {
         var projectedItems = new List<(int BudgetId, string BudgetName, string Category, DateTime DueDate, decimal Amount, int FrequencyId, string FrequencyName, bool IsAuto, bool IsBill, bool IsLate, string Payee, bool CanManageFinancialData, string CategoryWarning)>();
@@ -322,7 +349,9 @@ public class BudgetScheduleService
 
         foreach (var budget in budgets)
         {
-            var nextDue = budget.NextDueDate ?? startDate;
+            var nextDue = budget.IsSpendingAllowance
+                ? BudgetAllowanceService.GetCurrentPeriod(budget, DateOnly.FromDateTime(startDate)).End.ToDateTime(TimeOnly.MinValue)
+                : budget.NextDueDate ?? startDate;
             var budgetEndDate = HasEndDate(budget) ? budget.EndDate!.Value : endDate;
             var frequencyId = budget.FrequencyId ?? 0;
             if (rollForwardToStart)
@@ -334,10 +363,14 @@ public class BudgetScheduleService
 
             while (IsWithinProjection(nextDue, endDate, includeEndDate) && IsWithinProjection(nextDue, budgetEndDate, includeEndDate))
             {
-                var amount = budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
+                var allowanceKey = AllowanceKey(budget.BudgetId, nextDue);
+                allowanceForecast.TryGetValue(allowanceKey, out var allowance);
+                var amount = budget.IsSpendingAllowance
+                    ? -(allowance?.RemainingAmount ?? CurrencyPolicy.Round(budget.Amount ?? 0m))
+                    : budget.BudgetTypeId == 0 ? (budget.Amount ?? 0m) : -(budget.Amount ?? 0m);
                 projectedItems.Add((
                     budget.BudgetId,
-                    budget.BudgetName ?? string.Empty,
+                    budget.IsSpendingAllowance ? $"{budget.BudgetName} allowance".Trim() : budget.BudgetName ?? string.Empty,
                     budget.Category?.CategoryName ?? string.Empty,
                     nextDue,
                     amount,
@@ -374,6 +407,10 @@ public class BudgetScheduleService
                 IsAuto = item.IsAuto,
                 IsBill = item.IsBill,
                 IsLate = item.IsLate,
+                IsSpendingAllowance = allowanceForecast.TryGetValue(AllowanceKey(item.BudgetId, item.DueDate), out var allowance),
+                PlannedAmount = allowance?.PlannedAmount ?? 0m,
+                SpentAmount = allowance?.SpentAmount ?? 0m,
+                RemainingAmount = allowance?.RemainingAmount ?? 0m,
                 Payee = item.Payee,
                 CanManageFinancialData = item.CanManageFinancialData,
                 HasCategoryWarning = !string.IsNullOrEmpty(item.CategoryWarning),
@@ -383,6 +420,89 @@ public class BudgetScheduleService
 
         return result;
     }
+
+    private async Task<Dictionary<string, AllowanceForecastValue>> BuildAllowanceForecastAsync(
+        int userId,
+        IReadOnlyCollection<Budget> budgets,
+        DateTime startDate,
+        DateTime endDate,
+        bool includeEndDate)
+    {
+        var projectionStart = DateOnly.FromDateTime(startDate);
+        var allowances = budgets
+            .Where(b => b.IsSpendingAllowance &&
+                (!HasEndDate(b) || DateOnly.FromDateTime(b.EndDate!.Value) >= projectionStart))
+            .ToList();
+        if (allowances.Count == 0)
+            return [];
+
+        var readable = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var start = DateOnly.FromDateTime(startDate);
+        var earliest = allowances.Min(b => BudgetAllowanceService.GetCurrentPeriod(b, start).Start);
+        var actuals = await _db.Transactions.AsNoTracking()
+            .Where(t => t.Amount < 0 && t.TransactionDate >= earliest && t.TransactionDate <= start &&
+                (t.SharedBudgetId.HasValue ? readable.Contains(t.SharedBudgetId.Value) : t.UserId == userId))
+            .Select(t => new { t.CategoryId, t.TransactionDate, t.Amount, t.SharedBudgetId, t.UserId })
+            .ToListAsync();
+
+        var scheduled = new List<(int CategoryId, DateOnly Date, decimal Amount, int? SharedBudgetId, int? UserId)>();
+        foreach (var budget in budgets.Where(b => !b.IsSpendingAllowance && b.BudgetTypeId != 0))
+        {
+            var due = budget.NextDueDate ?? startDate;
+            due = RollForwardToProjectionStart(due, budget.FrequencyId ?? 0, startDate);
+            while (IsWithinProjection(due, endDate, includeEndDate) && (!HasEndDate(budget) || due <= budget.EndDate))
+            {
+                scheduled.Add((budget.CategoryId, DateOnly.FromDateTime(due), CurrencyPolicy.Round(budget.Amount ?? 0m), budget.SharedBudgetId, budget.UserId));
+                if ((budget.FrequencyId ?? 0) == 0)
+                    break;
+                var next = CalculateNextDueDate(due, budget.FrequencyId!.Value);
+                if (next <= due)
+                    break;
+                due = next;
+            }
+        }
+
+        var result = new Dictionary<string, AllowanceForecastValue>();
+        foreach (var budget in allowances)
+        {
+            var period = BudgetAllowanceService.GetCurrentPeriod(budget, start);
+            var periodStart = period.Start;
+            var periodEnd = period.End;
+            while (IsWithinProjection(periodEnd.ToDateTime(TimeOnly.MinValue), endDate, includeEndDate) &&
+                   (!HasEndDate(budget) || periodEnd <= DateOnly.FromDateTime(budget.EndDate!.Value)))
+            {
+                var spent = CurrencyPolicy.Round(actuals
+                    .Where(t => t.CategoryId == budget.CategoryId && t.TransactionDate >= periodStart && t.TransactionDate < periodEnd &&
+                        SameBudgetScope(budget, t.SharedBudgetId, t.UserId))
+                    .Sum(t => -t.Amount));
+                var scheduledAmount = CurrencyPolicy.Round(scheduled
+                    .Where(s => s.CategoryId == budget.CategoryId && s.Date >= start && s.Date >= periodStart && s.Date < periodEnd &&
+                        SameBudgetScope(budget, s.SharedBudgetId, s.UserId))
+                    .Sum(s => s.Amount));
+                var planned = CurrencyPolicy.Round(budget.Amount ?? 0m);
+                var remaining = CurrencyPolicy.Round(Math.Max(0m, planned - spent - scheduledAmount));
+                result[AllowanceKey(budget.BudgetId, periodEnd.ToDateTime(TimeOnly.MinValue))] =
+                    new AllowanceForecastValue(planned, spent, remaining);
+
+                periodStart = periodEnd;
+                var next = DateOnly.FromDateTime(CalculateNextDueDate(periodEnd.ToDateTime(TimeOnly.MinValue), budget.FrequencyId ?? 0));
+                if (next <= periodEnd)
+                    break;
+                periodEnd = next;
+            }
+        }
+
+        return result;
+    }
+
+    private static string AllowanceKey(int budgetId, DateTime periodEnd) => $"{budgetId}:{periodEnd:yyyyMMdd}";
+
+    private static bool SameBudgetScope(Budget budget, int? sharedBudgetId, int? ownerUserId) =>
+        budget.SharedBudgetId.HasValue
+            ? sharedBudgetId == budget.SharedBudgetId
+            : !sharedBudgetId.HasValue && ownerUserId == budget.UserId;
+
+    private sealed record AllowanceForecastValue(decimal PlannedAmount, decimal SpentAmount, decimal RemainingAmount);
 
     private static bool CanManageFinancialData(
         int userId,

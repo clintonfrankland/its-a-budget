@@ -26,6 +26,8 @@ public class NavigationAndBootstrapContractTests
         Assert.Contains("Profile &amp; Notifications", markup);
         Assert.Contains("<strong class=\"d-block\">Forecast</strong>", markup);
         Assert.Contains("<small class=\"d-block text-secondary mt-1\">Projected balances and upcoming items</small>", markup);
+        Assert.Contains("Scheduled transactions and spending allowances", markup);
+        Assert.DoesNotContain("href=\"/category-budgets\"", markup);
         Assert.Contains("css/app.css?v=", app);
         Assert.DoesNotContain("href=\"insights\"", markup, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Insights</a>", markup, StringComparison.OrdinalIgnoreCase);
@@ -54,6 +56,38 @@ public class NavigationAndBootstrapContractTests
         var source = Read("Components/Pages/Insights.razor.cs");
         Assert.Contains("/reports?view=spending", source);
         Assert.Contains("replace: true", source);
+    }
+
+    [Fact]
+    public void LegacyCategoryBudgetsRoute_RedirectsToUnifiedBudgetItems()
+    {
+        var source = Read("Components/Pages/CategoryBudgets.razor.cs");
+        Assert.Contains("/budgetitems?kind=allowances", source);
+        Assert.Contains("replace: true", source);
+    }
+
+    [Fact]
+    public void SpendingAllowanceMigration_IsGuardedAndMigratesLatestCategoryTargets()
+    {
+        var source = Read("Migrations/20260715192503_AddSpendingAllowanceBudgetItems.cs");
+        Assert.Contains("COL_LENGTH('dbo.cfBudgets', 'IsSpendingAllowance') IS NULL", source);
+        Assert.Contains("ROW_NUMBER() OVER", source);
+        Assert.Contains("TargetRank = 1", source);
+        Assert.Contains("IsSpendingAllowance = 1", source);
+    }
+
+    [Theory]
+    [InlineData("Components/Pages/BudgetItems.razor")]
+    [InlineData("Components/Pages/Budget.razor")]
+    public void AllowanceEditor_KeepsNameVisibleAndHidesOnlyTransactionType(string path)
+    {
+        var source = Read(path);
+        var behavior = source.IndexOf("Text=\"Behavior:\"", StringComparison.Ordinal);
+        var name = source.IndexOf("Name=\"editBudgetNameTextBox\"", behavior, StringComparison.Ordinal);
+        var conditional = source.IndexOf("@if (!editIsSpendingAllowance)", name, StringComparison.Ordinal);
+        var type = source.IndexOf("Text=\"Type:\"", conditional, StringComparison.Ordinal);
+
+        Assert.True(behavior >= 0 && name > behavior && conditional > name && type > conditional);
     }
 
     [Fact]

@@ -64,6 +64,7 @@ public partial class Budget
     private int editBudgetId = -1;
     private string editBudgetName = string.Empty;
     private bool editIsExpense = true;  // true = Expense, false = Income
+    private bool editIsSpendingAllowance;
     private decimal editAmount = 0m;
     private DateTime editNextDueDate = DateTime.Today;
     private int editFrequencyId = 1;
@@ -162,6 +163,7 @@ public partial class Budget
         canManageEditFinancialData = true;
         editBudgetName = string.Empty;
         editIsExpense = true;
+        editIsSpendingAllowance = false;
         editAmount = 0m;
         editNextDueDate = DateTime.Today;
         editFrequencyId = 1;
@@ -194,6 +196,7 @@ public partial class Budget
                 canManageEditFinancialData = true;
                 editBudgetName = budget.BudgetName ?? string.Empty;
                 editIsExpense = budget.BudgetTypeId == 1;  // 1 = Expense, 0 = Income
+                editIsSpendingAllowance = budget.IsSpendingAllowance;
                 editAmount = budget.Amount ?? 0m;
                 editNextDueDate = budget.NextDueDate ?? DateTime.Today;
                 editFrequencyId = budget.FrequencyId ?? 1;
@@ -288,8 +291,8 @@ public partial class Budget
             return;
         }
 
-        var payeeName = editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
-        if (editIsBill && string.IsNullOrWhiteSpace(payeeName))
+        var payeeName = !editIsSpendingAllowance && editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
+        if (!editIsSpendingAllowance && editIsBill && string.IsNullOrWhiteSpace(payeeName))
         {
             editErrorMessage = "Payee is required for bill items.";
             return;
@@ -300,8 +303,8 @@ public partial class Budget
             var userId = CurrentUser.UserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
-            var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
-            var isAuto = editIsBill && editIsAuto;
+            var budgetTypeId = editIsSpendingAllowance || editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
+            var isAuto = !editIsSpendingAllowance && editIsBill && editIsAuto;
             var budgetName = editBudgetName.Trim();
             var categoryName = editCategory.Trim();
             await BudgetData.SaveBudgetAsync(
@@ -316,8 +319,9 @@ public partial class Budget
                 categoryName,
                 payeeName,
                 isAuto,
-                editIsBill,
-                editIsLate);
+                !editIsSpendingAllowance && editIsBill,
+                !editIsSpendingAllowance && editIsLate,
+                editIsSpendingAllowance);
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -400,6 +404,11 @@ public partial class Budget
 
             if (budget != null)
             {
+                if (budget.IsSpendingAllowance)
+                {
+                    await ShowEditBudgetAsync(budgetId);
+                    return;
+                }
                 editBudgetId = budgetId;
                 canManageEditFinancialData = true;
                 editBudgetName = budget.BudgetName ?? string.Empty;

@@ -112,6 +112,12 @@ public class ServiceRefactorWorkflowTests
         var dateException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SaveBudgetAsync(42, -1, "Bad", 1, 4, DateTime.MinValue, new DateTime(1970, 1, 1), 1m, "Bills", "", false, false, false));
         Assert.Equal("Next due date is required.", dateException.Message);
+
+        var semiMonthlyException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SaveBudgetAsync(
+                42, -1, "Allowance", 1, 8, new DateTime(2026, 7, 10), new DateTime(1970, 1, 1),
+                50m, "Bills", "", false, false, false, isSpendingAllowance: true));
+        Assert.Equal("A semi-monthly spending allowance must reset on the 1st or 15th.", semiMonthlyException.Message);
     }
 
     [Fact]
@@ -278,7 +284,10 @@ public class ServiceRefactorWorkflowTests
             Budget(2, 99, "Other Electric", 1, 2, new DateTime(2026, 7, 4), 999m, frequencyId: 4, isBill: true));
         await db.SaveChangesAsync();
 
-        var service = new DashboardDataService(new CheckbookDataService(db), new BudgetScheduleService(db));
+        var service = new DashboardDataService(
+            new CheckbookDataService(db),
+            new BudgetScheduleService(db),
+            new BudgetAllowanceService(db));
 
         var snapshot = await service.GetSnapshotAsync(42, new DateTime(2026, 7, 4));
 
@@ -290,6 +299,56 @@ public class ServiceRefactorWorkflowTests
         Assert.Equal("Utilities", category.CategoryName);
         Assert.Equal(25m, category.Total);
         Assert.Equal(-135m, snapshot.LowestProjectedBalance);
+    }
+
+    [Fact]
+    public async Task DashboardSnapshot_ShowsCurrentAllowanceProgressAndIncludesZeroSpendAllowances()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        db.Accounts.Add(new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 1000m, UserId = 42, IsDefault = true });
+        db.Categories.AddRange(
+            new Category { CategoryId = 1, CategoryName = "Groceries", UserId = 42 },
+            new Category { CategoryId = 2, CategoryName = "Dining", UserId = 42 });
+        db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Store", UserId = 42, IsDeleted = false });
+        db.Frequencies.Add(new Frequency { FrequencyId = 1, FrequencyName = "Weekly", Sort = 1 });
+        db.Transactions.Add(new Transaction
+        {
+            TransactionId = 1,
+            UserId = 42,
+            AccountId = 1,
+            CategoryId = 1,
+            PayeeId = 1,
+            TransactionDate = new DateOnly(2026, 7, 12),
+            Amount = -60m
+        });
+        db.Budgets.AddRange(
+            new Budget
+            {
+                BudgetId = 1, UserId = 42, CategoryId = 1, BudgetName = "Groceries",
+                BudgetTypeId = 1, IsSpendingAllowance = true, FrequencyId = 1,
+                NextDueDate = new DateTime(2026, 7, 18), EndDate = new DateTime(1970, 1, 1), Amount = 150m
+            },
+            new Budget
+            {
+                BudgetId = 2, UserId = 42, CategoryId = 2, BudgetName = "Dining",
+                BudgetTypeId = 1, IsSpendingAllowance = true, FrequencyId = 1,
+                NextDueDate = new DateTime(2026, 7, 18), EndDate = new DateTime(1970, 1, 1), Amount = 75m
+            });
+        await db.SaveChangesAsync();
+
+        var service = new DashboardDataService(
+            new CheckbookDataService(db),
+            new BudgetScheduleService(db),
+            new BudgetAllowanceService(db));
+        var snapshot = await service.GetSnapshotAsync(42, new DateTime(2026, 7, 15));
+
+        var groceries = snapshot.CategorySpend.Single(category => category.CategoryName == "Groceries");
+        Assert.Equal((150m, 60m, 90m, new DateTime(2026, 7, 18)),
+            (groceries.AllowancePlanned, groceries.AllowanceSpent, groceries.AllowanceRemaining, groceries.AllowanceResetDate));
+        var dining = snapshot.CategorySpend.Single(category => category.CategoryName == "Dining");
+        Assert.Equal((75m, 0m, 75m),
+            (dining.AllowancePlanned, dining.AllowanceSpent, dining.AllowanceRemaining));
     }
 
     [Fact]
@@ -350,7 +409,6 @@ public class ServiceRefactorWorkflowTests
             "Components/Pages/Accounts.razor.cs",
             "Components/Pages/BudgetItems.razor.cs",
             "Components/Pages/Payees.razor.cs",
-            "Components/Pages/CategoryBudgets.razor.cs",
             "Components/Pages/Reports.razor.cs"
         };
 
@@ -384,6 +442,7 @@ public class ServiceRefactorWorkflowTests
         Assert.Contains("CreateAsyncScope()", source);
         Assert.Contains("GetRequiredService<CheckbookDataService>()", source);
         Assert.Contains("GetRequiredService<BudgetScheduleService>()", source);
+        Assert.Contains("GetRequiredService<BudgetAllowanceService>()", source);
     }
 
     private static ClintonFranklandDbContext CreateDbContext()

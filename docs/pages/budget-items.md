@@ -2,7 +2,7 @@
 
 ## What this page is
 
-**Budget Items** is your master list of repeating money events.
+**Budget Items** is the single place for repeating money events and category spending allowances.
 
 Think of it like your financial “schedule”:
 
@@ -10,8 +10,18 @@ Think of it like your financial “schedule”:
 - recurring income
 - subscriptions
 - anything that happens on a predictable cycle
+- flexible spending limits such as weekly Groceries or monthly Dining
 
 Keeping this page accurate is what makes the rest of the app feel effortless.
+
+## Two item behaviors
+
+- **Scheduled transaction** represents money expected to move on a date, such as a paycheck, mortgage, subscription, or utility bill. It can be recorded, skipped, edited, or changed for the next occurrence.
+- **Spending allowance** reserves an amount for one category during each recurring period. Posted expense transactions in that category reduce the available amount. It never creates a synthetic Checkbook transaction.
+
+For example, a weekly `$150` Groceries allowance with `$60` of posted grocery spending shows `$90` remaining. Unused money does not carry into the next period, and overspending is shown for the current period before the allowance resets.
+
+Forecast deducts only the portion of an allowance that is still available. A separately scheduled expense in the same category is displayed on its own and also reduces the unallocated allowance, preventing double-counting.
 
 ## What you’ll see
 
@@ -30,18 +40,19 @@ At the bottom of the **Monthly** column, the app totals the visible monthly amou
 ## Add a budget item
 
 1. Select **Add Budget**.
-2. Enter the key details:
+2. Choose **Scheduled transaction** or **Spending allowance**.
+3. Enter the key details:
    - **Name**
    - **Type**: Expense or Income
    - **Amount**
    - **Due Date**
    - **Frequency**
    - **Category**
-3. If it’s a bill, turn on **Is Bill**.
+4. If it is a scheduled bill, turn on **Is Bill**.
    - You can then pick a **Payee**.
    - You can also flag it as **Auto** (auto-pay) or **Late**.
-4. If the item ends (like a temporary payment plan), turn on **Has End Date** and pick an **End Date**.
-5. Select **Save**.
+5. If the item ends, turn on **Has End Date** and pick an **End Date**.
+6. Select **Save**.
 
 ## Edit or delete a budget item
 

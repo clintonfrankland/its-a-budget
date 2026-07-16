@@ -28,13 +28,41 @@ public class ReportsDataService
                 ? readable.Contains(t.SharedBudgetId.Value)
                 : t.UserId == userId))
             .ToListAsync();
+        var allowances = await _db.Budgets.AsNoTracking().Include(b => b.Category)
+            .Where(b => b.IsSpendingAllowance && (b.SharedBudgetId.HasValue
+                ? readable.Contains(b.SharedBudgetId.Value)
+                : b.UserId == userId))
+            .ToListAsync();
         var transactions = await ReadableTransactions(userId, readable)
             .Include(t => t.Category)
             .Where(t => t.Amount < 0 && t.TransactionDate >= start && t.TransactionDate < end)
             .ToListAsync();
 
-        var planned = targets.GroupBy(t => CategoryName(t.Category, userId, t.SharedBudgetId, readable), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => CurrencyPolicy.Round(g.Sum(t => t.PlannedAmount)), StringComparer.OrdinalIgnoreCase);
+        var legacyPlanned = targets
+            .GroupBy(t => PlanScope(t.CategoryId, t.SharedBudgetId, t.UserId))
+            .ToDictionary(
+                g => g.Key,
+                g => new PlanValue(
+                    CategoryName(g.First().Category, userId, g.First().SharedBudgetId, readable),
+                    CurrencyPolicy.Round(g.Sum(t => t.PlannedAmount))));
+        var allowancePlanned = allowances
+            .Select(b => new
+            {
+                Scope = PlanScope(b.CategoryId, b.SharedBudgetId, b.UserId),
+                Name = CategoryName(b.Category, userId, b.SharedBudgetId, readable),
+                Amount = GetAllowancePlanForMonth(b, start, end)
+            })
+            .Where(x => x.Amount > 0m)
+            .GroupBy(x => x.Scope)
+            .ToDictionary(
+                g => g.Key,
+                g => new PlanValue(g.First().Name, CurrencyPolicy.Round(g.Sum(x => x.Amount))));
+        var planned = legacyPlanned
+            .Where(x => !allowancePlanned.ContainsKey(x.Key))
+            .Select(x => x.Value)
+            .Concat(allowancePlanned.Values)
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => CurrencyPolicy.Round(g.Sum(x => x.Amount)), StringComparer.OrdinalIgnoreCase);
         var actual = transactions.GroupBy(t => CategoryName(t.Category, userId, t.SharedBudgetId, readable), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => CurrencyPolicy.Round(g.Sum(t => -t.Amount)), StringComparer.OrdinalIgnoreCase);
 
@@ -46,6 +74,42 @@ public class ReportsDataService
 
     public Task<List<CategoryTrendRow>> GetCategoryTrendsAsync(int userId, DateOnly selectedMonth) =>
         new InsightsDataService(_db, _sharedBudgets).GetCategoryTrendAsync(userId, selectedMonth);
+
+    private static decimal GetAllowancePlanForMonth(Budget budget, DateOnly monthStart, DateOnly monthEnd)
+    {
+        var frequency = budget.FrequencyId ?? 0;
+        if (frequency == 0)
+            return 0m;
+
+        var periodStart = BudgetAllowanceService.GetEffectiveStart(budget);
+        var periodEnd = DateOnly.FromDateTime(
+            BudgetScheduleService.CalculateNextDueDate(periodStart.ToDateTime(TimeOnly.MinValue), frequency));
+        if (periodStart >= monthEnd)
+            return 0m;
+
+        while (periodEnd <= monthStart)
+        {
+            periodStart = periodEnd;
+            var next = DateOnly.FromDateTime(BudgetScheduleService.CalculateNextDueDate(periodEnd.ToDateTime(TimeOnly.MinValue), frequency));
+            if (next <= periodEnd)
+                return 0m;
+            periodEnd = next;
+        }
+
+        var total = 0m;
+        while (periodStart < monthEnd && (!HasEndDate(budget) || periodStart <= DateOnly.FromDateTime(budget.EndDate!.Value)))
+        {
+            if (periodStart >= monthStart)
+                total += budget.Amount ?? 0m;
+
+            periodStart = periodEnd;
+            var next = DateOnly.FromDateTime(BudgetScheduleService.CalculateNextDueDate(periodEnd.ToDateTime(TimeOnly.MinValue), frequency));
+            if (next <= periodEnd) break;
+            periodEnd = next;
+        }
+
+        return CurrencyPolicy.Round(total);
+    }
 
     public async Task<CashflowReport> GetCashflowAsync(int userId, int horizonDays, DateOnly? asOf = null)
     {
@@ -65,31 +129,16 @@ public class ReportsDataService
             .ThenBy(a => a.AccountId)
             .FirstOrDefault();
         var starting = CurrencyPolicy.Round((ledgerAccount?.BeginningBalance ?? 0m) + posted);
-        var budgets = await _db.Budgets.AsNoTracking()
-            .Where(b => b.SharedBudgetId.HasValue ? readable.Contains(b.SharedBudgetId.Value) : b.UserId == userId)
-            .ToListAsync();
-
-        var occurrences = new List<(DateOnly Date, int Id, string Name, decimal Amount)>();
-        foreach (var budget in budgets)
-        {
-            var due = DateOnly.FromDateTime((budget.NextDueDate ?? today.ToDateTime(TimeOnly.MinValue)).Date);
-            var frequency = budget.FrequencyId ?? 0;
-            while (due <= today && frequency != 0)
-            {
-                var next = BudgetScheduleService.CalculateNextDueDate(due.ToDateTime(TimeOnly.MinValue), frequency);
-                if (DateOnly.FromDateTime(next) <= due) break;
-                due = DateOnly.FromDateTime(next);
-            }
-            while (due > today && due <= end && (!HasEndDate(budget) || due <= DateOnly.FromDateTime(budget.EndDate!.Value)))
-            {
-                var amount = budget.BudgetTypeId == 0 ? budget.Amount ?? 0m : -(budget.Amount ?? 0m);
-                occurrences.Add((due, budget.BudgetId, budget.BudgetName ?? "Budget item", CurrencyPolicy.Round(amount)));
-                if (frequency == 0) break;
-                var next = BudgetScheduleService.CalculateNextDueDate(due.ToDateTime(TimeOnly.MinValue), frequency);
-                if (DateOnly.FromDateTime(next) <= due) break;
-                due = DateOnly.FromDateTime(next);
-            }
-        }
+        var forecast = await new BudgetScheduleService(_db, _sharedBudgets)
+            .GetForecastAsync(
+                userId,
+                today.ToDateTime(TimeOnly.MinValue),
+                end.ToDateTime(TimeOnly.MinValue),
+                includeEndDate: true);
+        var occurrences = forecast
+            .Where(i => i.DueDate.Date > today.ToDateTime(TimeOnly.MinValue).Date)
+            .Select(i => (Date: DateOnly.FromDateTime(i.DueDate), Id: i.BudgetId, Name: i.BudgetName, i.Amount))
+            .ToList();
 
         var points = new List<CashflowPoint> { new(today, "Starting balance", 0m, starting, true) };
         var balance = starting;
@@ -142,4 +191,8 @@ public class ReportsDataService
 
     private static bool HasEndDate(Budget budget) => budget.EndDate.HasValue && budget.EndDate.Value != NoEndDate;
     private static DateOnly FirstOfMonth(DateOnly date) => new(date.Year, date.Month, 1);
+    private static PlanScopeKey PlanScope(int categoryId, int? sharedBudgetId, int? userId) =>
+        new(categoryId, sharedBudgetId, sharedBudgetId.HasValue ? 0 : userId ?? 0);
+    private sealed record PlanScopeKey(int CategoryId, int? SharedBudgetId, int OwnerUserId);
+    private sealed record PlanValue(string Name, decimal Amount);
 }

@@ -200,6 +200,7 @@ builder.Services.AddScoped<PayeesDataService>();
 builder.Services.AddScoped<SharedBudgetDataService>();
 builder.Services.AddScoped<BudgetInviteService>();
 builder.Services.AddScoped<BudgetScheduleService>();
+builder.Services.AddScoped<BudgetAllowanceService>();
 builder.Services.AddScoped<BudgetDataService>();
 builder.Services.AddScoped<CategoryBudgetDataService>();
 builder.Services.AddScoped<CheckbookDataService>();

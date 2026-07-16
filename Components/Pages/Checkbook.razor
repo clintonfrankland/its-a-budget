@@ -84,7 +84,7 @@ else
                             {
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
-                                        <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData"
+                                        <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
                                             CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => ShowAddFromBudget(item))"
                                             OnSkip="@(() => SkipBudgetAsync(item.BudgetId))" OnEdit="@(() => EditBudgetItem(item.BudgetId))"
                                             OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />
@@ -106,7 +106,7 @@ else
                             {
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
-                                        <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData"
+                                        <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
                                             CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => ShowAddFromBudget(item))"
                                             OnSkip="@(() => SkipBudgetAsync(item.BudgetId))" OnEdit="@(() => EditBudgetItem(item.BudgetId))"
                                             OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />

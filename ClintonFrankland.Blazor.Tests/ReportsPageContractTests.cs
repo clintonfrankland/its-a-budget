@@ -46,7 +46,7 @@ public class ReportsPageContractTests
         Assert.Contains(">Spending</button>", markup);
         Assert.Contains(">Cash Flow</button>", markup);
         Assert.Contains(">Net Worth</button>", markup);
-        Assert.Contains("href=\"/category-budgets\"", markup);
+        Assert.Contains("href=\"/budgetitems\"", markup);
         Assert.Contains("href=\"/budget\"", markup);
         Assert.Contains("Take(5)", markup);
     }

@@ -41,11 +41,11 @@ Below the snapshot cards, the dashboard shows a breakdown of your spending this 
 Each category tile shows:
 
 - **Category name**
-- **Amount spent** so far this month
-- If a budget item exists for that category, the tile also shows the **budgeted monthly amount** so you can compare at a glance
-- A **progress bar** indicating how your spending compares to the highest category
+- For a spending allowance: the **amount remaining**, the amount spent in its current recurrence period, the planned amount, and the next reset date
+- For categories without an allowance: the **amount spent** so far this month
+- A **progress bar** showing allowance usage or relative monthly spending
 
-A **★** star icon means you're right on budget for that category (within $1 of the budgeted amount).
+Allowance categories appear even before any spending is posted. Overspending is highlighted until the next recurrence boundary resets the allowance.
 
 If you have many categories, the list starts collapsed. A **Show more** button reveals the rest.
 
@@ -55,7 +55,7 @@ If you have many categories, the list starts collapsed. A **Show more** button r
 
 If you're setting up the app for the first time:
 
-1. **Budget Items** — create your recurring bills and income
+1. **Budget Items** — create scheduled bills/income and recurring category allowances
 2. **Checkbook** — enter day-to-day transactions and keep the running balance accurate
 3. **Forecast** — use it when you want to see what's coming up
 4. **Accounts** — keep your account list current so balances stay meaningful

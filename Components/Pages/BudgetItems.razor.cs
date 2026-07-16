@@ -31,6 +31,9 @@ public partial class BudgetItems
     private BudgetScheduleService BudgetSchedule { get; set; } = default!;
 
     [Inject]
+    private BudgetAllowanceService BudgetAllowance { get; set; } = default!;
+
+    [Inject]
     private BudgetItemsExportService BudgetItemsExport { get; set; } = default!;
 
     [Inject]
@@ -41,6 +44,9 @@ public partial class BudgetItems
 
     [SupplyParameterFromQuery(Name = "edit")]
     private int? InitialEditBudgetId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "kind")]
+    private string? InitialKindFilter { get; set; }
 
     private enum ViewMode { List, Calendar, Edit }
     private ViewMode currentView = ViewMode.List;
@@ -54,12 +60,13 @@ public partial class BudgetItems
     private int previewDays = 30;
     private string previewStatusMessage = string.Empty;
     private readonly HashSet<string> handlingOccurrenceKeys = [];
-    
+
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetItemsGrid;
     private string searchText = string.Empty;
+    private string kindFilter = "All";
     private IEnumerable<BudgetItemViewModel> filteredBudgetItems => FilterBudgetItems();
-    
+
     // Autocomplete data for Category and Payee
     private List<string> categoriesList = new();
     private List<string> payeesList = new();
@@ -92,6 +99,7 @@ public partial class BudgetItems
     private int editBudgetId = -1;
     private string editBudgetName = string.Empty;
     private bool editIsExpense = true;  // true = Expense, false = Income
+    private bool editIsSpendingAllowance;
     private decimal editAmount = 0m;
     private DateTime editNextDueDate = DateTime.Today;
     private int editFrequencyId = 1;
@@ -114,6 +122,11 @@ public partial class BudgetItems
                 Navigation.NavigateTo($"/login?Return={Uri.EscapeDataString("/budgetitems")}");
                 return;
             }
+            kindFilter = InitialKindFilter?.Equals("allowances", StringComparison.OrdinalIgnoreCase) == true
+                ? "Allowances"
+                : InitialKindFilter?.Equals("scheduled", StringComparison.OrdinalIgnoreCase) == true
+                    ? "Scheduled"
+                    : "All";
             await LoadDataAsync();
             if (InitialEditBudgetId is > 0)
                 await ShowEditBudgetAsync(InitialEditBudgetId.Value);
@@ -130,27 +143,36 @@ public partial class BudgetItems
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
             _sparklineData = await CheckbookData.GetMonthlyCategoryTotalsAsync(userId, 3);
+            var allowanceProgress = await BudgetAllowance.GetCurrentProgressAsync(userId, budgetsData);
 
             // Convert to view models for RadzenDataGrid
-            budgetItems = budgetsData.Select(b => new BudgetItemViewModel
+            budgetItems = budgetsData.Select(b =>
             {
-                BudgetId = b.BudgetId,
-                BudgetName = b.BudgetName ?? string.Empty,
-                Type = b.BudgetTypeId == 0 ? "Income" : "Expense",
-                Category = b.Category?.CategoryName ?? string.Empty,
-                DueDate = b.NextDueDate ?? DateTime.Today,
-                EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01"))
-                    ? string.Empty
-                    : b.EndDate.Value.ToString("MM/dd/yyyy"),
-                FrequencyName = b.Frequency?.FrequencyName ?? string.Empty,
-                Amount = b.Amount ?? 0m,
-                Monthly = CalculateMonthlyAmount(b.Amount ?? 0m, b.FrequencyId ?? 0, b.BudgetTypeId),
-                IsBill = b.IsBill ?? false,
-                IsAuto = b.IsAutomatic ?? false,
-                IsLate = b.IsLate ?? false,
-                Payee = b.Payee?.PayeeName ?? string.Empty,
-                SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : [],
-                CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, b.SharedBudgetId, b.UserId)
+                allowanceProgress.TryGetValue(b.BudgetId, out var progress);
+                return new BudgetItemViewModel
+                {
+                    BudgetId = b.BudgetId,
+                    BudgetName = b.BudgetName ?? string.Empty,
+                    Type = b.BudgetTypeId == 0 ? "Income" : "Expense",
+                    IsSpendingAllowance = b.IsSpendingAllowance,
+                    Category = b.Category?.CategoryName ?? string.Empty,
+                    DueDate = progress?.PeriodEnd.ToDateTime(TimeOnly.MinValue) ?? b.NextDueDate ?? DateTime.Today,
+                    EndDateName = (b.EndDate == null || b.EndDate == DateTime.Parse("1970-01-01"))
+                        ? string.Empty
+                        : b.EndDate.Value.ToString("MM/dd/yyyy"),
+                    FrequencyName = b.Frequency?.FrequencyName ?? string.Empty,
+                    Amount = b.Amount ?? 0m,
+                    Monthly = CalculateMonthlyAmount(b.Amount ?? 0m, b.FrequencyId ?? 0, b.BudgetTypeId),
+                    IsBill = b.IsBill ?? false,
+                    IsAuto = b.IsAutomatic ?? false,
+                    IsLate = b.IsLate ?? false,
+                    Payee = b.Payee?.PayeeName ?? string.Empty,
+                    SparklineData = _sparklineData.TryGetValue(b.Category?.CategoryName ?? string.Empty, out var sd) ? sd : [],
+                    CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, b.SharedBudgetId, b.UserId),
+                    PlannedAmount = progress?.PlannedAmount ?? 0m,
+                    SpentAmount = progress?.SpentAmount ?? 0m,
+                    RemainingAmount = progress?.RemainingAmount ?? 0m
+                };
             }).ToList();
 
             await LoadCategoriesAndPayeesAsync();
@@ -322,6 +344,7 @@ public partial class BudgetItems
         editBudgetId = -1;
         editBudgetName = string.Empty;
         editIsExpense = true;
+        editIsSpendingAllowance = false;
         editAmount = 0m;
         editNextDueDate = DateTime.Today;
         editFrequencyId = 1;
@@ -353,6 +376,7 @@ public partial class BudgetItems
                 editBudgetId = budgetId;
                 editBudgetName = budget.BudgetName ?? string.Empty;
                 editIsExpense = budget.BudgetTypeId == 1;  // 1 = Expense, 0 = Income
+                editIsSpendingAllowance = budget.IsSpendingAllowance;
                 editAmount = budget.Amount ?? 0m;
                 editNextDueDate = budget.NextDueDate ?? DateTime.Today;
                 editFrequencyId = budget.FrequencyId ?? 1;
@@ -427,8 +451,8 @@ public partial class BudgetItems
             return;
         }
 
-        var payeeName = editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
-        if (editIsBill && string.IsNullOrWhiteSpace(payeeName))
+        var payeeName = !editIsSpendingAllowance && editIsBill ? editPayee?.Trim() ?? string.Empty : string.Empty;
+        if (!editIsSpendingAllowance && editIsBill && string.IsNullOrWhiteSpace(payeeName))
         {
             editErrorMessage = "Payee is required for bill items.";
             return;
@@ -439,8 +463,8 @@ public partial class BudgetItems
             var userId = CurrentBudgetItemsUserId;
             var endDate = editHasEndDate ? editEndDate : DateTime.Parse("1970-01-01");
             var roundedAmount = CurrencyPolicy.Round(editAmount);
-            var budgetTypeId = editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
-            var isAuto = editIsBill && editIsAuto;
+            var budgetTypeId = editIsSpendingAllowance || editIsExpense ? 1 : 0;  // 1 = Expense, 0 = Income
+            var isAuto = !editIsSpendingAllowance && editIsBill && editIsAuto;
             await BudgetItemsData.SaveBudgetAsync(
                 userId,
                 editBudgetId,
@@ -453,8 +477,9 @@ public partial class BudgetItems
                 editCategory.Trim(),
                 payeeName,
                 isAuto,
-                editIsBill,
-                editIsLate);
+                !editIsSpendingAllowance && editIsBill,
+                !editIsSpendingAllowance && editIsLate,
+                editIsSpendingAllowance);
             editErrorMessage = string.Empty;
             currentView = ViewMode.List;
             await LoadDataAsync();
@@ -521,11 +546,18 @@ public partial class BudgetItems
     // Search functionality
     private IEnumerable<BudgetItemViewModel> FilterBudgetItems()
     {
+        var filtered = kindFilter switch
+        {
+            "Scheduled" => budgetItems.Where(i => !i.IsSpendingAllowance),
+            "Allowances" => budgetItems.Where(i => i.IsSpendingAllowance),
+            _ => budgetItems.AsEnumerable()
+        };
+
         if (string.IsNullOrWhiteSpace(searchText))
-            return budgetItems;
+            return filtered;
 
         var searchLower = searchText.ToLower();
-        return budgetItems.Where(item =>
+        return filtered.Where(item =>
             (item.BudgetName?.ToLower().Contains(searchLower) ?? false) ||
             (item.Category?.ToLower().Contains(searchLower) ?? false) ||
             (item.Payee?.ToLower().Contains(searchLower) ?? false) ||

@@ -54,7 +54,7 @@
     {
         const int pageSize = 8;
         var visible = _showAllCategories ? Snapshot.CategorySpend : Snapshot.CategorySpend.Take(pageSize).ToList();
-        var maxSpend = Snapshot.CategorySpend.Max(c => c.Total);
+        var maxSpend = Snapshot.CategorySpend.Max(c => c.HasAllowance ? c.AllowanceSpent ?? 0m : c.Total);
         <div class="container py-2 pb-4">
             <div class="card">
                 <div class="card-body">
@@ -65,26 +65,34 @@
                     <div class="row g-2">
                         @foreach (var cat in visible)
                         {
-                            var pct = maxSpend > 0 ? (int)(cat.Total / maxSpend * 100) : 0;
+                            var displayedSpend = cat.HasAllowance ? cat.AllowanceSpent ?? 0m : cat.Total;
+                            var pct = cat.HasAllowance && cat.AllowancePlanned > 0m
+                                ? (int)Math.Min(100m, displayedSpend / cat.AllowancePlanned.Value * 100m)
+                                : maxSpend > 0m ? (int)(displayedSpend / maxSpend * 100m) : 0;
                             <div class="col-6 col-md-4 col-lg-3">
                                 <div class="category-spend-card">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="category-spend-name">@cat.CategoryName</div>
-                                        @if (cat.IsOnBudget)
+                                        @if (cat.HasAllowance && cat.AllowanceRemaining < 0m)
                                         {
-                                            <span class="category-star" title="On budget">★</span>
+                                            <span class="badge text-bg-danger">Over</span>
                                         }
                                     </div>
                                     <div class="category-spend-amount">
-                                        @if (cat.BudgetedMonthly.HasValue && !cat.IsOnBudget)
+                                        @if (cat.HasAllowance)
                                         {
-                                            @cat.Total.ToString("C0")<span class="category-budget-slash"> / @cat.BudgetedMonthly.Value.ToString("C0")</span>
+                                            <strong class="@(cat.AllowanceRemaining < 0m ? "text-danger" : null)">@cat.AllowanceRemaining!.Value.ToString("C0") left</strong>
+                                            <span class="category-budget-slash"> · @cat.AllowanceSpent!.Value.ToString("C0") of @cat.AllowancePlanned!.Value.ToString("C0") spent</span>
                                         }
                                         else
                                         {
-                                            @cat.Total.ToString("C0")
+                                            @cat.Total.ToString("C0") <span class="category-budget-slash">spent this month</span>
                                         }
                                     </div>
+                                    @if (cat.AllowanceResetDate.HasValue)
+                                    {
+                                        <div class="small text-muted">Resets @cat.AllowanceResetDate.Value.ToString("MMM d")</div>
+                                    }
                                     <div class="category-spend-bar-track">
                                         <div class="category-spend-bar" style="width: @(pct)%"></div>
                                     </div>
@@ -355,7 +363,7 @@ else
             <div class="col-lg-10">
                 <h2 class="h3">A simple flow that works</h2>
                 <ol class="text-muted">
-                    <li><strong>Create Budget Items</strong> for recurring bills and income.</li>
+                    <li><strong>Create Budget Items</strong> for scheduled bills, income, and category spending allowances.</li>
                     <li><strong>Enter transactions</strong> in Checkbook as life happens.</li>
                     <li><strong>Use Budget Forecast</strong> when you want to see what's coming.</li>
                     <li><strong>Turn on reminders</strong> (optional) so you do less remembering and more living.</li>

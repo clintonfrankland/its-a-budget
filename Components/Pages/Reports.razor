@@ -40,14 +40,14 @@ else
                 <div class="col-12 col-md-4"><div class="report-summary-card"><span>Planned this month</span><strong>@spendPlan.Sum(x => x.Planned).ToString("C")</strong><small>@spendPlan.Sum(x => x.Actual).ToString("C") spent</small></div></div>
                 <div class="col-12 col-md-4"><div class="report-summary-card"><span>Lowest projected balance</span><strong class="@(cashflow?.LowestBalance < 0 ? "text-danger" : null)">@(cashflow?.LowestBalance.ToString("C") ?? "—")</strong><small>@(cashflow is null ? "Cash flow unavailable" : $"On {cashflow.LowestDate:MMM d}")</small></div></div>
                 <div class="col-12 col-md-4"><div class="report-summary-card"><span>Current net worth</span><strong>@(netWorth?.CurrentTotal.ToString("C") ?? "—")</strong><small>As of @(netWorth?.CurrentAsOfDate.ToString("MMM d") ?? "today")</small></div></div>
-                <div class="col-12 col-lg-6"><RadzenCard class="h-100"><h2 class="h5">Spending plan</h2><p class="text-muted">See planned versus actual spending, top payees, and category trends.</p><button class="btn btn-outline-primary" @onclick='() => SetView("spending")'>View spending</button> <a class="btn btn-link" href="/category-budgets">Edit category budgets</a></RadzenCard></div>
+                <div class="col-12 col-lg-6"><RadzenCard class="h-100"><h2 class="h5">Spending plan</h2><p class="text-muted">See planned versus actual spending, top payees, and category trends.</p><button class="btn btn-outline-primary" @onclick='() => SetView("spending")'>View spending</button> <a class="btn btn-link" href="/budgetitems">Edit allowances</a></RadzenCard></div>
                 <div class="col-12 col-lg-6"><RadzenCard class="h-100"><h2 class="h5">Cash flow</h2><p class="text-muted">See the next projected changes and your lowest expected balance.</p><button class="btn btn-outline-primary" @onclick='() => SetView("cashflow")'>View cash flow</button> <a class="btn btn-link" href="/budget">Open full forecast</a></RadzenCard></div>
             </div>
         }
         else if (activeView == "spending")
         {
             <div class="row g-3 report-section">
-                <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><h2 class="h5">Spend vs Plan</h2><a href="/category-budgets">Edit category budgets</a></div>
+                <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><h2 class="h5">Spend vs Plan</h2><a href="/budgetitems">Edit allowances</a></div>
                     @if (!string.IsNullOrEmpty(spendError)) { <div class="alert alert-warning" role="alert">@spendError</div> }
                     else if (spendPlan.Count == 0) { <p class="text-muted">No plans or spending for this month.</p> }
                     else { <div class="table-responsive"><table class="table table-sm align-middle"><caption class="visually-hidden">Monthly planned and actual spending by category</caption><thead><tr><th>Category</th><th class="text-end">Plan</th><th class="text-end">Actual</th><th class="text-end">Remaining</th><th>Status</th></tr></thead><tbody>

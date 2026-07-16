@@ -53,6 +53,14 @@ public class Budget
     [Column("IsBill")]
     public bool? IsBill { get; set; }
 
+    /// <summary>
+    /// When true, this item is a recurring category allowance consumed by posted
+    /// expense transactions instead of a transaction that can be recorded itself.
+    /// </summary>
+    [Required]
+    [Column("IsSpendingAllowance")]
+    public bool IsSpendingAllowance { get; set; }
+
     [Column("PayeeId")]
     public int? PayeeId { get; set; }
 

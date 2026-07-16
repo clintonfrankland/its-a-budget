@@ -94,9 +94,10 @@ public class BudgetDataService
         string payeeName,
         bool isAutomatic,
         bool isBill,
-        bool isLate)
+        bool isLate,
+        bool isSpendingAllowance = false)
     {
-        ValidateBudgetSave(nextDueDate, endDate, amount);
+        ValidateBudgetSave(nextDueDate, endDate, amount, frequencyId, isSpendingAllowance);
         var isNew = budgetId == -1;
         var budget = isNew
             ? new Budget { UserId = userId, SharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId) }
@@ -113,26 +114,44 @@ public class BudgetDataService
         if (categoryId <= 0)
             throw new InvalidOperationException("Category is required.");
 
+        if (isSpendingAllowance)
+        {
+            var candidate = new Budget
+            {
+                IsSpendingAllowance = true,
+                FrequencyId = frequencyId,
+                NextDueDate = nextDueDate,
+                EndDate = endDate
+            };
+            var sameCategoryAllowances = await _db.Budgets.AsNoTracking()
+                .Where(b => b.BudgetId != budgetId && b.IsSpendingAllowance && b.CategoryId == categoryId &&
+                    (b.SharedBudgetId.HasValue ? b.SharedBudgetId == budget.SharedBudgetId : !b.SharedBudgetId.HasValue && b.UserId == userId))
+                .ToListAsync();
+            if (sameCategoryAllowances.Any(existing => BudgetAllowanceService.Overlaps(existing, candidate)))
+                throw new InvalidOperationException("That category already has an overlapping spending allowance.");
+        }
+
         var payeeId = await GetOrCreatePayeeAsync(payeeName, userId);
 
         budget.BudgetName = budgetName;
-        budget.BudgetTypeId = budgetTypeId;
+        budget.BudgetTypeId = isSpendingAllowance ? 1 : budgetTypeId;
         budget.FrequencyId = frequencyId;
         budget.NextDueDate = nextDueDate;
         budget.EndDate = endDate;
         budget.Amount = roundedAmount;
         budget.CategoryId = categoryId;
         budget.UserId = userId;
-        budget.IsAutomatic = isAutomatic;
-        budget.IsBill = isBill;
-        budget.IsLate = isLate;
-        budget.PayeeId = payeeId > 0 ? payeeId : null;
+        budget.IsSpendingAllowance = isSpendingAllowance;
+        budget.IsAutomatic = !isSpendingAllowance && isAutomatic;
+        budget.IsBill = !isSpendingAllowance && isBill;
+        budget.IsLate = !isSpendingAllowance && isLate;
+        budget.PayeeId = !isSpendingAllowance && payeeId > 0 ? payeeId : null;
 
         if (isNew) _db.Budgets.Add(budget);
         await _db.SaveChangesAsync();
     }
 
-    private static void ValidateBudgetSave(DateTime nextDueDate, DateTime endDate, decimal amount)
+    private static void ValidateBudgetSave(DateTime nextDueDate, DateTime endDate, decimal amount, int frequencyId, bool isSpendingAllowance)
     {
         if (nextDueDate == DateTime.MinValue)
             throw new InvalidOperationException("Next due date is required.");
@@ -144,6 +163,12 @@ public class BudgetDataService
             throw new InvalidOperationException("End date cannot be before the next due date.");
 
         CurrencyPolicy.RoundNonNegativeSqlAmount(amount);
+
+        if (isSpendingAllowance && frequencyId == 0)
+            throw new InvalidOperationException("A spending allowance must use a recurring frequency.");
+
+        if (isSpendingAllowance && frequencyId == 8 && nextDueDate.Day is not (1 or 15))
+            throw new InvalidOperationException("A semi-monthly spending allowance must reset on the 1st or 15th.");
     }
 
     public async Task DeleteBudgetAsync(int userId, int budgetId)

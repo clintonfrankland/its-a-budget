@@ -190,7 +190,7 @@ flowchart TD
 
 **First-time setup:**
 1. Manage → Accounts → create your accounts and enter their current balances
-2. Plan → Budget Items → add recurring bills and income
+2. Plan → Budget Items → add scheduled bills/income and category spending allowances
 3. Checkbook → enter day-to-day transactions
 4. Settings (admin) → configure SMTP if you want bill-due email reminders
 5. Profile → opt in to notifications and set your timezone
@@ -284,7 +284,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 |---|---|
 | **Account** | A financial account (checking, credit card, etc.) with a tracked balance and cleared balance. |
 | **Transaction** | A ledger entry recording income or expenditure against an account. |
-| **Budget item** | A recurring income or expense rule that drives the forecast and optionally triggers bill-due notifications. |
+| **Budget item** | A recurring plan that is either a scheduled transaction or a spending allowance. Scheduled items drive dated cash flow and can trigger bill notices; allowances are consumed by actual category spending and reserve only the unspent amount in Forecast. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
 | **Reports** | One read-only reporting destination with Overview, Spending, Cash Flow, and Net Worth sections. The former Insights route redirects to Spending. See [Reports](docs/pages/reports.md). |
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
@@ -364,9 +364,10 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/ReceiptAttachmentStorageService.cs` | Checkbook receipt validation, generated filenames, scanner hook, safe delete, and orphan cleanup |
 | `Services/IAttachmentMalwareScanner.cs` | Pluggable receipt attachment scan hook; default implementation is no-op |
 | `Services/BudgetDataService.cs` | Budget CRUD and forecast projection logic |
-| `Services/BudgetItemsDataService.cs` | Budget item management |
+| `Services/BudgetItemsDataService.cs` | Unified scheduled-transaction and spending-allowance item management |
+| `Services/BudgetAllowanceService.cs` | Recurrence-window allowance progress from posted category expenses |
 | `Services/PayeesDataService.cs` | Payee summaries, edit validation, merge preview, and user-scoped multi-source payee merge operations |
-| `Services/DashboardDataService.cs` | Home snapshot: balance, upcoming bills, lowest projected balance, category spend |
+| `Services/DashboardDataService.cs` | Home snapshot: balance, upcoming bills, lowest projected balance, and current-period allowance progress |
 | `Services/DatabaseBackupService.cs` | `BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION` via ADO.NET |
 | `Services/DatabaseBackupWorker.cs` | Hosted service — scheduled automated SQL backups |
 | `Services/PasswordUtility.cs` | Salt generation and password hashing/verification |
@@ -425,7 +426,8 @@ All tables use the `cf` prefix.
 | `cfTransactions` | Ledger entries. Date, amount, payee, category, account, cleared flag, optional notes and attachment path. |
 | `cfBudgets` | Recurring income/expense items. Frequency, next due date, end date, `IsBill`, `IsAutomatic`, `IsLate`, optional payee. |
 | `cfCategories` | User-owned transaction and budget categories. |
-| `cfPayees` | User-owned payees referenced by transactions and budget items. |
+| `cfPayees` | User-owned payees referenced by transactions and scheduled budget items. |
+| `cfCategoryBudgetTargets` | Legacy monthly category targets retained for historical reports; active planning is migrated to allowance Budget Items. |
 | `cfFrequencies` | Lookup: Weekly, Bi-weekly, Monthly, etc. |
 | `cfAccountTypes` | Lookup: Checking, Savings, Credit Card, etc. |
 | `cfAuthLoginAudit` | Login audit trail — username, IP, success/failure, reason, timestamp. |

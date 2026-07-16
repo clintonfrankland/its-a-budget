@@ -4,6 +4,8 @@
         <RadzenButton Icon="@PrimaryIcon" ButtonStyle="@PrimaryButtonStyle" Size="ButtonSize.Small"
                       class="budget-item-primary" title="@PrimaryAction" aria-label="@PrimaryAction"
                       Disabled="@PrimaryDisabled" Click="InvokePrimaryAsync" />
+        @if (!IsSpendingAllowance)
+        {
         <div class="budget-item-overflow @(isMenuOpen ? "open" : null)">
             <button type="button" class="rz-button rz-button-sm rz-variant-filled rz-light budget-item-more"
                     aria-label="More budget item actions" title="More budget item actions"
@@ -22,6 +24,7 @@
                 }
             </div>
         </div>
+        }
     </div>
 }
 
@@ -36,6 +39,7 @@
     [Parameter, EditorRequired] public string Page { get; set; } = string.Empty;
     [Parameter] public bool CanManage { get; set; }
     [Parameter] public bool CanRecordToCheckbook { get; set; } = true;
+    [Parameter] public bool IsSpendingAllowance { get; set; }
     [Parameter] public bool IsInProgress { get; set; }
     [Parameter] public EventCallback OnRecord { get; set; }
     [Parameter] public EventCallback OnSkip { get; set; }
@@ -47,10 +51,10 @@
     private bool menuStateChanged;
     private ElementReference moreButton;
     private ElementReference menu;
-    private string PrimaryAction => IsCheckbook ? Record : Edit;
-    private string PrimaryIcon => IsCheckbook ? "add_task" : "edit";
-    private ButtonStyle PrimaryButtonStyle => IsCheckbook ? ButtonStyle.Success : ButtonStyle.Light;
-    private bool PrimaryDisabled => IsInProgress || (IsCheckbook && !CanRecordToCheckbook);
+    private string PrimaryAction => IsSpendingAllowance || !IsCheckbook ? Edit : Record;
+    private string PrimaryIcon => IsSpendingAllowance || !IsCheckbook ? "edit" : "add_task";
+    private ButtonStyle PrimaryButtonStyle => IsSpendingAllowance || !IsCheckbook ? ButtonStyle.Light : ButtonStyle.Success;
+    private bool PrimaryDisabled => IsInProgress || (!IsSpendingAllowance && IsCheckbook && !CanRecordToCheckbook);
     private IReadOnlyList<string> OverflowActions => IsCheckbook
         ? [Skip, Edit, EditNext]
         : [Record, Skip, EditNext];
@@ -85,8 +89,11 @@
         if (IsInProgress || IsRecordDisabled(action))
             return;
 
-        isMenuOpen = false;
-        menuStateChanged = true;
+        if (!IsSpendingAllowance)
+        {
+            isMenuOpen = false;
+            menuStateChanged = true;
+        }
         await (action switch
         {
             Record => OnRecord.InvokeAsync(),

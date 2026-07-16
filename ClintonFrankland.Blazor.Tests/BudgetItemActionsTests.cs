@@ -86,7 +86,7 @@ public class BudgetItemActionsTests : BunitContext
     public void DisabledAndProgressStatesPreventActivation()
     {
         var invoked = 0;
-        var cut = Render("Checkbook", true, false, true, () => invoked++);
+        var cut = Render("Checkbook", true, canRecord: false, inProgress: true, onRecord: () => invoked++);
         Assert.All(cut.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
         Assert.Equal("true", cut.Find(".budget-item-actions").GetAttribute("aria-busy"));
         cut.Find(".budget-item-primary").Click();
@@ -117,6 +117,20 @@ public class BudgetItemActionsTests : BunitContext
         Assert.DoesNotContain("open", cut.Find(".budget-item-overflow").ClassList);
         Assert.Contains(JSInterop.Invocations, invocation =>
             invocation.Identifier == "budgetApp.setBudgetItemMenu" && invocation.Arguments[^1] is false);
+    }
+
+    [Fact]
+    public void SpendingAllowanceEditDoesNotInvokeMissingOverflowMenuInterop()
+    {
+        var edited = false;
+        var cut = Render("Budget Items", true, isSpendingAllowance: true, onEdit: () => edited = true);
+
+        cut.Find(".budget-item-primary").Click();
+
+        Assert.True(edited);
+        Assert.DoesNotContain(JSInterop.Invocations, invocation =>
+            invocation.Identifier == "budgetApp.setBudgetItemMenu");
+        Assert.Empty(cut.FindAll(".budget-item-overflow"));
     }
 
     [Theory]
@@ -251,16 +265,18 @@ public class BudgetItemActionsTests : BunitContext
         Services.AddSingleton(new BudgetDataService(db, shared));
         Services.AddSingleton(new BudgetItemsDataService(db, shared));
         Services.AddSingleton(new BudgetScheduleService(db, shared));
+        Services.AddSingleton(new BudgetAllowanceService(db, shared));
         Services.AddSingleton(new CheckbookDataService(db, shared));
         Services.AddSingleton<BudgetItemsExportService>();
         Services.AddSingleton<DialogService>();
     }
 
     private IRenderedComponent<BudgetItemActions> Render(string page, bool canManage, bool canRecord = true,
-        bool inProgress = false, Action? onRecord = null, Action? onSkip = null, Action? onEdit = null, Action? onEditNext = null) =>
+        bool inProgress = false, bool isSpendingAllowance = false, Action? onRecord = null, Action? onSkip = null,
+        Action? onEdit = null, Action? onEditNext = null) =>
         Render<BudgetItemActions>(parameters => parameters
             .Add(x => x.Page, page).Add(x => x.CanManage, canManage).Add(x => x.CanRecordToCheckbook, canRecord)
-            .Add(x => x.IsInProgress, inProgress)
+            .Add(x => x.IsInProgress, inProgress).Add(x => x.IsSpendingAllowance, isSpendingAllowance)
             .Add(x => x.OnRecord, EventCallback.Factory.Create(this, onRecord ?? (() => { })))
             .Add(x => x.OnSkip, EventCallback.Factory.Create(this, onSkip ?? (() => { })))
             .Add(x => x.OnEdit, EventCallback.Factory.Create(this, onEdit ?? (() => { })))

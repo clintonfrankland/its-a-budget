@@ -14,11 +14,19 @@ public class BudgetItemViewModel
     public bool IsBill { get; set; }
     public bool IsAuto { get; set; }
     public bool IsLate { get; set; }
+    public bool IsSpendingAllowance { get; set; }
+    public decimal PlannedAmount { get; set; }
+    public decimal SpentAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
+    public decimal PercentUsed => PlannedAmount > 0m
+        ? Math.Round(SpentAmount / PlannedAmount * 100m, 2, MidpointRounding.AwayFromZero)
+        : 0m;
+    public string BehaviorName => IsSpendingAllowance ? "Allowance" : "Scheduled";
     public bool CanManageFinancialData { get; set; }
     public bool IsIncome => Amount >= 0;
     public bool HasCategoryWarning { get; set; }
     public string CategoryWarning { get; set; } = string.Empty;
-    public bool CanRecordToCheckbook => CanManageFinancialData && !HasCategoryWarning;
+    public bool CanRecordToCheckbook => CanManageFinancialData && !IsSpendingAllowance && !HasCategoryWarning;
     public string OccurrenceKey => $"{BudgetId}:{DueDate:yyyyMMdd}";
 
     // Additional fields for BudgetItems page
