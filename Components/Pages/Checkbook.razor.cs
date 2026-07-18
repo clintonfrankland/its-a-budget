@@ -291,7 +291,7 @@ public partial class Checkbook
                 ShowAddFromBudget(item);
                 break;
             case "skip":
-                await SkipBudgetAsync(item.BudgetId);
+                await SkipBudgetAsync(item);
                 break;
         }
     }
@@ -319,11 +319,11 @@ public partial class Checkbook
     }
 
     // Skip a budget item (mark as paid without creating a transaction)
-    private async Task SkipBudgetAsync(int budgetId)
+    private async Task SkipBudgetAsync(BudgetItemViewModel item)
     {
         try
         {
-            await MarkBudgetPaidAsync(budgetId);
+            await BudgetSchedule.SkipOccurrenceAsync(CurrentUser.UserId, item.BudgetId, item.DueDate);
             await LoadDataAsync();  // Refresh both transactions and budget items
         }
         catch (Exception ex)

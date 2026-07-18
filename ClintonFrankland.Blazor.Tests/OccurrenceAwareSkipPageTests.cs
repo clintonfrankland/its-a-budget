@@ -1,0 +1,33 @@
+namespace ClintonFrankland.Blazor.Tests;
+
+public class OccurrenceAwareSkipPageTests
+{
+    private static readonly string RepoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
+
+    [Fact]
+    public void BudgetForecast_LeftAndRightActionsForwardSelectedOccurrence()
+    {
+        var markup = ReadRepoFile("Components/Pages/Budget.razor");
+        var code = ReadRepoFile("Components/Pages/Budget.razor.cs");
+
+        Assert.Equal(2, Count(markup, "OnSkip=\"@(() => SkipOccurrenceAsync(item))\""));
+        Assert.Contains("BudgetSchedule.SkipOccurrenceAsync(CurrentUser.UserId, item.BudgetId, item.DueDate)", code);
+        Assert.DoesNotContain("BudgetSchedule.MarkBudgetPaidAsync", code);
+    }
+
+    [Fact]
+    public void Checkbook_LeftAndRightActionsForwardSelectedOccurrence()
+    {
+        var markup = ReadRepoFile("Components/Pages/Checkbook.razor");
+        var code = ReadRepoFile("Components/Pages/Checkbook.razor.cs");
+
+        Assert.Equal(2, Count(markup, "OnSkip=\"@(() => SkipBudgetAsync(item))\""));
+        Assert.Contains("BudgetSchedule.SkipOccurrenceAsync(CurrentUser.UserId, item.BudgetId, item.DueDate)", code);
+        Assert.DoesNotContain("SkipBudgetAsync(item.BudgetId)", markup + code);
+    }
+
+    private static string ReadRepoFile(string relativePath) => File.ReadAllText(Path.Combine(RepoRoot, relativePath));
+
+    private static int Count(string source, string value) =>
+        source.Split(value, StringSplitOptions.None).Length - 1;
+}

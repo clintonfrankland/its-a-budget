@@ -364,15 +364,14 @@ public partial class Budget
         }
     }
 
-    private async Task MarkPaidAsync(int budgetId)
+    private async Task SkipOccurrenceAsync(BudgetItemViewModel item)
     {
-        if (!await CanManageBudgetAsync(budgetId))
+        if (!item.CanManageFinancialData)
             return;
 
         try
         {
-            var userId = CurrentUser.UserId;
-            await BudgetSchedule.MarkBudgetPaidAsync(userId, budgetId);
+            await BudgetSchedule.SkipOccurrenceAsync(CurrentUser.UserId, item.BudgetId, item.DueDate);
 
             await LoadDataAsync();
         }
@@ -523,7 +522,7 @@ public partial class Budget
                 await ShowEditBudgetAsync(item.BudgetId);
                 break;
             case "paid":
-                await MarkPaidAsync(item.BudgetId);
+                await SkipOccurrenceAsync(item);
                 break;
             case "editnext":
                 await ShowEditNextAsync(item.BudgetId);
