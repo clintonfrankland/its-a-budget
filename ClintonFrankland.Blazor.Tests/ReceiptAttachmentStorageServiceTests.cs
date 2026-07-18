@@ -111,6 +111,24 @@ public sealed class ReceiptAttachmentStorageServiceTests
     }
 
     [Fact]
+    public async Task DeleteIfManagedAsync_DoesNotDeleteFromCaseDistinctSiblingOnCaseSensitiveFileSystem()
+    {
+        await using var fixture = new AttachmentFixture();
+        if (!fixture.FileSystemIsCaseSensitive())
+            return;
+
+        var siblingRelativePath = "UPLOADS/RECEIPTS/42/outside.pdf";
+        var siblingFullPath = fixture.WebRootPath(siblingRelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(siblingFullPath)!);
+        await File.WriteAllTextAsync(siblingFullPath, "outside");
+
+        var deleted = await fixture.CreateService().DeleteIfManagedAsync(siblingRelativePath);
+
+        Assert.False(deleted);
+        Assert.True(File.Exists(siblingFullPath));
+    }
+
+    [Fact]
     public async Task CleanupOrphansAsync_DeletesUnreferencedManagedFilesAndRetainsReferencedFiles()
     {
         await using var fixture = new AttachmentFixture();
@@ -159,6 +177,44 @@ public sealed class ReceiptAttachmentStorageServiceTests
         Assert.True(File.Exists(tempPath));
     }
 
+    [Fact]
+    public async Task CleanupOrphansAsync_DoesNotTreatCaseDistinctSiblingReferenceAsManagedOnCaseSensitiveFileSystem()
+    {
+        await using var fixture = new AttachmentFixture();
+        if (!fixture.FileSystemIsCaseSensitive())
+            return;
+
+        fixture.Db.Transactions.Add(new Transaction
+        {
+            TransactionId = 1,
+            UserId = 42,
+            TransactionDate = new DateOnly(2026, 7, 18),
+            Amount = -12.34m,
+            PayeeId = 1,
+            CategoryId = 1,
+            AccountId = 1,
+            Cleared = false,
+            AttachmentPath = "UPLOADS/RECEIPTS/42/orphan.pdf"
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var managedFile = fixture.WebRootPath("uploads/receipts/42/orphan.pdf");
+        var siblingFile = fixture.WebRootPath("UPLOADS/RECEIPTS/42/orphan.pdf");
+        Directory.CreateDirectory(Path.GetDirectoryName(managedFile)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(siblingFile)!);
+        await File.WriteAllTextAsync(managedFile, "managed orphan");
+        await File.WriteAllTextAsync(siblingFile, "outside sibling");
+
+        var result = await fixture.CreateService().CleanupOrphansAsync();
+
+        Assert.Equal(1, result.Scanned);
+        Assert.Equal(1, result.Deleted);
+        Assert.Equal(0, result.Retained);
+        Assert.Equal(1, result.Skipped);
+        Assert.False(File.Exists(managedFile));
+        Assert.True(File.Exists(siblingFile));
+    }
+
     private sealed class AttachmentFixture : IAsyncDisposable
     {
         private readonly string _rootPath;
@@ -176,6 +232,21 @@ public sealed class ReceiptAttachmentStorageServiceTests
 
         public string WebRootPath(string? relativePath = null)
             => relativePath is null ? _rootPath : Path.Combine(_rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        public bool FileSystemIsCaseSensitive()
+        {
+            var lowerCasePath = Path.Combine(_rootPath, $"case-probe-{Guid.NewGuid():N}");
+            var upperCasePath = Path.Combine(_rootPath, Path.GetFileName(lowerCasePath).ToUpperInvariant());
+            File.WriteAllText(lowerCasePath, string.Empty);
+            try
+            {
+                return !File.Exists(upperCasePath);
+            }
+            finally
+            {
+                File.Delete(lowerCasePath);
+            }
+        }
 
         public ReceiptAttachmentStorageService CreateService(IAttachmentMalwareScanner? scanner = null)
             => new(

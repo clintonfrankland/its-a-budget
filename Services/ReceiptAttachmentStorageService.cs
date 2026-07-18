@@ -16,6 +16,8 @@ public sealed class ReceiptAttachmentStorageService
     private readonly ILogger<ReceiptAttachmentStorageService> _logger;
     private readonly HashSet<string> _allowedExtensions;
     private readonly HashSet<string> _allowedContentTypes;
+    private readonly StringComparer _managedPathComparer;
+    private readonly StringComparison _managedPathComparison;
 
     public ReceiptAttachmentStorageService(
         ClintonFranklandDbContext db,
@@ -29,6 +31,9 @@ public sealed class ReceiptAttachmentStorageService
         _scanner = scanner;
         _options = options.Value;
         _logger = logger;
+        var fileSystemIsCaseSensitive = IsFileSystemCaseSensitive(_environment.WebRootPath);
+        _managedPathComparer = fileSystemIsCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+        _managedPathComparison = fileSystemIsCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
         _allowedExtensions = _options.AllowedExtensions
             .Select(extension => extension.StartsWith('.') ? extension : $".{extension}")
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -141,7 +146,7 @@ public sealed class ReceiptAttachmentStorageService
             .ToListAsync(cancellationToken);
 
         var skipped = 0;
-        var managedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var managedReferences = new HashSet<string>(_managedPathComparer);
         foreach (var referencedPath in referencedPaths)
         {
             if (TryNormalizeManagedRelativePath(referencedPath, out var normalized))
@@ -235,7 +240,7 @@ public sealed class ReceiptAttachmentStorageService
 
         var webRoot = Path.GetFullPath(_environment.WebRootPath);
         var root = Path.GetFullPath(Path.Combine(webRoot, rootRelativePath));
-        if (!root.StartsWith(webRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        if (!IsDescendantPath(webRoot, root))
             throw new InvalidOperationException("ReceiptAttachments:UploadRootRelativePath must resolve under wwwroot.");
 
         return root;
@@ -254,7 +259,7 @@ public sealed class ReceiptAttachmentStorageService
 
         var candidate = Path.GetFullPath(Path.Combine(_environment.WebRootPath, relativePath));
         var root = GetReceiptRootDirectory();
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+        if (!IsDescendantPath(root, candidate) ||
             ContainsSymbolicLink(root, candidate))
             return false;
 
@@ -270,7 +275,7 @@ public sealed class ReceiptAttachmentStorageService
 
         if (Path.IsPathRooted(relativePath) ||
             candidate.Contains("..", StringComparison.Ordinal) ||
-            !candidate.StartsWith(normalizedRoot + "/", StringComparison.OrdinalIgnoreCase))
+            !candidate.StartsWith(normalizedRoot + "/", _managedPathComparison))
         {
             return false;
         }
@@ -296,7 +301,7 @@ public sealed class ReceiptAttachmentStorageService
         relativePath = string.Empty;
         var root = GetReceiptRootDirectory();
         var candidate = Path.GetFullPath(fullPath);
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+        if (!IsDescendantPath(root, candidate) ||
             ContainsSymbolicLink(root, candidate))
             return false;
 
@@ -310,6 +315,49 @@ public sealed class ReceiptAttachmentStorageService
 
     private static string NormalizeRelativePath(string path)
         => path.Replace('\\', '/').Trim('/');
+
+    private bool IsDescendantPath(string root, string candidate)
+    {
+        var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedCandidate = Path.GetFullPath(candidate);
+        return normalizedCandidate.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, _managedPathComparison);
+    }
+
+    private static bool IsFileSystemCaseSensitive(string path)
+    {
+        var directory = new DirectoryInfo(Path.GetFullPath(path));
+        while (directory.Parent is not null)
+        {
+            var alternateName = ToggleFirstLetterCase(directory.Name);
+            if (alternateName != directory.Name &&
+                !Directory.Exists(Path.Combine(directory.Parent.FullName, alternateName)))
+            {
+                return true;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return !OperatingSystem.IsWindows();
+    }
+
+    private static string ToggleFirstLetterCase(string value)
+    {
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (!char.IsLetter(value[index]))
+                continue;
+
+            var toggled = char.IsUpper(value[index])
+                ? char.ToLowerInvariant(value[index])
+                : char.ToUpperInvariant(value[index]);
+            var characters = value.ToCharArray();
+            characters[index] = toggled;
+            return new string(characters);
+        }
+
+        return value;
+    }
 
     private bool TryGetSafeUploadRootRelativePath(out string rootRelativePath)
     {
