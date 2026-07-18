@@ -76,6 +76,20 @@ public sealed class ReceiptAttachmentStorageServiceTests
     }
 
     [Fact]
+    public async Task SaveAsync_RemovesPartialFileWhenScannerFails()
+    {
+        await using var fixture = new AttachmentFixture();
+        var service = fixture.CreateService(new ThrowingScanner());
+
+        var result = await service.SaveAsync(new TestBrowserFile("receipt.png", "image/png", [1, 2, 3]), 42);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("could not be read, scanned, or saved", result.ErrorMessage);
+        var userDirectory = Path.Combine(fixture.WebRootPath(), "uploads", "receipts", "42");
+        Assert.Empty(Directory.EnumerateFiles(userDirectory));
+    }
+
+    [Fact]
     public async Task DeleteIfManagedAsync_DeletesOnlyFilesUnderReceiptRoot()
     {
         await using var fixture = new AttachmentFixture();
@@ -202,6 +216,12 @@ public sealed class ReceiptAttachmentStorageServiceTests
             Assert.True(File.Exists(filePath));
             return Task.FromResult(_result);
         }
+    }
+
+    private sealed class ThrowingScanner : IAttachmentMalwareScanner
+    {
+        public Task<AttachmentScanResult> ScanAsync(string filePath, string originalFileName, string contentType, CancellationToken cancellationToken = default)
+            => throw new ApplicationException("Scanner unavailable.");
     }
 
     private sealed class TestBrowserFile : IBrowserFile

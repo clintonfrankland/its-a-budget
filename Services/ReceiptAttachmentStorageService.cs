@@ -48,7 +48,11 @@ public sealed class ReceiptAttachmentStorageService
             return ReceiptAttachmentSaveResult.Failure(validationMessage);
 
         var userDirectory = GetUserDirectory(userId);
-        Directory.CreateDirectory(userDirectory);
+        if (!TryCreateManagedDirectory(userDirectory))
+        {
+            _logger.LogWarning("Receipt attachment upload root contains a symbolic link or cannot be created for user {UserId}", userId);
+            return ReceiptAttachmentSaveResult.Failure("The receipt storage location is unavailable. Please try again later.");
+        }
 
         var extension = Path.GetExtension(file.Name).ToLowerInvariant();
         var finalFileName = $"{Guid.NewGuid():N}{extension}";
@@ -72,19 +76,20 @@ public sealed class ReceiptAttachmentStorageService
             File.Move(tempPath, finalPath);
             return ReceiptAttachmentSaveResult.Success(ToRelativePath(userId, finalFileName));
         }
-        catch (IOException ex)
+        catch (OperationCanceledException)
+        {
+            DeleteFileIfExists(tempPath);
+            DeleteFileIfExists(finalPath);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             DeleteFileIfExists(tempPath);
             DeleteFileIfExists(finalPath);
             _logger.LogWarning(ex, "Receipt attachment upload failed for user {UserId}", userId);
-            return ReceiptAttachmentSaveResult.Failure("The receipt could not be read or saved. Please try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            DeleteFileIfExists(tempPath);
-            DeleteFileIfExists(finalPath);
-            _logger.LogWarning(ex, "Receipt attachment upload exceeded the configured size limit for user {UserId}", userId);
-            return ReceiptAttachmentSaveResult.Failure($"Receipt files must be {FormatBytes(MaxFileSizeBytes)} or smaller.");
+            return ReceiptAttachmentSaveResult.Failure(ex is InvalidOperationException
+                ? $"Receipt files must be {FormatBytes(MaxFileSizeBytes)} or smaller."
+                : "The receipt could not be read, scanned, or saved. Please try again.");
         }
     }
 
@@ -123,6 +128,12 @@ public sealed class ReceiptAttachmentStorageService
             return new ReceiptAttachmentCleanupResult(0, 0, 0, 0, 1);
         }
 
+        if (ContainsSymbolicLink(root, root))
+        {
+            _logger.LogWarning("Receipt attachment cleanup skipped because upload root {Root} is a symbolic link", root);
+            return new ReceiptAttachmentCleanupResult(0, 0, 0, 0, 1);
+        }
+
         var referencedPaths = await _db.Transactions
             .AsNoTracking()
             .Where(transaction => transaction.AttachmentPath != null && transaction.AttachmentPath != string.Empty)
@@ -148,7 +159,12 @@ public sealed class ReceiptAttachmentStorageService
         var retained = 0;
         var failed = 0;
 
-        foreach (var filePath in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        foreach (var filePath in Directory.EnumerateFiles(root, "*", new EnumerationOptions
+                 {
+                     RecurseSubdirectories = true,
+                     IgnoreInaccessible = true,
+                     AttributesToSkip = FileAttributes.ReparsePoint
+                 }))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -214,8 +230,15 @@ public sealed class ReceiptAttachmentStorageService
 
     private string GetReceiptRootDirectory()
     {
-        var rootRelativePath = NormalizeRelativePath(_options.UploadRootRelativePath);
-        return Path.GetFullPath(Path.Combine(_environment.WebRootPath, rootRelativePath));
+        if (!TryGetSafeUploadRootRelativePath(out var rootRelativePath))
+            throw new InvalidOperationException("ReceiptAttachments:UploadRootRelativePath must be a relative path under wwwroot.");
+
+        var webRoot = Path.GetFullPath(_environment.WebRootPath);
+        var root = Path.GetFullPath(Path.Combine(webRoot, rootRelativePath));
+        if (!root.StartsWith(webRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("ReceiptAttachments:UploadRootRelativePath must resolve under wwwroot.");
+
+        return root;
     }
 
     private string GetUserDirectory(int userId) => Path.Combine(GetReceiptRootDirectory(), userId.ToString());
@@ -231,7 +254,8 @@ public sealed class ReceiptAttachmentStorageService
 
         var candidate = Path.GetFullPath(Path.Combine(_environment.WebRootPath, relativePath));
         var root = GetReceiptRootDirectory();
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            ContainsSymbolicLink(root, candidate))
             return false;
 
         fullPath = candidate;
@@ -272,7 +296,8 @@ public sealed class ReceiptAttachmentStorageService
         relativePath = string.Empty;
         var root = GetReceiptRootDirectory();
         var candidate = Path.GetFullPath(fullPath);
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            ContainsSymbolicLink(root, candidate))
             return false;
 
         var localPath = Path.GetRelativePath(root, candidate).Replace(Path.DirectorySeparatorChar, '/');
@@ -285,6 +310,65 @@ public sealed class ReceiptAttachmentStorageService
 
     private static string NormalizeRelativePath(string path)
         => path.Replace('\\', '/').Trim('/');
+
+    private bool TryGetSafeUploadRootRelativePath(out string rootRelativePath)
+    {
+        rootRelativePath = NormalizeRelativePath(_options.UploadRootRelativePath);
+        return !string.IsNullOrWhiteSpace(rootRelativePath) &&
+               !Path.IsPathRooted(_options.UploadRootRelativePath) &&
+               !rootRelativePath.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(segment => segment is "." or "..");
+    }
+
+    private bool TryCreateManagedDirectory(string directory)
+    {
+        var root = GetReceiptRootDirectory();
+        if (ContainsSymbolicLink(root, root))
+            return false;
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            return !ContainsSymbolicLink(root, directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ContainsSymbolicLink(string root, string candidate)
+    {
+        var current = root;
+        if (HasSymbolicLinkAttribute(current))
+            return true;
+
+        var localPath = Path.GetRelativePath(root, candidate);
+        foreach (var segment in localPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (string.IsNullOrEmpty(segment) || segment == ".")
+                continue;
+
+            current = Path.Combine(current, segment);
+            if (HasSymbolicLinkAttribute(current))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasSymbolicLinkAttribute(string path)
+    {
+        try
+        {
+            return File.Exists(path) || Directory.Exists(path)
+                ? (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0
+                : false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
 
     private static void DeleteFileIfExists(string path)
     {
