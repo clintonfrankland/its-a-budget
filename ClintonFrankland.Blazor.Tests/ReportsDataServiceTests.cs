@@ -1,5 +1,6 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
+using ClintonFrankland.Models.ViewModels;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,8 +20,66 @@ public class ReportsDataServiceTests
         var rows = await new ReportsDataService(db).GetSpendVsPlanAsync(1, new(2026, 7, 15));
 
         var food = rows.Single(r => r.CategoryName == "Food");
-        Assert.Equal((100m, 125m, -25m, "Over"), (food.Planned, food.Actual, food.Variance, food.Status));
+        Assert.Equal((100m, 125m, -25m, "Over budget"), (food.Planned, food.Actual, food.Variance, food.Status));
         Assert.Equal(20m, rows.Single(r => r.CategoryName == "Uncategorized").Actual);
+        Assert.Equal("Unbudgeted", rows.Single(r => r.CategoryName == "Uncategorized").Status);
+    }
+
+    [Fact]
+    public void MonthCloseVariance_RoundsClassifiesAndOrdersHighlightsDeterministically()
+    {
+        var snapshot = MonthCloseVarianceSnapshot.Create(new DateOnly(2026, 7, 20),
+        [
+            new("Zeta", 20m, 30m), new("Alpha", 10m, 20m), new("No plan", 0m, 9m),
+            new("Tiny", 10.004m, 10m), new("Beta", 30m, 10m), new("Able", 25m, 5m),
+            new("Charlie", 19m, 4m), new("Delta", 13m, 3m)
+        ]);
+
+        Assert.Equal(new DateOnly(2026, 7, 1), snapshot.MonthStart);
+        Assert.Equal((127.00m, 91m, 36m), (snapshot.TotalBudgeted, snapshot.TotalActual, snapshot.TotalVariance));
+        Assert.Equal(["Alpha", "Zeta", "No plan"], snapshot.NeedsAttention.Select(row => row.CategoryName));
+        Assert.Equal(["Able", "Beta", "Charlie"], snapshot.LargestUnderBudget.Select(row => row.CategoryName));
+        Assert.Equal(["Alpha", "Zeta", "No plan", "Able", "Beta", "Charlie", "Delta", "Tiny"], snapshot.Rows.Select(row => row.CategoryName));
+        Assert.Equal(["Over budget", "Over budget", "Unbudgeted", "Under budget", "Under budget", "Under budget", "Under budget", "On budget"], snapshot.Rows.Select(row => row.Status));
+    }
+
+    [Fact]
+    public async Task MonthCloseVariance_UsesHalfOpenExpenseBoundaryAndIncludesBudgetOnlyAndActualOnlyRows()
+    {
+        await using var db = CreateDb(); SeedBase(db);
+        db.Categories.Add(new Category { CategoryId = 3, CategoryName = "Utilities", UserId = 1 });
+        db.CategoryBudgetTargets.Add(new CategoryBudgetTarget { UserId = 1, CategoryId = 3, BudgetMonth = new(2026, 7, 1), PlannedAmount = 75m });
+        db.Transactions.AddRange(
+            Tx(1, 1, 1, new(2026, 6, 30), -100m), Tx(2, 1, 1, new(2026, 7, 1), -10m),
+            Tx(3, 1, 1, new(2026, 7, 31), -15m), Tx(4, 1, 1, new(2026, 8, 1), -100m),
+            Tx(5, 1, 1, new(2026, 7, 15), 999m));
+        await db.SaveChangesAsync();
+
+        var snapshot = await new ReportsDataService(db).GetMonthCloseVarianceAsync(1, new(2026, 7, 20));
+
+        Assert.Equal((0m, 25m, -25m, "Unbudgeted"), SnapshotRow(snapshot, "Food"));
+        Assert.Equal((75m, 0m, 75m, "Under budget"), SnapshotRow(snapshot, "Utilities"));
+    }
+
+    [Fact]
+    public async Task MonthCloseVariance_UsesAllowanceEffectiveAndEndDatesThenHistoricalFallback()
+    {
+        await using var db = CreateDb(); SeedBase(db);
+        db.CategoryBudgetTargets.AddRange(
+            new CategoryBudgetTarget { UserId = 1, CategoryId = 1, BudgetMonth = new(2026, 6, 1), PlannedAmount = 90m },
+            new CategoryBudgetTarget { UserId = 1, CategoryId = 1, BudgetMonth = new(2026, 7, 1), PlannedAmount = 95m });
+        db.Budgets.Add(new Budget
+        {
+            BudgetId = 70, UserId = 1, CategoryId = 1, BudgetName = "Food allowance", BudgetTypeId = 1,
+            IsSpendingAllowance = true, FrequencyId = 4, NextDueDate = new DateTime(2026, 8, 1),
+            EndDate = new DateTime(2026, 7, 31), Amount = 125m
+        });
+        await db.SaveChangesAsync();
+        var service = new ReportsDataService(db);
+
+        Assert.Equal(90m, Assert.Single((await service.GetMonthCloseVarianceAsync(1, new(2026, 6, 1))).Rows).Planned);
+        Assert.Equal(125m, Assert.Single((await service.GetMonthCloseVarianceAsync(1, new(2026, 7, 1))).Rows).Planned);
+        Assert.Empty((await service.GetMonthCloseVarianceAsync(1, new(2026, 8, 1))).Rows);
     }
 
     [Fact]
@@ -207,4 +266,9 @@ public class ReportsDataServiceTests
         TransactionId = id, UserId = 2, SharedBudgetId = sharedBudgetId, AccountId = accountId,
         CategoryId = categoryId, PayeeId = 1, TransactionDate = date, Amount = amount
     };
+    private static (decimal Planned, decimal Actual, decimal Variance, string Status) SnapshotRow(MonthCloseVarianceSnapshot snapshot, string categoryName)
+    {
+        var row = snapshot.Rows.Single(item => item.CategoryName == categoryName);
+        return (row.Planned, row.Actual, row.Variance, row.Status);
+    }
 }

@@ -197,6 +197,56 @@ html {
     margin: 0.2rem 0;
 }
 
+.variance-summary {
+    margin-top: 1rem;
+}
+
+.variance-totals,
+.variance-highlights {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.variance-totals > div,
+.variance-highlights > div,
+.report-empty-state {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 0.4rem;
+    padding: 0.85rem;
+}
+
+.variance-totals span,
+.variance-totals small,
+.variance-highlights small {
+    color: #6c757d;
+    display: block;
+}
+
+.variance-totals strong {
+    display: block;
+    font-size: 1.25rem;
+}
+
+.variance-highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.75rem;
+}
+
+.variance-highlights li {
+    align-items: center;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+}
+
+.variance-highlights li:first-child {
+    border-top: 0;
+}
+
 .cashflow-summary {
     display: grid;
     gap: 0.75rem;
@@ -257,7 +307,9 @@ html {
     }
 
     .cashflow-summary,
-    .net-worth-history {
+    .net-worth-history,
+    .variance-totals,
+    .variance-highlights {
         grid-template-columns: 1fr;
     }
 

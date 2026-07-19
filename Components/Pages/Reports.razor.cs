@@ -18,6 +18,7 @@ public partial class Reports
     private bool loading = true;
     private string activeView = "overview";
     private List<SpendPlanRow> spendPlan = [];
+    private MonthCloseVarianceSnapshot? monthCloseVariance;
     private List<CategoryTrendRow> trends = [];
     private List<InsightsMonth> months = [];
     private CashflowReport? cashflow;
@@ -78,7 +79,12 @@ public partial class Reports
     {
         var userId = CurrentUser.UserId;
         months = InsightsDataService.GetTrendMonths(selectedMonth);
-        try { spendError = string.Empty; spendPlan = await ReportsData.GetSpendVsPlanAsync(userId, selectedMonth); }
+        try
+        {
+            spendError = string.Empty;
+            monthCloseVariance = await ReportsData.GetMonthCloseVarianceAsync(userId, selectedMonth);
+            spendPlan = monthCloseVariance.Rows.ToList();
+        }
         catch { spendError = "Spend vs Plan is temporarily unavailable."; }
         try { trendError = string.Empty; trends = await ReportsData.GetCategoryTrendsAsync(userId, selectedMonth); }
         catch { trendError = "Category Trends is temporarily unavailable."; }

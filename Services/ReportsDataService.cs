@@ -58,7 +58,7 @@ public class ReportsDataService
                 g => g.Key,
                 g => new PlanValue(g.First().Name, CurrencyPolicy.Round(g.Sum(x => x.Amount))));
         var planned = legacyPlanned
-            .Where(x => !allowancePlanned.ContainsKey(x.Key))
+            .Where(x => x.Value.Amount > 0m && !allowancePlanned.ContainsKey(x.Key))
             .Select(x => x.Value)
             .Concat(allowancePlanned.Values)
             .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
@@ -66,11 +66,13 @@ public class ReportsDataService
         var actual = transactions.GroupBy(t => CategoryName(t.Category, userId, t.SharedBudgetId, readable), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => CurrencyPolicy.Round(g.Sum(t => -t.Amount)), StringComparer.OrdinalIgnoreCase);
 
-        return planned.Keys.Union(actual.Keys, StringComparer.OrdinalIgnoreCase)
+        return MonthCloseVarianceSnapshot.Create(selectedMonth, planned.Keys.Union(actual.Keys, StringComparer.OrdinalIgnoreCase)
             .Select(name => new SpendPlanRow(name, planned.GetValueOrDefault(name), actual.GetValueOrDefault(name)))
-            .OrderBy(r => r.CategoryName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ToList()).Rows.ToList();
     }
+
+    public async Task<MonthCloseVarianceSnapshot> GetMonthCloseVarianceAsync(int userId, DateOnly selectedMonth) =>
+        MonthCloseVarianceSnapshot.Create(selectedMonth, await GetSpendVsPlanAsync(userId, selectedMonth));
 
     public Task<List<CategoryTrendRow>> GetCategoryTrendsAsync(int userId, DateOnly selectedMonth) =>
         new InsightsDataService(_db, _sharedBudgets).GetCategoryTrendAsync(userId, selectedMonth);

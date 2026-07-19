@@ -286,7 +286,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Transaction** | A ledger entry recording income or expenditure against an account. |
 | **Budget item** | A recurring plan that is either a scheduled transaction or a spending allowance. Scheduled items drive dated cash flow and can trigger bill notices; allowances are consumed by actual category spending and reserve only the unspent amount in Forecast. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
-| **Reports** | One read-only reporting destination with Overview, Spending, Cash Flow, and Net Worth sections. The former Insights route redirects to Spending. See [Reports](docs/pages/reports.md). |
+| **Reports** | One read-only reporting destination with Overview, Spending, Cash Flow, and Net Worth sections. Spending includes a selected-month variance snapshot reconstructed from expense transactions and spending allowances, with historical category targets used only when no allowance plan exists. Signed variance is budgeted minus actual; actual-only categories are identified as Unbudgeted. The former Insights route redirects to Spending. See [Reports](docs/pages/reports.md). |
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
 | **Payee** | A user-owned named entity representing who a payment is made to or received from. Active payees can be selected in bulk and merged into one kept payee while transactions and budget items are reassigned. |
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |

@@ -50,4 +50,30 @@ public class ReportsPageContractTests
         Assert.Contains("href=\"/budget\"", markup);
         Assert.Contains("Take(5)", markup);
     }
+
+    [Fact]
+    public void Spending_IncludesAccessibleResponsiveMonthCloseSummaryStatusesAndEmptyState()
+    {
+        var markup = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Reports.razor"));
+        var styles = File.ReadAllText(Path.Combine(RepoRoot, "wwwroot/css/app.css"));
+        var viewModels = File.ReadAllText(Path.Combine(RepoRoot, "Models/ViewModels/ReportsViewModels.cs"));
+
+        Assert.Contains("Month-close variance snapshot", markup);
+        Assert.Contains("Total budgeted", markup);
+        Assert.Contains("Total actual", markup);
+        Assert.Contains("Total variance", markup);
+        Assert.Contains("Needs attention", markup);
+        Assert.Contains("Largest unspent amounts", markup);
+        Assert.Contains("@row.Status", markup);
+        Assert.Contains("Nothing to close for @selectedMonth", markup);
+        Assert.Contains("role=\"status\"", markup);
+        Assert.Contains("aria-labelledby=\"varianceSummaryHeading\"", markup);
+        Assert.Contains("table-responsive variance-detail", markup);
+        Assert.Contains(".variance-totals", styles);
+        Assert.Contains("grid-template-columns: 1fr", styles);
+        Assert.Contains("Over budget", viewModels);
+        Assert.Contains("Unbudgeted", viewModels);
+        Assert.Contains("Under budget", viewModels);
+        Assert.Contains("On budget", viewModels);
+    }
 }
