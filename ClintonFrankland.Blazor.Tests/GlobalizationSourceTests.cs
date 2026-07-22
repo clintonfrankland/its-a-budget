@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ClintonFrankland.Blazor.Tests;
 
 public class GlobalizationSourceTests
@@ -17,6 +19,18 @@ public class GlobalizationSourceTests
         Assert.Contains(".AddSupportedCultures(usCulture.Name)", source);
         Assert.Contains(".AddSupportedUICultures(usCulture.Name)", source);
         Assert.Contains("app.UseRequestLocalization();", source);
+    }
+
+    [Fact]
+    public void CurrencyDisplay_UsesConfiguredEnUsCurrencyFormat()
+    {
+        var culture = CultureInfo.GetCultureInfo("en-US");
+        var amount = 1234.5m;
+
+        var formatted = amount.ToString("C", culture);
+
+        Assert.Contains("$", formatted);
+        Assert.Equal("$1,234.50", formatted);
     }
 
     [Fact]
