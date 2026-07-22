@@ -8,6 +8,20 @@ namespace ClintonFrankland.Blazor.Tests;
 
 public class ServiceRefactorWorkflowTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CheckbookDataService_GetOrCreatePayeeAsync_RejectsBlankNamesWithoutPersisting(string payeeName)
+    {
+        await using var db = CreateDbContext();
+        var service = new CheckbookDataService(db);
+
+        var payeeId = await service.GetOrCreatePayeeAsync(payeeName, 42);
+
+        Assert.Equal(-1, payeeId);
+        Assert.Empty(await db.Payees.ToListAsync());
+    }
+
     [Fact]
     public async Task BudgetScheduleForecast_IsUserScopedOrderedAndCalculatesRunningBalance()
     {
