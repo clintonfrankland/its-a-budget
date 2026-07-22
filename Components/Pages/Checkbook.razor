@@ -156,7 +156,7 @@ else
                                 @if (txn.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                 {
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
+                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" aria-label="Edit transaction" />
                                     <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")"
                                                   ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
                                                   Size="ButtonSize.Small"
@@ -222,7 +222,7 @@ else
                                 @if (txn.CanManageFinancialData && IsAtLeast(ScreenSize.Small))
                                 {
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" />
+                                                  Click="() => ShowEditTransactionAsync(txn.TransactionId)" title="Edit" aria-label="Edit transaction" />
                                     <RadzenButton Icon="@(txn.IsCleared ? "check_circle" : "radio_button_unchecked")"
                                                   ButtonStyle="@(txn.IsCleared ? ButtonStyle.Success : ButtonStyle.Light)"
                                                   Size="ButtonSize.Small"

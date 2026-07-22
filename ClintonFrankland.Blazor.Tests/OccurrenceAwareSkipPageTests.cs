@@ -26,6 +26,15 @@ public class OccurrenceAwareSkipPageTests
         Assert.DoesNotContain("SkipBudgetAsync(item.BudgetId)", markup + code);
     }
 
+    [Fact]
+    public void Checkbook_IconOnlyTransactionEditActionsHaveAccessibleNames()
+    {
+        var markup = ReadRepoFile("Components/Pages/Checkbook.razor");
+        const string editAction = "Click=\"() => ShowEditTransactionAsync(txn.TransactionId)\" title=\"Edit\" aria-label=\"Edit transaction\"";
+
+        Assert.Equal(2, Count(markup, editAction));
+    }
+
     private static string ReadRepoFile(string relativePath) => File.ReadAllText(Path.Combine(RepoRoot, relativePath));
 
     private static int Count(string source, string value) =>
