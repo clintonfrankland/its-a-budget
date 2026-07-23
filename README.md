@@ -93,6 +93,16 @@ AppSettings__LoginPassword="<fallback-login-password>"
 
 `appsettings.Development.example.json` shows the expected shape without real credentials. For machine-local JSON overrides, use an ignored `appsettings.Development.local.json` file and load it manually only in private workflows.
 
+### Confirm a non-production database
+
+Before running migrations or tests that access SQL Server, verify the effective `ConnectionStrings:DefaultConnection` value privately. A connection string can contain credentials, so do not paste it into chat, tickets, logs, or screenshots.
+
+- **Local development:** Check the value from the active local source, normally .NET user secrets. Confirm both `Server` and `Database`/`Initial Catalog` identify an approved local or development database.
+- **Review/integration:** Check the value in the review environment's restricted configuration or secret store. It must name a dedicated review database, such as `budget_test` or a task-specific database, that is separate from both local development and production.
+- **Stop if uncertain:** Do not run `dotnet ef database update`, start the application, or run database-backed tests if the server or database is blank, ambiguous, matches production, or cannot be independently confirmed.
+
+Use placeholders in documentation and commands. Never copy a real connection string into the repository. Once the non-production target is confirmed, run migrations and tests from the intended local or review checkout only.
+
 ### Optional Authentik OIDC login
 
 Authentik/OpenID Connect login is disabled by default. The production access policy is:
