@@ -2,6 +2,7 @@ using ClintonFrankland.Models;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.JSInterop;
 using Radzen;
 using Radzen.Blazor;
 
@@ -36,10 +37,16 @@ public partial class Checkbook
     [Inject]
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
+    [Inject]
+    private TransactionCsvService TransactionCsv { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
     [SupplyParameterFromQuery(Name = "search")]
     private string? InitialSearch { get; set; }
 
-    private enum ViewMode { List, Edit }
+    private enum ViewMode { List, Edit, Import }
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
@@ -50,6 +57,10 @@ public partial class Checkbook
     private bool showBudgetCollapse = false;
     private int budgetDays = 3;
     private bool canCreateFinancialData;
+    private TransactionCsvDocument? importDocument;
+    private TransactionCsvMapping importMapping = new(null, null, null, null);
+    private IReadOnlyList<TransactionCsvPreviewRow> importPreview = [];
+    private string importFileName = string.Empty;
 
     // Budget days dropdown options
     private static readonly List<BudgetDaysOption> budgetDaysOptions = new()
@@ -414,6 +425,91 @@ public partial class Checkbook
         removeAttachment = false;
         canManageEditFinancialData = true;
         currentView = ViewMode.Edit;
+    }
+
+    private void ShowImportTransactions()
+    {
+        if (!canCreateFinancialData)
+            return;
+
+        SaveGridState();
+        importDocument = null;
+        importMapping = new TransactionCsvMapping(null, null, null, null);
+        importPreview = [];
+        importFileName = string.Empty;
+        errorMessage = string.Empty;
+        currentView = ViewMode.Import;
+    }
+
+    private async Task OnTransactionCsvSelectedAsync(InputFileChangeEventArgs eventArgs)
+    {
+        try
+        {
+            await using var stream = eventArgs.File.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            importDocument = TransactionCsv.Read(await reader.ReadToEndAsync());
+            importMapping = TransactionCsv.SuggestMapping(importDocument.Headers);
+            importFileName = eventArgs.File.Name;
+            RefreshImportPreview();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = $"Could not read the CSV file: {exception.Message}";
+        }
+    }
+
+    private void RefreshImportPreview()
+    {
+        importPreview = importDocument is null ? [] : TransactionCsv.Preview(importDocument, importMapping);
+    }
+
+    private async Task ImportTransactionsAsync()
+    {
+        if (!canCreateFinancialData || importDocument is null)
+            return;
+        if (importMapping.DateColumn is null || importMapping.AmountColumn is null)
+        {
+            errorMessage = "Map both Date and Amount before importing.";
+            return;
+        }
+
+        var preview = TransactionCsv.Preview(importDocument, importMapping, int.MaxValue);
+        var invalidRows = preview.Where(row => row.Error is not null).ToList();
+        if (invalidRows.Count > 0)
+        {
+            errorMessage = $"Correct the mapping or CSV values; {invalidRows.Count} row(s) have invalid dates or amounts.";
+            return;
+        }
+
+        try
+        {
+            foreach (var row in preview)
+            {
+                await CheckbookData.SaveTransactionAsync(CurrentUser.UserId, -1, row.Date!.Value,
+                    string.IsNullOrWhiteSpace(row.Payee) ? "Unknown" : row.Payee,
+                    string.IsNullOrWhiteSpace(row.Category) ? "Uncategorized" : row.Category,
+                    row.Amount!.Value, false, null, null);
+            }
+            currentView = ViewMode.List;
+            await LoadDataAsync();
+            shouldRestoreGridState = true;
+        }
+        catch (Exception exception)
+        {
+            errorMessage = $"Could not import transactions: {exception.Message}";
+        }
+    }
+
+    private async Task ExportTransactionsAsync()
+    {
+        var bytes = TransactionCsv.CreateCsv(await CheckbookData.GetTransactionsForUserAsync(CurrentUser.UserId));
+        await JS.InvokeVoidAsync("budgetApp.downloadFileFromBase64", TransactionCsv.CreateFileName(), "text/csv;charset=utf-8", Convert.ToBase64String(bytes));
+    }
+
+    private void CancelImport()
+    {
+        currentView = ViewMode.List;
+        shouldRestoreGridState = true;
     }
 
     // Load a budget item into the edit form for recording as a transaction
