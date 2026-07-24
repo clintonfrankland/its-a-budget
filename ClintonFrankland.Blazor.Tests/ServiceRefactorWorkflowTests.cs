@@ -3,6 +3,7 @@ using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.Sqlite;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -258,6 +259,39 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
+    public async Task CheckbookDataService_ImportTransactions_RollsBackWhenALaterRowFailsPersistence()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = CreateSqliteDbContext(connection);
+        await db.Database.EnsureCreatedAsync();
+        SeedAccountTypes(db);
+        db.Users.Add(new User { UserId = 42, SiteId = 1, UserName = "importer", DisplayName = "Importer", Salt = "salt", PasswordHash = "hash", FirstLogin = DateTime.UtcNow, LastLogin = DateTime.UtcNow });
+        db.Accounts.Add(new Account { AccountId = 1, AccountName = "Checking", AccountTypeId = 1, BeginningBalance = 0m, UserId = 42 });
+        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER RejectOversizedPayee BEFORE INSERT ON cfPayees
+            WHEN length(NEW.PayeeName) > 64
+            BEGIN
+                SELECT RAISE(ABORT, 'payee name is too long');
+            END;
+            """);
+
+        var service = new CheckbookDataService(db);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => service.ImportTransactionsAsync(42,
+        [
+            new ImportedTransaction(new DateOnly(2026, 7, 1), "First valid row", "Food", -12.34m),
+            new ImportedTransaction(new DateOnly(2026, 7, 2), new string('X', 65), "Food", -1.23m)
+        ]));
+
+        Assert.Empty(await db.Transactions.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.Payees.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.Categories.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.SharedBudgets.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public async Task DashboardSnapshot_UsesOnlyRequestedUserData()
     {
         await using var db = CreateDbContext();
@@ -463,6 +497,15 @@ public class ServiceRefactorWorkflowTests
     {
         var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ClintonFranklandDbContext(options);
+    }
+
+    private static ClintonFranklandDbContext CreateSqliteDbContext(SqliteConnection connection)
+    {
+        var options = new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseSqlite(connection)
             .Options;
 
         return new ClintonFranklandDbContext(options);

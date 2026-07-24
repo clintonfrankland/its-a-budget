@@ -483,13 +483,8 @@ public partial class Checkbook
 
         try
         {
-            foreach (var row in preview)
-            {
-                await CheckbookData.SaveTransactionAsync(CurrentUser.UserId, -1, row.Date!.Value,
-                    string.IsNullOrWhiteSpace(row.Payee) ? "Unknown" : row.Payee,
-                    string.IsNullOrWhiteSpace(row.Category) ? "Uncategorized" : row.Category,
-                    row.Amount!.Value, false, null, null);
-            }
+            await CheckbookData.ImportTransactionsAsync(CurrentUser.UserId, preview.Select(row =>
+                new ImportedTransaction(row.Date!.Value, row.Payee, row.Category, row.Amount!.Value)).ToList());
             currentView = ViewMode.List;
             await LoadDataAsync();
             shouldRestoreGridState = true;

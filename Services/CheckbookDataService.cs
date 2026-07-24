@@ -226,6 +226,90 @@ public class CheckbookDataService
         await _db.SaveChangesAsync();
     }
 
+    public async Task ImportTransactionsAsync(int userId, IReadOnlyCollection<ImportedTransaction> transactions)
+    {
+        ArgumentNullException.ThrowIfNull(transactions);
+
+        // Validate the entire file before tracking entities so a bad later row cannot leave prior rows pending.
+        foreach (var transaction in transactions)
+        {
+            if (transaction.TransactionDate == DateOnly.MinValue)
+                throw new InvalidOperationException("Transaction date is required.");
+
+            _ = CurrencyPolicy.RoundSignedSqlAmount(transaction.Amount, CurrencyPolicy.TransactionPrecision);
+        }
+
+        if (transactions.Count == 0)
+            return;
+
+        await using var databaseTransaction = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            var sharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId);
+            if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, sharedBudgetId, userId))
+                return;
+
+            var account = sharedBudgetId.HasValue
+                ? await _db.Accounts
+                    .AsNoTracking()
+                    .Where(a => a.SharedBudgetId == sharedBudgetId)
+                    .OrderByDescending(a => a.IsDefault)
+                    .ThenBy(a => a.AccountId)
+                    .FirstOrDefaultAsync()
+                : await GetAccountForUserAsync(userId);
+            var accountId = account?.AccountId ?? 1;
+
+            var payeeNames = transactions.Select(t => NormalizeName(t.PayeeName, "Unknown")).Distinct().ToList();
+            var categoryNames = transactions.Select(t => NormalizeName(t.CategoryName, "Uncategorized")).Distinct().ToList();
+            var payees = (await _db.Payees.Where(p => p.UserId == userId && payeeNames.Contains(p.PayeeName)).ToListAsync())
+                .ToDictionary(p => p.PayeeName, StringComparer.Ordinal);
+            var categories = (await _db.Categories.Where(c => c.SharedBudgetId == sharedBudgetId && categoryNames.Contains(c.CategoryName!)).ToListAsync())
+                .ToDictionary(c => c.CategoryName!, StringComparer.Ordinal);
+
+            foreach (var import in transactions)
+            {
+                var payeeName = NormalizeName(import.PayeeName, "Unknown");
+                if (!payees.TryGetValue(payeeName, out var payee))
+                {
+                    payee = new Payee { PayeeName = payeeName, UserId = userId, IsDeleted = false };
+                    payees.Add(payeeName, payee);
+                    _db.Payees.Add(payee);
+                }
+
+                var categoryName = NormalizeName(import.CategoryName, "Uncategorized");
+                if (!categories.TryGetValue(categoryName, out var category))
+                {
+                    category = new Category { CategoryName = categoryName, UserId = userId, SharedBudgetId = sharedBudgetId };
+                    categories.Add(categoryName, category);
+                    _db.Categories.Add(category);
+                }
+
+                _db.Transactions.Add(new Transaction
+                {
+                    UserId = userId,
+                    SharedBudgetId = sharedBudgetId,
+                    TransactionDate = import.TransactionDate,
+                    Payee = payee,
+                    Category = category,
+                    AccountId = accountId,
+                    Amount = CurrencyPolicy.RoundSignedSqlAmount(import.Amount, CurrencyPolicy.TransactionPrecision),
+                    Cleared = import.Cleared,
+                    Notes = string.IsNullOrWhiteSpace(import.Notes) ? null : import.Notes.Trim(),
+                    AttachmentPath = import.AttachmentPath
+                });
+            }
+
+            await _db.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
+        }
+        catch
+        {
+            await databaseTransaction.RollbackAsync();
+            _db.ChangeTracker.Clear();
+            throw;
+        }
+    }
+
     public async Task DeleteTransactionAsync(int userId, int id)
     {
         var txn = await _db.Transactions.FirstOrDefaultAsync(t => t.TransactionId == id);
@@ -281,4 +365,16 @@ public class CheckbookDataService
         await _db.SaveChangesAsync();
         return newPayee.PayeeId;
     }
+
+    private static string NormalizeName(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 }
+
+public sealed record ImportedTransaction(
+    DateOnly TransactionDate,
+    string? PayeeName,
+    string? CategoryName,
+    decimal Amount,
+    bool Cleared = false,
+    string? Notes = null,
+    string? AttachmentPath = null);
