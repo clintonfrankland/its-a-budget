@@ -57,6 +57,40 @@ public sealed class PlaidConnectionServiceTests
         Assert.Empty(database.Transactions);
     }
 
+    [Fact]
+    public async Task Mapping_RejectsAccountThatWasNotDiscoveredForThePlaidItem()
+    {
+        await using var database = CreateDatabase();
+        SeedUsersAndAccounts(database);
+        var provider = DataProtectionProvider.Create("PlaidMappingOwnershipTests");
+        var service = new PlaidConnectionService(database, new SharedBudgetDataService(database), new FakePlaidClient(), provider);
+        var connection = await service.ExchangePublicTokenAsync(1, "public-token", null, null, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MapAccountAsync(1, connection.PlaidItemId, "not-an-account-on-this-item", 1, CancellationToken.None));
+
+        Assert.Contains("does not belong", exception.Message);
+        Assert.Empty(database.PlaidAccountMappings);
+    }
+
+    [Fact]
+    public async Task Exchange_ForExistingOwnedItem_RefreshesProtectedCredentialForLinkUpdate()
+    {
+        await using var database = CreateDatabase();
+        SeedUsersAndAccounts(database);
+        var provider = DataProtectionProvider.Create("PlaidLinkUpdateTests");
+        var client = new FakePlaidClient();
+        var service = new PlaidConnectionService(database, new SharedBudgetDataService(database), client, provider);
+
+        var first = await service.ExchangePublicTokenAsync(1, "initial-public-token", null, null, CancellationToken.None);
+        var second = await service.ExchangePublicTokenAsync(1, "update-public-token", null, "Updated Sandbox Bank", CancellationToken.None);
+
+        Assert.Equal(first.PlaidItemId, second.PlaidItemId);
+        var item = await database.PlaidItems.SingleAsync();
+        Assert.Equal("Updated Sandbox Bank", item.InstitutionName);
+        Assert.NotEqual(client.AccessToken, item.EncryptedAccessToken);
+    }
+
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 

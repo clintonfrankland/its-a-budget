@@ -7,6 +7,8 @@ namespace ClintonFrankland.Services;
 
 public sealed record PlaidItemSummary(int PlaidItemId, string InstitutionName, string Status, DateTime UpdatedAtUtc, int MappingCount);
 public sealed record PlaidConnectionResult(int PlaidItemId, IReadOnlyList<PlaidDiscoveredAccount> Accounts);
+public sealed record PlaidAccountMappingCandidate(string PlaidAccountId, string Name, string? Mask, string Type, string Subtype, int? BudgetAccountId);
+public sealed record ManageableBudgetAccount(int AccountId, string Name);
 
 public sealed class PlaidConnectionService
 {
@@ -40,23 +42,37 @@ public sealed class PlaidConnectionService
             throw new ArgumentException("A Plaid public token is required.", nameof(publicToken));
 
         var exchanged = await _plaidClient.ExchangePublicTokenAsync(publicToken, cancellationToken);
-        if (await _database.PlaidItems.AnyAsync(item => item.ItemId == exchanged.ItemId, cancellationToken))
-            throw new InvalidOperationException("This Plaid connection is already linked to a Budget user.");
-
         var accounts = await _plaidClient.GetAccountsAsync(exchanged.AccessToken, cancellationToken);
         var now = DateTime.UtcNow;
-        var item = new PlaidItem
+        var item = await _database.PlaidItems.SingleOrDefaultAsync(item => item.ItemId == exchanged.ItemId, cancellationToken);
+        if (item is not null && item.UserId != userId)
+            throw new InvalidOperationException("This Plaid connection is already linked to a Budget user.");
+
+        if (item is null)
         {
-            UserId = userId,
-            ItemId = exchanged.ItemId,
-            EncryptedAccessToken = _accessTokenProtector.Protect(exchanged.AccessToken),
-            InstitutionId = institutionId?.Trim(),
-            InstitutionName = institutionName?.Trim(),
-            Status = PlaidItemStatus.Active,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        };
-        _database.PlaidItems.Add(item);
+            item = new PlaidItem
+            {
+                UserId = userId,
+                ItemId = exchanged.ItemId,
+                EncryptedAccessToken = _accessTokenProtector.Protect(exchanged.AccessToken),
+                InstitutionId = institutionId?.Trim(),
+                InstitutionName = institutionName?.Trim(),
+                Status = PlaidItemStatus.Active,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+            _database.PlaidItems.Add(item);
+        }
+        else
+        {
+            // Link update mode may return a replacement access token for the same Item.
+            item.EncryptedAccessToken = _accessTokenProtector.Protect(exchanged.AccessToken);
+            item.InstitutionId = institutionId?.Trim() ?? item.InstitutionId;
+            item.InstitutionName = institutionName?.Trim() ?? item.InstitutionName;
+            item.Status = PlaidItemStatus.Active;
+            item.DisconnectedAtUtc = null;
+            item.UpdatedAtUtc = now;
+        }
         await _database.SaveChangesAsync(cancellationToken);
         return new PlaidConnectionResult(item.PlaidItemId, accounts);
     }
@@ -69,6 +85,12 @@ public sealed class PlaidConnectionService
         var item = await GetOwnedItemAsync(userId, plaidItemId, cancellationToken);
         if (item.Status != PlaidItemStatus.Active)
             throw new InvalidOperationException("Only active Plaid Items can be mapped.");
+
+        // Never trust a Plaid account id supplied by the browser. Discover it from this
+        // Item's protected access token immediately before creating the association.
+        var discoveredAccounts = await _plaidClient.GetAccountsAsync(_accessTokenProtector.Unprotect(item.EncryptedAccessToken), cancellationToken);
+        if (!discoveredAccounts.Any(account => string.Equals(account.AccountId, plaidAccountId, StringComparison.Ordinal)))
+            throw new InvalidOperationException("The Plaid account does not belong to this connection.");
 
         var budgetAccount = await _database.Accounts.SingleOrDefaultAsync(account => account.AccountId == budgetAccountId, cancellationToken)
             ?? throw new InvalidOperationException("The selected Budget account does not exist.");
@@ -113,6 +135,29 @@ public sealed class PlaidConnectionService
             .OrderByDescending(item => item.UpdatedAtUtc)
             .Select(item => new PlaidItemSummary(item.PlaidItemId, item.InstitutionName ?? "Connected institution", item.Status,
                 item.UpdatedAtUtc, item.AccountMappings.Count)).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<PlaidAccountMappingCandidate>> GetDiscoveredAccountsAsync(int userId, int plaidItemId, CancellationToken cancellationToken)
+    {
+        var item = await GetOwnedItemAsync(userId, plaidItemId, cancellationToken);
+        var mappings = await _database.PlaidAccountMappings.AsNoTracking()
+            .Where(mapping => mapping.PlaidItemId == plaidItemId)
+            .ToDictionaryAsync(mapping => mapping.PlaidAccountId, mapping => mapping.BudgetAccountId, StringComparer.Ordinal, cancellationToken);
+        var accounts = await _plaidClient.GetAccountsAsync(_accessTokenProtector.Unprotect(item.EncryptedAccessToken), cancellationToken);
+        return accounts.Select(account => new PlaidAccountMappingCandidate(account.AccountId, account.Name, account.Mask,
+            account.Type, account.Subtype, mappings.GetValueOrDefault(account.AccountId))).ToList();
+    }
+
+    public async Task<IReadOnlyList<ManageableBudgetAccount>> GetManageableBudgetAccountsAsync(int userId, CancellationToken cancellationToken)
+    {
+        var accounts = await _database.Accounts.AsNoTracking().Where(account => account.IsDeleted != true).OrderBy(account => account.AccountName).ToListAsync(cancellationToken);
+        var result = new List<ManageableBudgetAccount>();
+        foreach (var account in accounts)
+        {
+            if (await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+                result.Add(new ManageableBudgetAccount(account.AccountId, account.AccountName));
+        }
+        return result;
+    }
 
     private async Task<PlaidItem> GetOwnedItemAsync(int userId, int plaidItemId, CancellationToken cancellationToken) =>
         await _database.PlaidItems.SingleOrDefaultAsync(item => item.PlaidItemId == plaidItemId && item.UserId == userId, cancellationToken)
