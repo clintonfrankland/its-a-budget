@@ -355,6 +355,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseRouting();
 if (authentikOidcOptions.IsUsable)
 {
     app.UseAuthentication();
@@ -415,35 +416,35 @@ app.MapPost("/api/plaid/link-token", async (HttpContext context, PlaidConnection
     if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
     var token = await plaid.CreateLinkTokenAsync(userId, cancellationToken);
     return Results.Ok(new { linkToken = token.Token, expiration = token.Expiration });
-}).RequireAuthorization();
+}).RequireAuthorization().RequireAntiforgery();
 
 app.MapPost("/api/plaid/items/{plaidItemId:int}/update-link-token", async (HttpContext context, int plaidItemId, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
 {
     if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
     var token = await plaid.CreateUpdateLinkTokenAsync(userId, plaidItemId, cancellationToken);
     return Results.Ok(new { linkToken = token.Token, expiration = token.Expiration });
-}).RequireAuthorization();
+}).RequireAuthorization().RequireAntiforgery();
 
 app.MapPost("/api/plaid/exchange", async (HttpContext context, PlaidExchangeRequest request, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
 {
     if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
     var result = await plaid.ExchangePublicTokenAsync(userId, request.PublicToken, request.InstitutionId, request.InstitutionName, cancellationToken);
     return Results.Ok(new { result.PlaidItemId, result.Accounts });
-}).RequireAuthorization();
+}).RequireAuthorization().RequireAntiforgery();
 
 app.MapPut("/api/plaid/items/{plaidItemId:int}/mappings/{plaidAccountId}", async (HttpContext context, int plaidItemId, string plaidAccountId, PlaidMappingRequest request, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
 {
     if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
     await plaid.MapAccountAsync(userId, plaidItemId, plaidAccountId, request.BudgetAccountId, cancellationToken);
     return Results.NoContent();
-}).RequireAuthorization();
+}).RequireAuthorization().RequireAntiforgery();
 
 app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, int plaidItemId, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
 {
     if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
     await plaid.DisconnectAsync(userId, plaidItemId, cancellationToken);
     return Results.NoContent();
-}).RequireAuthorization();
+}).RequireAuthorization().RequireAntiforgery();
 
 app.MapRazorComponents<ClintonFrankland.Components.App>()
     .AddInteractiveServerRenderMode();

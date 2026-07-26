@@ -647,6 +647,94 @@ namespace ClintonFrankland.Migrations
                     b.ToTable("cfPayees");
                 });
 
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.PlaidAccountMapping", b =>
+                {
+                    b.Property<int>("PlaidAccountMappingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PlaidAccountMappingId"));
+
+                    b.Property<int>("BudgetAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PlaidAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("PlaidItemId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("PlaidAccountMappingId");
+
+                    b.HasIndex("BudgetAccountId")
+                        .IsUnique();
+
+                    b.HasIndex("PlaidItemId", "PlaidAccountId")
+                        .IsUnique();
+
+                    b.ToTable("cfPlaidAccountMappings");
+                });
+
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.PlaidItem", b =>
+                {
+                    b.Property<int>("PlaidItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PlaidItemId"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DisconnectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedAccessToken")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InstitutionId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("InstitutionName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ItemId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PlaidItemId");
+
+                    b.HasIndex("ItemId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("cfPlaidItems");
+                });
+
             modelBuilder.Entity("ClintonFrankland.Models.Entities.SharedBudget", b =>
                 {
                     b.Property<int>("SharedBudgetId")
@@ -1129,6 +1217,36 @@ namespace ClintonFrankland.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.PlaidAccountMapping", b =>
+                {
+                    b.HasOne("ClintonFrankland.Models.Entities.Account", "BudgetAccount")
+                        .WithMany()
+                        .HasForeignKey("BudgetAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ClintonFrankland.Models.Entities.PlaidItem", "PlaidItem")
+                        .WithMany("AccountMappings")
+                        .HasForeignKey("PlaidItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BudgetAccount");
+
+                    b.Navigation("PlaidItem");
+                });
+
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.PlaidItem", b =>
+                {
+                    b.HasOne("ClintonFrankland.Models.Entities.User", "User")
+                        .WithMany("PlaidItems")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ClintonFrankland.Models.Entities.SharedBudget", b =>
                 {
                     b.HasOne("ClintonFrankland.Models.Entities.User", "OwnerUser")
@@ -1212,6 +1330,11 @@ namespace ClintonFrankland.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("ClintonFrankland.Models.Entities.PlaidItem", b =>
+                {
+                    b.Navigation("AccountMappings");
+                });
+
             modelBuilder.Entity("ClintonFrankland.Models.Entities.SharedBudget", b =>
                 {
                     b.Navigation("Accounts");
@@ -1244,6 +1367,8 @@ namespace ClintonFrankland.Migrations
                     b.Navigation("OwnedSharedBudgets");
 
                     b.Navigation("Payees");
+
+                    b.Navigation("PlaidItems");
 
                     b.Navigation("SentBudgetInvites");
 

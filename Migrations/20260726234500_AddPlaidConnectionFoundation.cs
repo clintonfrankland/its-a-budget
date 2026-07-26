@@ -1,3 +1,5 @@
+using ClintonFrankland.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ClintonFrankland.Migrations;
 
 /// <summary>Creates the isolated Plaid Item and explicit account-mapping tables for the legacy Budget schema.</summary>
+[DbContext(typeof(ClintonFranklandDbContext))]
+[Migration("20260726234500_AddPlaidConnectionFoundation")]
 public partial class AddPlaidConnectionFoundation : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
