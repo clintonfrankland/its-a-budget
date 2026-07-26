@@ -1,0 +1,52 @@
+@page "/accounts/plaid"
+@rendermode InteractiveServer
+
+<PageTitle>Bank Connections</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <div class="container" style="max-width: 760px;">
+        <div class="d-flex align-items-center mt-3 mb-3">
+            <h1 class="mb-0">Bank connections</h1>
+            <RadzenButton Text="Back to accounts" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" class="ms-auto" Click="BackToAccounts" />
+        </div>
+        <p class="text-muted">Connect a bank with Plaid, then explicitly map each bank account to a Budget account. This setup never imports or changes checkbook transactions.</p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <RadzenCard class="mb-3">
+            <h5>Connect an institution</h5>
+            <p class="mb-2">Use the secure Plaid Link flow to choose an institution. Plaid credentials remain on the server.</p>
+            <RadzenButton Text="Start secure connection" Icon="link" ButtonStyle="ButtonStyle.Primary" Click="CreateLinkTokenAsync" />
+            @if (!string.IsNullOrEmpty(linkToken))
+            {
+                <p class="alert alert-info mt-3 mb-0">A secure Link session is ready. The browser integration can use the one-time Link token without receiving a Plaid access token.</p>
+            }
+        </RadzenCard>
+
+        @if (items.Count == 0)
+        {
+            <p class="text-muted">No institutions are connected.</p>
+        }
+        else
+        {
+            @foreach (var item in items)
+            {
+                <RadzenCard class="mb-2">
+                    <div class="d-flex align-items-center">
+                        <div><strong>@item.InstitutionName</strong><br /><small class="text-muted">@item.MappingCount mapped account(s) · @item.Status</small></div>
+                        <RadzenButton Text="Update connection" Icon="refresh" ButtonStyle="ButtonStyle.Light" class="ms-auto me-2" Click="() => CreateUpdateLinkTokenAsync(item.PlaidItemId)" />
+                        <RadzenButton Text="Disconnect" Icon="link_off" ButtonStyle="ButtonStyle.Danger" Click="() => DisconnectAsync(item.PlaidItemId)" />
+                    </div>
+                </RadzenCard>
+            }
+        }
+    </div>
+}

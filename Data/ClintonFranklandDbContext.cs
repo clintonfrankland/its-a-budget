@@ -32,6 +32,8 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<NotificationSendLog> NotificationSendLogs => Set<NotificationSendLog>();
     public DbSet<MigrationError> MigrationErrors => Set<MigrationError>();
     public DbSet<SharedBudget> SharedBudgets => Set<SharedBudget>();
+    public DbSet<PlaidItem> PlaidItems => Set<PlaidItem>();
+    public DbSet<PlaidAccountMapping> PlaidAccountMappings => Set<PlaidAccountMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -277,6 +279,42 @@ public class ClintonFranklandDbContext : DbContext
             entity.Property(r => r.Notes).HasMaxLength(500);
             entity.Property(r => r.UpdatedAtUtc).IsRequired();
             entity.HasIndex(r => new { r.UserId, r.Priority });
+        });
+
+        modelBuilder.Entity<PlaidItem>(entity =>
+        {
+            entity.HasKey(item => item.PlaidItemId);
+            entity.Property(item => item.ItemId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.EncryptedAccessToken).IsRequired();
+            entity.Property(item => item.InstitutionId).HasMaxLength(128);
+            entity.Property(item => item.InstitutionName).HasMaxLength(256);
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(item => item.ItemId).IsUnique();
+            entity.HasIndex(item => item.UserId);
+            entity.HasOne(item => item.User)
+                .WithMany(user => user.PlaidItems)
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PlaidAccountMapping>(entity =>
+        {
+            entity.HasKey(mapping => mapping.PlaidAccountMappingId);
+            entity.Property(mapping => mapping.PlaidAccountId).HasMaxLength(128).IsRequired();
+            entity.Property(mapping => mapping.CreatedAtUtc).IsRequired();
+            entity.Property(mapping => mapping.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(mapping => new { mapping.PlaidItemId, mapping.PlaidAccountId }).IsUnique();
+            entity.HasIndex(mapping => mapping.BudgetAccountId).IsUnique();
+            entity.HasOne(mapping => mapping.PlaidItem)
+                .WithMany(item => item.AccountMappings)
+                .HasForeignKey(mapping => mapping.PlaidItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(mapping => mapping.BudgetAccount)
+                .WithMany()
+                .HasForeignKey(mapping => mapping.BudgetAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Configure User notification preferences with defaults

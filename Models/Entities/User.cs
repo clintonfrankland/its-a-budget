@@ -115,4 +115,5 @@ public class User
     public virtual ICollection<Category> Categories { get; set; } = [];
     public virtual ICollection<Payee> Payees { get; set; } = [];
     public virtual ICollection<Transaction> Transactions { get; set; } = [];
+    public virtual ICollection<PlaidItem> PlaidItems { get; set; } = [];
 }

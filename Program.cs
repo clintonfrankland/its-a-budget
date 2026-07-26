@@ -55,6 +55,8 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
         .AddSupportedUICultures(usCulture.Name);
 });
 builder.Services.Configure<AuthentikOidcOptions>(builder.Configuration.GetSection(AuthentikOidcOptions.SectionName));
+builder.Services.Configure<PlaidOptions>(builder.Configuration.GetSection(PlaidOptions.SectionName));
+builder.Services.AddHttpClient<IPlaidClient, PlaidClient>(client => client.BaseAddress = new Uri("https://sandbox.plaid.com/"));
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -168,6 +170,11 @@ if (authentikOidcOptions.IsUsable)
 
     builder.Services.AddAuthorization();
 }
+else
+{
+    // Endpoint authorization remains registered even when this deployment uses the legacy session login.
+    builder.Services.AddAuthorization();
+}
 
 // Register Entity Framework Core DbContext
 builder.Services.AddDbContext<ClintonFranklandDbContext>(options =>
@@ -210,6 +217,7 @@ builder.Services.AddScoped<DashboardDataService>();
 builder.Services.AddScoped<InsightsDataService>();
 builder.Services.AddScoped<ReportsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
+builder.Services.AddScoped<PlaidConnectionService>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.Configure<CategoryBudgetAlertOptions>(builder.Configuration.GetSection(CategoryBudgetAlertOptions.SectionName));
 builder.Services.AddScoped<IAttachmentMalwareScanner, NoOpAttachmentMalwareScanner>();
@@ -402,7 +410,52 @@ app.MapPost("/api/home-dashboard-summary", async (
 })
 .DisableAntiforgery();
 
+app.MapPost("/api/plaid/link-token", async (HttpContext context, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
+{
+    if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
+    var token = await plaid.CreateLinkTokenAsync(userId, cancellationToken);
+    return Results.Ok(new { linkToken = token.Token, expiration = token.Expiration });
+}).RequireAuthorization().DisableAntiforgery();
+
+app.MapPost("/api/plaid/items/{plaidItemId:int}/update-link-token", async (HttpContext context, int plaidItemId, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
+{
+    if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
+    var token = await plaid.CreateUpdateLinkTokenAsync(userId, plaidItemId, cancellationToken);
+    return Results.Ok(new { linkToken = token.Token, expiration = token.Expiration });
+}).RequireAuthorization().DisableAntiforgery();
+
+app.MapPost("/api/plaid/exchange", async (HttpContext context, PlaidExchangeRequest request, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
+{
+    if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
+    var result = await plaid.ExchangePublicTokenAsync(userId, request.PublicToken, request.InstitutionId, request.InstitutionName, cancellationToken);
+    return Results.Ok(new { result.PlaidItemId, result.Accounts });
+}).RequireAuthorization().DisableAntiforgery();
+
+app.MapPut("/api/plaid/items/{plaidItemId:int}/mappings/{plaidAccountId}", async (HttpContext context, int plaidItemId, string plaidAccountId, PlaidMappingRequest request, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
+{
+    if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
+    await plaid.MapAccountAsync(userId, plaidItemId, plaidAccountId, request.BudgetAccountId, cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization().DisableAntiforgery();
+
+app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, int plaidItemId, PlaidConnectionService plaid, CancellationToken cancellationToken) =>
+{
+    if (!TryGetAuthenticatedBudgetUserId(context, out var userId)) return Results.Unauthorized();
+    await plaid.DisconnectAsync(userId, plaidItemId, cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization().DisableAntiforgery();
+
 app.MapRazorComponents<ClintonFrankland.Components.App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static bool TryGetAuthenticatedBudgetUserId(HttpContext context, out int userId)
+{
+    userId = 0;
+    return context.User.Identity?.IsAuthenticated == true &&
+        int.TryParse(context.User.FindFirst(AuthentikOidcDefaults.BudgetUserIdClaim)?.Value, out userId) && userId > 0;
+}
+
+sealed record PlaidExchangeRequest(string PublicToken, string? InstitutionId, string? InstitutionName);
+sealed record PlaidMappingRequest(int BudgetAccountId);

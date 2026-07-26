@@ -128,6 +128,8 @@ public partial class Accounts
         currentView = ViewMode.Edit;
     }
 
+    private void ShowPlaidConnections() => Navigation.NavigateTo("/accounts/plaid");
+
     private async Task ShowEditAccountAsync(int accountId)
     {
         try

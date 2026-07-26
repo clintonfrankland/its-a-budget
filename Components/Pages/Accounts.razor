@@ -36,6 +36,8 @@ else
                         <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Account" : "")" ButtonStyle="ButtonStyle.Primary"
                                       Size="ButtonSize.Medium" Click="ShowAddAccount" />
                     }
+                    <RadzenButton Icon="account_balance" Text="@(IsAtLeast(ScreenSize.Medium) ? "Bank connections" : "")" ButtonStyle="ButtonStyle.Light"
+                                  Size="ButtonSize.Medium" class="ms-2" Click="ShowPlaidConnections" />
                 </div>
             </div>
         </div>
