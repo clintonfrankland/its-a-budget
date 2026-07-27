@@ -43,7 +43,7 @@ public partial class PlaidConnections
         try
         {
             var linkToken = (await PlaidConnectionData.CreateLinkTokenAsync(CurrentUser.UserId, CancellationToken.None)).Token;
-            await OpenLinkAndExchangeAsync(linkToken);
+            await OpenInitialLinkAndExchangeAsync(linkToken);
         }
         catch (Exception exception)
         {
@@ -56,7 +56,7 @@ public partial class PlaidConnections
         try
         {
             var linkToken = (await PlaidConnectionData.CreateUpdateLinkTokenAsync(CurrentUser.UserId, plaidItemId, CancellationToken.None)).Token;
-            await OpenLinkAndExchangeAsync(linkToken);
+            await OpenUpdateLinkAsync(plaidItemId, linkToken);
         }
         catch (Exception exception)
         {
@@ -64,7 +64,7 @@ public partial class PlaidConnections
         }
     }
 
-    private async Task OpenLinkAndExchangeAsync(string linkToken)
+    private async Task OpenInitialLinkAndExchangeAsync(string linkToken)
     {
         errorMessage = string.Empty;
         var result = await Js.InvokeAsync<PlaidLinkResult?>("plaidLink.open", linkToken);
@@ -72,6 +72,26 @@ public partial class PlaidConnections
             return;
 
         var connection = await PlaidConnectionData.ExchangePublicTokenAsync(CurrentUser.UserId, result.PublicToken,
+            result.InstitutionId, result.InstitutionName, CancellationToken.None);
+        selectedPlaidItemId = connection.PlaidItemId;
+        discoveredAccounts.Clear();
+        discoveredAccounts.AddRange(connection.Accounts.Select(account => new PlaidAccountMappingCandidate(account.AccountId,
+            account.Name, account.Mask, account.Type, account.Subtype, null)));
+        selectedBudgetAccounts.Clear();
+        await LoadManageableBudgetAccountsAsync();
+        await LoadAsync();
+    }
+
+    private async Task OpenUpdateLinkAsync(int plaidItemId, string linkToken)
+    {
+        errorMessage = string.Empty;
+        var result = await Js.InvokeAsync<PlaidLinkResult?>("plaidLink.open", linkToken);
+        if (result is null)
+            return;
+
+        // Update mode intentionally does not exchange Link's public token: the Item's
+        // protected access token remains valid and is retained server-side.
+        var connection = await PlaidConnectionData.CompleteUpdateAsync(CurrentUser.UserId, plaidItemId,
             result.InstitutionId, result.InstitutionName, CancellationToken.None);
         selectedPlaidItemId = connection.PlaidItemId;
         discoveredAccounts.Clear();

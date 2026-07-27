@@ -3,6 +3,9 @@ using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Net;
+using System.Text;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -74,7 +77,7 @@ public sealed class PlaidConnectionServiceTests
     }
 
     [Fact]
-    public async Task Exchange_ForExistingOwnedItem_RefreshesProtectedCredentialForLinkUpdate()
+    public async Task CompleteUpdate_RefreshesAccountsWithoutExchangingOrReplacingTheCredential()
     {
         await using var database = CreateDatabase();
         SeedUsersAndAccounts(database);
@@ -83,12 +86,27 @@ public sealed class PlaidConnectionServiceTests
         var service = new PlaidConnectionService(database, new SharedBudgetDataService(database), client, provider);
 
         var first = await service.ExchangePublicTokenAsync(1, "initial-public-token", null, null, CancellationToken.None);
-        var second = await service.ExchangePublicTokenAsync(1, "update-public-token", null, "Updated Sandbox Bank", CancellationToken.None);
+        var tokenBeforeUpdate = (await database.PlaidItems.SingleAsync()).EncryptedAccessToken;
+        var second = await service.CompleteUpdateAsync(1, first.PlaidItemId, null, "Updated Sandbox Bank", CancellationToken.None);
 
         Assert.Equal(first.PlaidItemId, second.PlaidItemId);
         var item = await database.PlaidItems.SingleAsync();
         Assert.Equal("Updated Sandbox Bank", item.InstitutionName);
-        Assert.NotEqual(client.AccessToken, item.EncryptedAccessToken);
+        Assert.Equal(tokenBeforeUpdate, item.EncryptedAccessToken);
+        Assert.Equal(1, client.ExchangeCalls);
+    }
+
+    [Fact]
+    public async Task UpdateLinkToken_OmitsProductsAndUsesExistingAccessToken()
+    {
+        var handler = new RecordingHandler();
+        var client = new PlaidClient(new HttpClient(handler) { BaseAddress = new Uri("https://sandbox.plaid.com/") },
+            Options.Create(new PlaidOptions { Enabled = true, ClientId = "client", ClientSecret = "secret", Products = ["auth"] }));
+
+        await client.CreateLinkTokenAsync(1, updateMode: true, accessToken: "stored-access-token", CancellationToken.None);
+
+        Assert.Contains("\"access_token\":\"stored-access-token\"", handler.RequestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"products\"", handler.RequestBody, StringComparison.Ordinal);
     }
 
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -110,12 +128,30 @@ public sealed class PlaidConnectionServiceTests
     private sealed class FakePlaidClient : IPlaidClient
     {
         public string AccessToken { get; } = "sandbox-access-token-never-store-in-cleartext";
+        public int ExchangeCalls { get; private set; }
         public Task<PlaidLinkToken> CreateLinkTokenAsync(int userId, bool updateMode, string? accessToken, CancellationToken cancellationToken) =>
             Task.FromResult(new PlaidLinkToken("link-token", DateTimeOffset.UtcNow.AddMinutes(30)));
-        public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string publicToken, CancellationToken cancellationToken) =>
-            Task.FromResult(new PlaidExchangeResult(AccessToken, "item-1"));
+        public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string publicToken, CancellationToken cancellationToken)
+        {
+            ExchangeCalls++;
+            return Task.FromResult(new PlaidExchangeResult(AccessToken, "item-1"));
+        }
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string accessToken, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PlaidDiscoveredAccount>>([new("CaseSensitive_Id", "Checking", "1234", "depository", "checking")]);
         public Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public string RequestBody { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"link_token\":\"link-token\",\"expiration\":\"2026-07-27T01:00:00Z\"}", Encoding.UTF8, "application/json")
+            };
+        }
     }
 }

@@ -31,8 +31,11 @@ public sealed class PlaidClient : IPlaidClient
     public async Task<PlaidLinkToken> CreateLinkTokenAsync(int userId, bool updateMode, string? accessToken, CancellationToken cancellationToken)
     {
         EnsureConfigured();
+        // Plaid update-mode Link tokens identify the existing Item with its access token.
+        // Products are intentionally omitted: specifying them can request an unintended
+        // product update and is not required for ordinary credential-maintenance Link.
         var request = new LinkTokenRequest(_options.ClientId, _options.ClientSecret, $"budget-{userId}",
-            _options.Products, "en", new[] { "US" }, updateMode ? accessToken : null, _options.RedirectUri);
+            updateMode ? null : _options.Products, "en", new[] { "US" }, updateMode ? accessToken : null, _options.RedirectUri);
         var response = await PostAsync<LinkTokenRequest, LinkTokenResponse>("link/token/create", request, cancellationToken);
         return new PlaidLinkToken(response.LinkToken, response.Expiration);
     }
@@ -76,7 +79,7 @@ public sealed class PlaidClient : IPlaidClient
 
     private sealed class LinkTokenRequest
     {
-        public LinkTokenRequest(string clientId, string secret, string clientUserId, string[] products,
+        public LinkTokenRequest(string clientId, string secret, string clientUserId, string[]? products,
             string language, string[] countryCodes, string? accessToken, string? redirectUri)
         {
             ClientId = clientId;
@@ -92,7 +95,7 @@ public sealed class PlaidClient : IPlaidClient
         [JsonPropertyName("client_id")] public string ClientId { get; }
         [JsonPropertyName("secret")] public string Secret { get; }
         [JsonPropertyName("user")] public object User { get; }
-        [JsonPropertyName("products")] public string[] Products { get; }
+        [JsonPropertyName("products"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string[]? Products { get; }
         [JsonPropertyName("language")] public string Language { get; }
         [JsonPropertyName("country_codes")] public string[] CountryCodes { get; }
         [JsonPropertyName("access_token")] public string? AccessToken { get; }

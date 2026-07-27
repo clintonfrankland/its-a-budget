@@ -65,7 +65,8 @@ public sealed class PlaidConnectionService
         }
         else
         {
-            // Link update mode may return a replacement access token for the same Item.
+            // Reconnecting an Item through the initial Link completion path can return a
+            // credential; update-mode Link must instead use CompleteUpdateAsync below.
             item.EncryptedAccessToken = _accessTokenProtector.Protect(exchanged.AccessToken);
             item.InstitutionId = institutionId?.Trim() ?? item.InstitutionId;
             item.InstitutionName = institutionName?.Trim() ?? item.InstitutionName;
@@ -73,6 +74,24 @@ public sealed class PlaidConnectionService
             item.DisconnectedAtUtc = null;
             item.UpdatedAtUtc = now;
         }
+        await _database.SaveChangesAsync(cancellationToken);
+        return new PlaidConnectionResult(item.PlaidItemId, accounts);
+    }
+
+    /// <summary>
+    /// Completes an update-mode Link session. Plaid retains an Item's access token in
+    /// update mode, so no public-token exchange or credential replacement occurs here.
+    /// </summary>
+    public async Task<PlaidConnectionResult> CompleteUpdateAsync(int userId, int plaidItemId, string? institutionId,
+        string? institutionName, CancellationToken cancellationToken)
+    {
+        var item = await GetOwnedItemAsync(userId, plaidItemId, cancellationToken);
+        var accounts = await _plaidClient.GetAccountsAsync(_accessTokenProtector.Unprotect(item.EncryptedAccessToken), cancellationToken);
+        item.InstitutionId = institutionId?.Trim() ?? item.InstitutionId;
+        item.InstitutionName = institutionName?.Trim() ?? item.InstitutionName;
+        item.Status = PlaidItemStatus.Active;
+        item.DisconnectedAtUtc = null;
+        item.UpdatedAtUtc = DateTime.UtcNow;
         await _database.SaveChangesAsync(cancellationToken);
         return new PlaidConnectionResult(item.PlaidItemId, accounts);
     }
