@@ -405,7 +405,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 - Keep component logic in `.razor.cs` code-behind files; keep `.razor` files markup-only.
 - Use `IDbContextFactory<ClintonFranklandDbContext>` for per-operation contexts; never hold a `DbContext` across renders.
 - Use `CurrencyPolicy` for all currency rounding, SQL decimal fit checks, and user-entered money validation messages.
-- The project version is a four-part field (`major.minor.patch.build`) in `ClintonFrankland.Blazor.csproj` — bump it in every task.
+- The project version is a Semantic Version (`major.minor.patch`) in `ClintonFrankland.Blazor.csproj` — bump it in every task.
 
 ---
 
@@ -426,7 +426,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 - **Radzen grids need explicit reload after mutations.** After inserting, updating, or deleting grid data, call the grid's `Reload()` method — the component does not refresh automatically.
 - **SQL Server migration dialect.** EF Core migrations use SQL Server-specific syntax. Do not apply migrations generated for another provider.
 - **Background worker timezone handling.** The bill-due notification worker operates in each user's stored timezone, not the server timezone. Changes to notification logic must account for this.
-- **Four-part version field.** `ClintonFrankland.Blazor.csproj` uses `<Version>major.minor.patch.build</Version>`. The displayed app version is read directly from this field — increment it in every task.
+- **Semantic project version.** `ClintonFrankland.Blazor.csproj` uses `<Version>major.minor.patch</Version>`. The displayed app version is read directly from this field — increment the appropriate semantic component in every task.
 - **Startup migrations.** EF migrations run automatically on startup. Always verify migration safety before deploying schema changes.
 
 ---

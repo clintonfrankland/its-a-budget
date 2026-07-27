@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <RootNamespace>ClintonFrankland</RootNamespace>
-    <Version>5.17.0.126</Version>
+    <Version>5.18.0</Version>
     <UserSecretsId>clintonfrankland-budget-app</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
