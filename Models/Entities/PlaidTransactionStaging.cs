@@ -53,6 +53,8 @@ public class PlaidWebhookDelivery
     public DateTime? QueuedAtUtc { get; set; }
     [StringLength(32)] public string Status { get; set; } = "queued";
     public int AttemptCount { get; set; }
+    /// <summary>Lease start for recovery after a worker process terminates mid-sync.</summary>
+    public DateTime? ProcessingStartedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
     [StringLength(512)] public string? ErrorCode { get; set; }
 }

@@ -17,7 +17,9 @@ public sealed class PlaidConnectionUiSecurityTests
     {
         var source = File.ReadAllText(Path.Combine(RepositoryRoot, "Program.cs"));
 
-        var plaidEndpoints = source[source.IndexOf("/api/plaid/link-token", StringComparison.Ordinal)..source.IndexOf("app.MapRazorComponents", StringComparison.Ordinal)];
+        // Browser-originated Plaid management mutations require antiforgery. The
+        // separately authenticated webhook endpoint is intentionally excluded.
+        var plaidEndpoints = source[source.IndexOf("/api/plaid/link-token", StringComparison.Ordinal)..source.IndexOf("/api/plaid/webhook", StringComparison.Ordinal)];
         Assert.DoesNotContain(".DisableAntiforgery()", plaidEndpoints, StringComparison.Ordinal);
         Assert.Contains("app.UseAntiforgery();", source, StringComparison.Ordinal);
         Assert.Equal(5, plaidEndpoints.Split(".RequireAntiforgery()", StringSplitOptions.None).Length - 1);

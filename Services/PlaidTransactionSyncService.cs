@@ -18,6 +18,7 @@ public sealed class PlaidTransactionSyncService
         var item = await _db.PlaidItems.SingleAsync(x => x.PlaidItemId == plaidItemId && x.Status == PlaidItemStatus.Active, ct);
         var run = new PlaidSyncRun { PlaidItemId = item.PlaidItemId, CursorBefore = item.TransactionsCursor, StartedAtUtc = DateTime.UtcNow };
         _db.PlaidSyncRuns.Add(run); await _db.SaveChangesAsync(ct);
+        var runId = run.PlaidSyncRunId;
         try
         {
             // Plaid requires a complete loop to use one stable snapshot. A mutation error
@@ -50,7 +51,19 @@ public sealed class PlaidTransactionSyncService
             }
         }
         catch (Exception ex)
-        { run.Status = "failed"; run.ErrorCode = ex.GetType().Name; run.CompletedAtUtc = DateTime.UtcNow; await _db.SaveChangesAsync(CancellationToken.None); throw; }
+        {
+            // A provider without transactional support (notably EF's InMemory test
+            // provider) can still have the page entities tracked here. Clear them
+            // before recording the run failure so a failed loop never leaks staged
+            // evidence or advances the cursor as a side effect of failure logging.
+            _db.ChangeTracker.Clear();
+            run = await _db.PlaidSyncRuns.SingleAsync(x => x.PlaidSyncRunId == runId, CancellationToken.None);
+            run.Status = "failed";
+            run.ErrorCode = ex.GetType().Name;
+            run.CompletedAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
     }
 
     private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken ct) =>
