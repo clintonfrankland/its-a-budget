@@ -17,7 +17,9 @@ public sealed class PlaidWebhookSyncWorker(IServiceScopeFactory scopes, ILogger<
         }
     }
 
-    internal async Task DrainAsync(CancellationToken ct)
+    // Public for a deterministic hosted-service integration test; normal execution
+    // is still exclusively driven by BackgroundService.ExecuteAsync.
+    public async Task DrainAsync(CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
