@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Radzen;
 using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 static string? GetArgValue(string[] args, string name)
 {
@@ -220,6 +221,7 @@ builder.Services.AddScoped<ReportsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.AddScoped<PlaidConnectionService>();
 builder.Services.AddScoped<PlaidTransactionSyncService>();
+builder.Services.AddHostedService<PlaidWebhookSyncWorker>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.Configure<CategoryBudgetAlertOptions>(builder.Configuration.GetSection(CategoryBudgetAlertOptions.SectionName));
 builder.Services.AddScoped<IAttachmentMalwareScanner, NoOpAttachmentMalwareScanner>();
@@ -448,17 +450,21 @@ app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, 
     return Results.NoContent();
 }).RequireAuthorization().RequireAntiforgery();
 
-app.MapPost("/api/plaid/webhook", async (PlaidWebhookRequest request, ClintonFranklandDbContext db, PlaidTransactionSyncService sync, CancellationToken ct) =>
+app.MapPost("/api/plaid/webhook", async (HttpContext context, PlaidWebhookRequest request, IOptions<PlaidOptions> options, ClintonFranklandDbContext db, CancellationToken ct) =>
 {
-    // Plaid item IDs are unguessable; delivery id makes retries idempotent. Queue work by starting after durable receipt.
+    // Plaid does not authenticate through a browser session. Reject unsigned receipts before queueing.
+    var configuredSecret = options.Value.WebhookSecret;
+    var suppliedSecret = context.Request.Headers["X-Plaid-Webhook-Secret"].ToString();
+    if (string.IsNullOrWhiteSpace(configuredSecret) || string.IsNullOrWhiteSpace(suppliedSecret) ||
+        !CryptographicOperations.FixedTimeEquals(System.Text.Encoding.UTF8.GetBytes(configuredSecret), System.Text.Encoding.UTF8.GetBytes(suppliedSecret)))
+        return Results.Unauthorized();
     if (string.IsNullOrWhiteSpace(request.WebhookCode) || string.IsNullOrWhiteSpace(request.ItemId)) return Results.BadRequest();
-    var key = request.WebhookType + ":" + request.WebhookCode + ":" + request.ItemId;
+    // Only a transport delivery id is safe to deduplicate. Type/code/item repeats are legitimate notifications.
+    var key = context.Request.Headers["X-Plaid-Delivery-Id"].FirstOrDefault() ?? Guid.NewGuid().ToString("N");
     if (await db.PlaidWebhookDeliveries.AnyAsync(x => x.DeliveryKey == key, ct)) return Results.Ok();
     db.PlaidWebhookDeliveries.Add(new() { DeliveryKey = key, ItemId = request.ItemId, WebhookType = request.WebhookType, ReceivedAtUtc = DateTime.UtcNow, QueuedAtUtc = DateTime.UtcNow });
     await db.SaveChangesAsync(ct);
-    var item = await db.PlaidItems.AsNoTracking().SingleOrDefaultAsync(x => x.ItemId == request.ItemId && x.Status == PlaidItemStatus.Active, ct);
-    if (item is not null) _ = Task.Run(() => sync.SyncItemAsync(item.PlaidItemId, CancellationToken.None));
-    return Results.Ok();
+    return Results.Accepted();
 }).DisableAntiforgery();
 
 app.MapRazorComponents<ClintonFrankland.Components.App>()

@@ -2,6 +2,7 @@ using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ClintonFrankland.Services;
 
@@ -19,31 +20,53 @@ public sealed class PlaidTransactionSyncService
         _db.PlaidSyncRuns.Add(run); await _db.SaveChangesAsync(ct);
         try
         {
-            // Each successful page stages evidence, but the durable item cursor advances only after the full stable loop.
-            var cursor = item.TransactionsCursor; string? next; do
+            // Plaid requires a complete loop to use one stable snapshot. A mutation error
+            // discards the whole attempt and starts again from the persisted cursor.
+            for (var restart = 0; ; restart++)
             {
-                var page = await _client.SyncTransactionsAsync(_protector.Unprotect(item.EncryptedAccessToken), cursor, ct);
-                await ApplyPageAsync(item, page, run, ct); next = page.NextCursor; cursor = next;
-                if (!page.HasMore) break;
-            } while (true);
-            item.TransactionsCursor = cursor; run.CursorAfter = cursor; run.Status = "completed"; run.CompletedAtUtc = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
+                await using var transaction = await BeginTransactionAsync(ct);
+                try
+                {
+                    var cursor = item.TransactionsCursor;
+                    do
+                    {
+                        var page = await _client.SyncTransactionsAsync(_protector.Unprotect(item.EncryptedAccessToken), cursor, ct);
+                        ApplyPage(item, page, run);
+                        cursor = page.NextCursor;
+                        if (!page.HasMore) break;
+                    } while (true);
+                    item.TransactionsCursor = cursor; run.CursorAfter = cursor; run.Status = "completed"; run.CompletedAtUtc = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(ct);
+                    if (transaction is not null) await transaction.CommitAsync(ct);
+                    break;
+                }
+                catch (PlaidSyncMutationDuringPaginationException) when (restart < 2)
+                {
+                    if (transaction is not null) await transaction.RollbackAsync(ct);
+                    _db.ChangeTracker.Clear();
+                    item = await _db.PlaidItems.SingleAsync(x => x.PlaidItemId == plaidItemId && x.Status == PlaidItemStatus.Active, ct);
+                    run = await _db.PlaidSyncRuns.SingleAsync(x => x.PlaidSyncRunId == run.PlaidSyncRunId, ct);
+                }
+            }
         }
         catch (Exception ex)
         { run.Status = "failed"; run.ErrorCode = ex.GetType().Name; run.CompletedAtUtc = DateTime.UtcNow; await _db.SaveChangesAsync(CancellationToken.None); throw; }
     }
 
-    private async Task ApplyPageAsync(PlaidItem item, PlaidSyncPage page, PlaidSyncRun run, CancellationToken ct)
+    private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken ct) =>
+        _db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true ? null : await _db.Database.BeginTransactionAsync(ct);
+
+    private void ApplyPage(PlaidItem item, PlaidSyncPage page, PlaidSyncRun run)
     {
-        var maps = await _db.PlaidAccountMappings.Where(x => x.PlaidItemId == item.PlaidItemId).ToDictionaryAsync(x => x.PlaidAccountId, StringComparer.Ordinal, ct);
+        var maps = _db.PlaidAccountMappings.Where(x => x.PlaidItemId == item.PlaidItemId).ToDictionary(x => x.PlaidAccountId, StringComparer.Ordinal);
         foreach (var tx in page.Added.Concat(page.Modified))
         {
             if (!maps.TryGetValue(tx.AccountId, out var map)) continue; // never stage an unapproved account
-            var entity = await _db.PlaidTransactionStaging.SingleOrDefaultAsync(x => x.PlaidItemId == item.PlaidItemId && x.PlaidTransactionId == tx.TransactionId, ct);
+            var entity = _db.PlaidTransactionStaging.SingleOrDefault(x => x.PlaidItemId == item.PlaidItemId && x.PlaidTransactionId == tx.TransactionId);
             if (entity is null) { entity = new PlaidTransactionStaging { UserId = item.UserId, PlaidItemId = item.PlaidItemId, PlaidTransactionId = tx.TransactionId, FirstSeenAtUtc = DateTime.UtcNow }; _db.PlaidTransactionStaging.Add(entity); }
             entity.BudgetAccountId = map.BudgetAccountId; entity.PlaidAccountId = tx.AccountId; entity.PlaidAmount = tx.Amount; entity.CurrencyCode = tx.IsoCurrencyCode; entity.TransactionDate = tx.Date; entity.IsPending = tx.Pending; entity.PendingTransactionId = tx.PendingTransactionId; entity.MerchantName = tx.MerchantName; entity.Name = tx.Name; entity.IsRemoved = false; entity.LastSeenAtUtc = DateTime.UtcNow;
         }
-        foreach (var id in page.Removed) { var entity = await _db.PlaidTransactionStaging.SingleOrDefaultAsync(x => x.PlaidItemId == item.PlaidItemId && x.PlaidTransactionId == id, ct); if (entity is not null) entity.IsRemoved = true; }
-        run.AddedCount += page.Added.Count; run.ModifiedCount += page.Modified.Count; run.RemovedCount += page.Removed.Count; await _db.SaveChangesAsync(ct);
+        foreach (var id in page.Removed) { var entity = _db.PlaidTransactionStaging.SingleOrDefault(x => x.PlaidItemId == item.PlaidItemId && x.PlaidTransactionId == id); if (entity is not null) entity.IsRemoved = true; }
+        run.AddedCount += page.Added.Count; run.ModifiedCount += page.Modified.Count; run.RemovedCount += page.Removed.Count;
     }
 }

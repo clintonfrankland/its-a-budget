@@ -9,6 +9,7 @@ public sealed record PlaidExchangeResult(string AccessToken, string ItemId);
 public sealed record PlaidDiscoveredAccount(string AccountId, string Name, string? Mask, string Type, string Subtype);
 public sealed record PlaidSyncPage(IReadOnlyList<PlaidSyncTransaction> Added, IReadOnlyList<PlaidSyncTransaction> Modified, IReadOnlyList<string> Removed, string NextCursor, bool HasMore);
 public sealed record PlaidSyncTransaction(string TransactionId, string AccountId, decimal Amount, string IsoCurrencyCode, DateOnly Date, bool Pending, string? PendingTransactionId, string? MerchantName, string? Name);
+public sealed class PlaidSyncMutationDuringPaginationException : Exception { public PlaidSyncMutationDuringPaginationException() : base("Plaid transactions changed during pagination.") { } }
 
 public interface IPlaidClient
 {
@@ -82,6 +83,12 @@ public sealed class PlaidClient : IPlaidClient
     private async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
+        if (path == "transactions/sync" && !response.IsSuccessStatusCode)
+        {
+            var failure = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (failure.Contains("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION", StringComparison.Ordinal))
+                throw new PlaidSyncMutationDuringPaginationException();
+        }
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException($"Plaid returned an empty response for {path}.");

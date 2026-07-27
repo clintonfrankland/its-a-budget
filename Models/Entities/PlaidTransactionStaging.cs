@@ -14,6 +14,7 @@ public class PlaidTransactionStaging
     [Required, StringLength(128)] public string PlaidTransactionId { get; set; } = string.Empty;
     [StringLength(128)] public string? PendingTransactionId { get; set; }
     [StringLength(128)] public string PlaidAccountId { get; set; } = string.Empty;
+    [Column(TypeName = "decimal(19,4)")]
     public decimal PlaidAmount { get; set; } // Plaid: outflow positive; Budget ledger expenses are negative.
     [StringLength(3)] public string CurrencyCode { get; set; } = "USD";
     public DateOnly TransactionDate { get; set; }
@@ -50,4 +51,8 @@ public class PlaidWebhookDelivery
     [StringLength(64)] public string? WebhookType { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
     public DateTime? QueuedAtUtc { get; set; }
+    [StringLength(32)] public string Status { get; set; } = "queued";
+    public int AttemptCount { get; set; }
+    public DateTime? CompletedAtUtc { get; set; }
+    [StringLength(512)] public string? ErrorCode { get; set; }
 }

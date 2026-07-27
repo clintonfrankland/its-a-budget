@@ -319,9 +319,9 @@ public class ClintonFranklandDbContext : DbContext
                 .HasForeignKey(mapping => mapping.BudgetAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
-        modelBuilder.Entity<PlaidTransactionStaging>(entity => { entity.HasKey(x => x.PlaidTransactionStagingId); entity.Property(x => x.PlaidTransactionId).UseCollation("Latin1_General_100_BIN2"); entity.HasIndex(x => new { x.PlaidItemId, x.PlaidTransactionId }).IsUnique(); entity.HasIndex(x => new { x.UserId, x.BudgetAccountId }); });
+        modelBuilder.Entity<PlaidTransactionStaging>(entity => { entity.HasKey(x => x.PlaidTransactionStagingId); entity.Property(x => x.PlaidAmount).HasPrecision(19, 4); entity.HasIndex(x => new { x.PlaidItemId, x.PlaidTransactionId }).IsUnique(); entity.HasIndex(x => new { x.UserId, x.BudgetAccountId }); });
         modelBuilder.Entity<PlaidSyncRun>(entity => { entity.HasKey(x => x.PlaidSyncRunId); entity.HasIndex(x => x.PlaidItemId); });
-        modelBuilder.Entity<PlaidWebhookDelivery>(entity => { entity.HasKey(x => x.PlaidWebhookDeliveryId); entity.HasIndex(x => x.DeliveryKey).IsUnique(); });
+        modelBuilder.Entity<PlaidWebhookDelivery>(entity => { entity.HasKey(x => x.PlaidWebhookDeliveryId); entity.HasIndex(x => x.DeliveryKey).IsUnique(); entity.HasIndex(x => x.Status); });
 
         // Configure User notification preferences with defaults
         modelBuilder.Entity<User>(entity =>
