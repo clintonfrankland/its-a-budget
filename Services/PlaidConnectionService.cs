@@ -135,6 +135,16 @@ public sealed class PlaidConnectionService
             existing.UpdatedAtUtc = DateTime.UtcNow;
         }
         await _database.SaveChangesAsync(cancellationToken);
+        // Transactions does not begin polling until transactions/sync is called. Queue a
+        // first sync when the Item is actually connected to an approved Budget account.
+        var activationKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"initial-sync:{item.ItemId}"))).ToLowerInvariant();
+        if (!await _database.PlaidWebhookDeliveries.AnyAsync(x => x.DeliveryKey == activationKey, cancellationToken))
+        {
+            _database.PlaidWebhookDeliveries.Add(new PlaidWebhookDelivery { DeliveryKey = activationKey, ItemId = item.ItemId,
+                WebhookType = "INITIAL_TRANSACTIONS_SYNC", ReceivedAtUtc = DateTime.UtcNow, QueuedAtUtc = DateTime.UtcNow });
+            try { await _database.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateException) { _database.ChangeTracker.Clear(); } // another mapping request queued it
+        }
     }
 
     public async Task DisconnectAsync(int userId, int plaidItemId, CancellationToken cancellationToken)

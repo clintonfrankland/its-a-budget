@@ -61,6 +61,23 @@ public sealed class PlaidConnectionServiceTests
     }
 
     [Fact]
+    public async Task FirstApprovedMapping_QueuesInitialTransactionsSync()
+    {
+        await using var database = CreateDatabase();
+        SeedUsersAndAccounts(database);
+        var provider = DataProtectionProvider.Create("PlaidInitialSyncTests");
+        var service = new PlaidConnectionService(database, new SharedBudgetDataService(database), new FakePlaidClient(), provider);
+        var connection = await service.ExchangePublicTokenAsync(1, "public-token", null, null, CancellationToken.None);
+
+        await service.MapAccountAsync(1, connection.PlaidItemId, "CaseSensitive_Id", 1, CancellationToken.None);
+
+        var delivery = Assert.Single(database.PlaidWebhookDeliveries);
+        Assert.Equal("item-1", delivery.ItemId);
+        Assert.Equal("INITIAL_TRANSACTIONS_SYNC", delivery.WebhookType);
+        Assert.Equal("queued", delivery.Status);
+    }
+
+    [Fact]
     public async Task Mapping_RejectsAccountThatWasNotDiscoveredForThePlaidItem()
     {
         await using var database = CreateDatabase();
@@ -140,6 +157,7 @@ public sealed class PlaidConnectionServiceTests
             Task.FromResult<IReadOnlyList<PlaidDiscoveredAccount>>([new("CaseSensitive_Id", "Checking", "1234", "depository", "checking")]);
         public Task<PlaidSyncPage> SyncTransactionsAsync(string accessToken, string? cursor, CancellationToken cancellationToken) =>
             Task.FromResult(new PlaidSyncPage([], [], [], cursor ?? "cursor", false));
+        public Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 

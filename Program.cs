@@ -59,7 +59,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 builder.Services.Configure<AuthentikOidcOptions>(builder.Configuration.GetSection(AuthentikOidcOptions.SectionName));
 builder.Services.Configure<PlaidOptions>(builder.Configuration.GetSection(PlaidOptions.SectionName));
 builder.Services.AddHttpClient<IPlaidClient, PlaidClient>(client => client.BaseAddress = new Uri("https://sandbox.plaid.com/"));
-builder.Services.AddSingleton<PlaidWebhookAuthenticator>();
+builder.Services.AddScoped<PlaidWebhookAuthenticator>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -453,22 +453,23 @@ app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, 
 
 app.MapPost("/api/plaid/webhook", async (HttpContext context, PlaidWebhookAuthenticator authenticator, ClintonFranklandDbContext db, CancellationToken ct) =>
 {
-    // Webhooks have no browser identity. Validate the signed, raw body before parsing
-    // or writing a queue record, and require a delivery id for replay-safe deduplication.
+    // Webhooks have no browser identity. Verify Plaid's signed JWT over the exact raw body.
     using var reader = new StreamReader(context.Request.Body, System.Text.Encoding.UTF8, leaveOpen: false);
     var body = await reader.ReadToEndAsync(ct);
-    if (!authenticator.IsValid(body, context.Request.Headers["X-Plaid-Webhook-Signature"].ToString()))
+    var verification = await authenticator.VerifyAsync(body, context.Request.Headers["Plaid-Verification"].ToString(), ct);
+    if (verification is null)
         return Results.Unauthorized();
     var request = System.Text.Json.JsonSerializer.Deserialize<PlaidWebhookRequest>(body,
         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     if (request is null) return Results.BadRequest();
     if (string.IsNullOrWhiteSpace(request.WebhookCode) || string.IsNullOrWhiteSpace(request.ItemId)) return Results.BadRequest();
-    // Only a transport delivery id is safe to deduplicate. Type/code/item repeats are legitimate notifications.
-    var key = context.Request.Headers["X-Plaid-Delivery-Id"].FirstOrDefault();
-    if (string.IsNullOrWhiteSpace(key)) return Results.BadRequest();
+    // JWT body evidence is stable across delivery retries; webhook type/code/item alone is not.
+    var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
+        $"{verification.KeyId}:{verification.IssuedAtUnixSeconds}:{verification.RequestBodySha256}"))).ToLowerInvariant();
     if (await db.PlaidWebhookDeliveries.AnyAsync(x => x.DeliveryKey == key, ct)) return Results.Ok();
     db.PlaidWebhookDeliveries.Add(new() { DeliveryKey = key, ItemId = request.ItemId, WebhookType = request.WebhookType, ReceivedAtUtc = DateTime.UtcNow, QueuedAtUtc = DateTime.UtcNow });
-    await db.SaveChangesAsync(ct);
+    try { await db.SaveChangesAsync(ct); }
+    catch (Microsoft.EntityFrameworkCore.DbUpdateException) { return Results.Ok(); } // concurrent retry won the unique-key race
     return Results.Accepted();
 }).DisableAntiforgery();
 

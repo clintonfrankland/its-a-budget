@@ -50,5 +50,6 @@ public sealed class PlaidWebhookQueueTests
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();
         public Task RemoveItemAsync(string a, CancellationToken c) => throw new NotSupportedException();
         public Task<PlaidSyncPage> SyncTransactionsAsync(string a, string? b, CancellationToken c) => throw new NotSupportedException();
+        public Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken c) => throw new NotSupportedException();
     }
 }

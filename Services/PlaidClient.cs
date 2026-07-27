@@ -9,6 +9,7 @@ public sealed record PlaidExchangeResult(string AccessToken, string ItemId);
 public sealed record PlaidDiscoveredAccount(string AccountId, string Name, string? Mask, string Type, string Subtype);
 public sealed record PlaidSyncPage(IReadOnlyList<PlaidSyncTransaction> Added, IReadOnlyList<PlaidSyncTransaction> Modified, IReadOnlyList<string> Removed, string NextCursor, bool HasMore);
 public sealed record PlaidSyncTransaction(string TransactionId, string AccountId, decimal Amount, string IsoCurrencyCode, DateOnly Date, bool Pending, string? PendingTransactionId, string? MerchantName, string? Name);
+public sealed record PlaidWebhookVerificationKey(string KeyId, string Algorithm, string KeyType, string Curve, string X, string Y);
 public sealed class PlaidSyncMutationDuringPaginationException : Exception { public PlaidSyncMutationDuringPaginationException() : base("Plaid transactions changed during pagination.") { } }
 
 public interface IPlaidClient
@@ -17,6 +18,7 @@ public interface IPlaidClient
     Task<PlaidExchangeResult> ExchangePublicTokenAsync(string publicToken, CancellationToken cancellationToken);
     Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string accessToken, CancellationToken cancellationToken);
     Task<PlaidSyncPage> SyncTransactionsAsync(string accessToken, string? cursor, CancellationToken cancellationToken);
+    Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken cancellationToken);
     Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken);
 }
 
@@ -74,6 +76,14 @@ public sealed class PlaidClient : IPlaidClient
         return new(response.Added.Select(ToTransaction).ToList(), response.Modified.Select(ToTransaction).ToList(), response.Removed.Select(x => x.TransactionId).ToList(), response.NextCursor, response.HasMore);
     }
 
+    public async Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var response = await PostAsync<WebhookVerificationKeyRequest, WebhookVerificationKeyResponse>("webhook_verification_key/get",
+            new(_options.ClientId, _options.ClientSecret, keyId), cancellationToken);
+        return new(response.Key.Kid, response.Key.Alg, response.Key.Kty, response.Key.Crv, response.Key.X, response.Key.Y);
+    }
+
     private void EnsureConfigured()
     {
         if (!_options.IsUsable)
@@ -124,6 +134,8 @@ public sealed class PlaidClient : IPlaidClient
         [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("access_token")] string AccessToken);
     private sealed record SyncRequest([property: JsonPropertyName("client_id")] string ClientId, [property: JsonPropertyName("secret")] string Secret,
         [property: JsonPropertyName("access_token")] string AccessToken, [property: JsonPropertyName("cursor")] string? Cursor);
+    private sealed record WebhookVerificationKeyRequest([property: JsonPropertyName("client_id")] string ClientId,
+        [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("key_id")] string KeyId);
     private sealed record LinkTokenResponse([property: JsonPropertyName("link_token")] string LinkToken,
         [property: JsonPropertyName("expiration")] DateTimeOffset Expiration);
     private sealed record TokenExchangeResponse([property: JsonPropertyName("access_token")] string AccessToken,
@@ -135,6 +147,10 @@ public sealed class PlaidClient : IPlaidClient
     private sealed record SyncResponse([property: JsonPropertyName("added")] List<SyncTransactionResponse> Added, [property: JsonPropertyName("modified")] List<SyncTransactionResponse> Modified,
         [property: JsonPropertyName("removed")] List<RemovedTransactionResponse> Removed, [property: JsonPropertyName("next_cursor")] string NextCursor, [property: JsonPropertyName("has_more")] bool HasMore);
     private sealed record RemovedTransactionResponse([property: JsonPropertyName("transaction_id")] string TransactionId);
+    private sealed record WebhookVerificationKeyResponse([property: JsonPropertyName("key")] WebhookVerificationJwk Key);
+    private sealed record WebhookVerificationJwk([property: JsonPropertyName("alg")] string Alg, [property: JsonPropertyName("crv")] string Crv,
+        [property: JsonPropertyName("kid")] string Kid, [property: JsonPropertyName("kty")] string Kty,
+        [property: JsonPropertyName("x")] string X, [property: JsonPropertyName("y")] string Y);
     private sealed record SyncTransactionResponse([property: JsonPropertyName("transaction_id")] string TransactionId, [property: JsonPropertyName("account_id")] string AccountId,
         [property: JsonPropertyName("amount")] decimal Amount, [property: JsonPropertyName("iso_currency_code")] string? IsoCurrencyCode, [property: JsonPropertyName("date")] DateOnly Date,
         [property: JsonPropertyName("pending")] bool Pending, [property: JsonPropertyName("pending_transaction_id")] string? PendingTransactionId,
