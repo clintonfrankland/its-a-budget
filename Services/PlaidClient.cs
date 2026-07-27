@@ -7,12 +7,15 @@ namespace ClintonFrankland.Services;
 public sealed record PlaidLinkToken(string Token, DateTimeOffset Expiration);
 public sealed record PlaidExchangeResult(string AccessToken, string ItemId);
 public sealed record PlaidDiscoveredAccount(string AccountId, string Name, string? Mask, string Type, string Subtype);
+public sealed record PlaidSyncPage(IReadOnlyList<PlaidSyncTransaction> Added, IReadOnlyList<PlaidSyncTransaction> Modified, IReadOnlyList<string> Removed, string NextCursor, bool HasMore);
+public sealed record PlaidSyncTransaction(string TransactionId, string AccountId, decimal Amount, string IsoCurrencyCode, DateOnly Date, bool Pending, string? PendingTransactionId, string? MerchantName, string? Name);
 
 public interface IPlaidClient
 {
     Task<PlaidLinkToken> CreateLinkTokenAsync(int userId, bool updateMode, string? accessToken, CancellationToken cancellationToken);
     Task<PlaidExchangeResult> ExchangePublicTokenAsync(string publicToken, CancellationToken cancellationToken);
     Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string accessToken, CancellationToken cancellationToken);
+    Task<PlaidSyncPage> SyncTransactionsAsync(string accessToken, string? cursor, CancellationToken cancellationToken);
     Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken);
 }
 
@@ -63,6 +66,13 @@ public sealed class PlaidClient : IPlaidClient
         await PostAsync<AccessTokenRequest, object>("item/remove", new(_options.ClientId, _options.ClientSecret, accessToken), cancellationToken);
     }
 
+    public async Task<PlaidSyncPage> SyncTransactionsAsync(string accessToken, string? cursor, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var response = await PostAsync<SyncRequest, SyncResponse>("transactions/sync", new(_options.ClientId, _options.ClientSecret, accessToken, cursor), cancellationToken);
+        return new(response.Added.Select(ToTransaction).ToList(), response.Modified.Select(ToTransaction).ToList(), response.Removed.Select(x => x.TransactionId).ToList(), response.NextCursor, response.HasMore);
+    }
+
     private void EnsureConfigured()
     {
         if (!_options.IsUsable)
@@ -105,6 +115,8 @@ public sealed class PlaidClient : IPlaidClient
         [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("public_token")] string PublicToken);
     private sealed record AccessTokenRequest([property: JsonPropertyName("client_id")] string ClientId,
         [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("access_token")] string AccessToken);
+    private sealed record SyncRequest([property: JsonPropertyName("client_id")] string ClientId, [property: JsonPropertyName("secret")] string Secret,
+        [property: JsonPropertyName("access_token")] string AccessToken, [property: JsonPropertyName("cursor")] string? Cursor);
     private sealed record LinkTokenResponse([property: JsonPropertyName("link_token")] string LinkToken,
         [property: JsonPropertyName("expiration")] DateTimeOffset Expiration);
     private sealed record TokenExchangeResponse([property: JsonPropertyName("access_token")] string AccessToken,
@@ -113,4 +125,13 @@ public sealed class PlaidClient : IPlaidClient
     private sealed record PlaidAccountResponse([property: JsonPropertyName("account_id")] string AccountId,
         [property: JsonPropertyName("name")] string Name, [property: JsonPropertyName("mask")] string? Mask,
         [property: JsonPropertyName("type")] string Type, [property: JsonPropertyName("subtype")] string Subtype);
+    private sealed record SyncResponse([property: JsonPropertyName("added")] List<SyncTransactionResponse> Added, [property: JsonPropertyName("modified")] List<SyncTransactionResponse> Modified,
+        [property: JsonPropertyName("removed")] List<RemovedTransactionResponse> Removed, [property: JsonPropertyName("next_cursor")] string NextCursor, [property: JsonPropertyName("has_more")] bool HasMore);
+    private sealed record RemovedTransactionResponse([property: JsonPropertyName("transaction_id")] string TransactionId);
+    private sealed record SyncTransactionResponse([property: JsonPropertyName("transaction_id")] string TransactionId, [property: JsonPropertyName("account_id")] string AccountId,
+        [property: JsonPropertyName("amount")] decimal Amount, [property: JsonPropertyName("iso_currency_code")] string? IsoCurrencyCode, [property: JsonPropertyName("date")] DateOnly Date,
+        [property: JsonPropertyName("pending")] bool Pending, [property: JsonPropertyName("pending_transaction_id")] string? PendingTransactionId,
+        [property: JsonPropertyName("merchant_name")] string? MerchantName, [property: JsonPropertyName("name")] string? Name);
+    private static PlaidSyncTransaction ToTransaction(SyncTransactionResponse source) => new(source.TransactionId, source.AccountId, source.Amount,
+        source.IsoCurrencyCode ?? "USD", source.Date, source.Pending, source.PendingTransactionId, source.MerchantName, source.Name);
 }

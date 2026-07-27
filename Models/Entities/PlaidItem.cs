@@ -32,6 +32,7 @@ public class PlaidItem
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
     public DateTime? DisconnectedAtUtc { get; set; }
+    public string? TransactionsCursor { get; set; }
 
     [ForeignKey(nameof(UserId))]
     public virtual User? User { get; set; }

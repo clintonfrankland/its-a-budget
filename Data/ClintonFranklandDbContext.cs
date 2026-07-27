@@ -34,6 +34,9 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<SharedBudget> SharedBudgets => Set<SharedBudget>();
     public DbSet<PlaidItem> PlaidItems => Set<PlaidItem>();
     public DbSet<PlaidAccountMapping> PlaidAccountMappings => Set<PlaidAccountMapping>();
+    public DbSet<PlaidTransactionStaging> PlaidTransactionStaging => Set<PlaidTransactionStaging>();
+    public DbSet<PlaidSyncRun> PlaidSyncRuns => Set<PlaidSyncRun>();
+    public DbSet<PlaidWebhookDelivery> PlaidWebhookDeliveries => Set<PlaidWebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -316,6 +319,9 @@ public class ClintonFranklandDbContext : DbContext
                 .HasForeignKey(mapping => mapping.BudgetAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PlaidTransactionStaging>(entity => { entity.HasKey(x => x.PlaidTransactionStagingId); entity.Property(x => x.PlaidTransactionId).UseCollation("Latin1_General_100_BIN2"); entity.HasIndex(x => new { x.PlaidItemId, x.PlaidTransactionId }).IsUnique(); entity.HasIndex(x => new { x.UserId, x.BudgetAccountId }); });
+        modelBuilder.Entity<PlaidSyncRun>(entity => { entity.HasKey(x => x.PlaidSyncRunId); entity.HasIndex(x => x.PlaidItemId); });
+        modelBuilder.Entity<PlaidWebhookDelivery>(entity => { entity.HasKey(x => x.PlaidWebhookDeliveryId); entity.HasIndex(x => x.DeliveryKey).IsUnique(); });
 
         // Configure User notification preferences with defaults
         modelBuilder.Entity<User>(entity =>

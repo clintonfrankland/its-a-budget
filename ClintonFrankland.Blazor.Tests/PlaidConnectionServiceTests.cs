@@ -138,6 +138,8 @@ public sealed class PlaidConnectionServiceTests
         }
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string accessToken, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PlaidDiscoveredAccount>>([new("CaseSensitive_Id", "Checking", "1234", "depository", "checking")]);
+        public Task<PlaidSyncPage> SyncTransactionsAsync(string accessToken, string? cursor, CancellationToken cancellationToken) =>
+            Task.FromResult(new PlaidSyncPage([], [], [], cursor ?? "cursor", false));
         public Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 

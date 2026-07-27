@@ -1,5 +1,6 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
+using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Models.Attachments;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -218,6 +219,7 @@ builder.Services.AddScoped<InsightsDataService>();
 builder.Services.AddScoped<ReportsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.AddScoped<PlaidConnectionService>();
+builder.Services.AddScoped<PlaidTransactionSyncService>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.Configure<CategoryBudgetAlertOptions>(builder.Configuration.GetSection(CategoryBudgetAlertOptions.SectionName));
 builder.Services.AddScoped<IAttachmentMalwareScanner, NoOpAttachmentMalwareScanner>();
@@ -446,6 +448,19 @@ app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, 
     return Results.NoContent();
 }).RequireAuthorization().RequireAntiforgery();
 
+app.MapPost("/api/plaid/webhook", async (PlaidWebhookRequest request, ClintonFranklandDbContext db, PlaidTransactionSyncService sync, CancellationToken ct) =>
+{
+    // Plaid item IDs are unguessable; delivery id makes retries idempotent. Queue work by starting after durable receipt.
+    if (string.IsNullOrWhiteSpace(request.WebhookCode) || string.IsNullOrWhiteSpace(request.ItemId)) return Results.BadRequest();
+    var key = request.WebhookType + ":" + request.WebhookCode + ":" + request.ItemId;
+    if (await db.PlaidWebhookDeliveries.AnyAsync(x => x.DeliveryKey == key, ct)) return Results.Ok();
+    db.PlaidWebhookDeliveries.Add(new() { DeliveryKey = key, ItemId = request.ItemId, WebhookType = request.WebhookType, ReceivedAtUtc = DateTime.UtcNow, QueuedAtUtc = DateTime.UtcNow });
+    await db.SaveChangesAsync(ct);
+    var item = await db.PlaidItems.AsNoTracking().SingleOrDefaultAsync(x => x.ItemId == request.ItemId && x.Status == PlaidItemStatus.Active, ct);
+    if (item is not null) _ = Task.Run(() => sync.SyncItemAsync(item.PlaidItemId, CancellationToken.None));
+    return Results.Ok();
+}).DisableAntiforgery();
+
 app.MapRazorComponents<ClintonFrankland.Components.App>()
     .AddInteractiveServerRenderMode();
 
@@ -460,3 +475,4 @@ static bool TryGetAuthenticatedBudgetUserId(HttpContext context, out int userId)
 
 sealed record PlaidExchangeRequest(string PublicToken, string? InstitutionId, string? InstitutionName);
 sealed record PlaidMappingRequest(int BudgetAccountId);
+sealed record PlaidWebhookRequest(string? WebhookType, string? WebhookCode, string? ItemId);

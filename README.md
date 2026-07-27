@@ -441,6 +441,7 @@ All tables use the `cf` prefix.
 | `cfAccounts` | Financial accounts (checking, credit card, etc.). Tracks balance, cleared balance, credit limit, min payment, interest rate, due day. |
 | `cfPlaidItems` | Per-user Plaid Item metadata and Data Protection-encrypted access tokens. |
 | `cfPlaidAccountMappings` | Case-sensitive Plaid account IDs explicitly mapped to managed Budget accounts. |
+| `cfPlaidTransactionStaging` | Idempotent Plaid sync evidence only; Plaid outflows are positive while Budget expenses remain negative. |
 | `cfTransactions` | Ledger entries. Date, amount, payee, category, account, cleared flag, optional notes and attachment path. |
 | `cfBudgets` | Recurring income/expense items. Frequency, next due date, end date, `IsBill`, `IsAutomatic`, `IsLate`, optional payee. |
 | `cfCategories` | User-owned transaction and budget categories. |
