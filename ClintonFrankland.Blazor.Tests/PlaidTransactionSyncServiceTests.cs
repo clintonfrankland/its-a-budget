@@ -145,7 +145,7 @@ public sealed class PlaidTransactionSyncServiceTests
     }
 
     private static PlaidSyncTransaction Tx(string id, bool pending, string? pendingId, decimal amount) =>
-        new(id, "account", amount, "USD", new DateOnly(2026, 7, 27), pending, pendingId, null, "Test");
+        new(id, "account", amount, "USD", new DateOnly(2026, 7, 27), pending, pendingId, null, null, "Test");
 
     private sealed class RestartingClient : IPlaidClient
     {
@@ -157,7 +157,7 @@ public sealed class PlaidTransactionSyncServiceTests
             if (Cursors.Count == 2) throw new PlaidSyncMutationDuringPaginationException();
             return Task.FromResult(new PlaidSyncPage([Tx("stable-transaction")], [], [], "complete", false));
         }
-        private static PlaidSyncTransaction Tx(string id) => new(id, "account", 12.34m, "USD", new DateOnly(2026, 7, 27), false, null, null, "Test");
+        private static PlaidSyncTransaction Tx(string id) => new(id, "account", 12.34m, "USD", new DateOnly(2026, 7, 27), false, null, null, null, "Test");
         public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
         public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();
@@ -169,7 +169,7 @@ public sealed class PlaidTransactionSyncServiceTests
     {
         private int calls;
         public Task<PlaidSyncPage> SyncTransactionsAsync(string token, string? cursor, CancellationToken ct) => ++calls == 1
-            ? Task.FromResult(new PlaidSyncPage([new PlaidSyncTransaction("partial", "account", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, "partial")], [], [], "next", true))
+            ? Task.FromResult(new PlaidSyncPage([new PlaidSyncTransaction("partial", "account", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, null, "partial")], [], [], "next", true))
             : throw new InvalidOperationException("network failure");
         public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
         public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
@@ -192,7 +192,7 @@ public sealed class PlaidTransactionSyncServiceTests
     private sealed class PerItemClient : IPlaidClient
     {
         public Task<PlaidSyncPage> SyncTransactionsAsync(string token, string? cursor, CancellationToken ct) => Task.FromResult(
-            new PlaidSyncPage([new PlaidSyncTransaction("shared-id", "approved", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, "Mapped")], [], [], "done", false));
+            new PlaidSyncPage([new PlaidSyncTransaction("shared-id", "approved", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, null, "Mapped")], [], [], "done", false));
         public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
         public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();

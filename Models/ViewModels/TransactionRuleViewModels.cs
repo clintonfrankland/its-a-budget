@@ -5,5 +5,9 @@ public sealed record TransactionRuleDraft(int? TransactionRuleId, string Contain
 
 public sealed record TransactionRuleSuggestion(int RuleId, string? CategoryName, string? PayeeName, string? Notes);
 
+public sealed record LearnedTransactionRuleProposal(string MerchantLabel, string? MerchantEntityId, string NormalizedMerchant,
+    int AccountId, decimal? MinimumAmount, decimal? MaximumAmount, string? CategoryName, string? PayeeName,
+    int MatchCount, decimal Confidence, string EvidenceSummary, IReadOnlyList<string> Examples);
+
 public sealed record TransactionRulePreviewItem(int TransactionId, string CurrentPayee, string CurrentCategory, string? CurrentNotes,
     string? NewPayee, string? NewCategory, string? NewNotes, int RuleId, IReadOnlyList<string> ChangedFields);

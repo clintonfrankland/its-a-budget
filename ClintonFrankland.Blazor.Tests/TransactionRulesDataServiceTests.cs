@@ -124,7 +124,39 @@ public class TransactionRulesDataServiceTests
         Assert.Equal(new string?[] { "old one", "old two" }, await db.Transactions.OrderBy(transaction => transaction.TransactionId).Select(transaction => transaction.Notes).ToArrayAsync());
     }
 
-    private static TransactionRule Rule() => new() { IsEnabled = true, ContainsText = "market" };
+    [Fact]
+    public void Matches_PrefersStableMerchantEntityIdAndNormalizesAliases()
+    {
+        var rule = Rule();
+        rule.MerchantEntityId = "merchant-123";
+        Assert.True(TransactionRulesDataService.Matches(rule, 1, -10m, "anything", null, "merchant-123"));
+        Assert.False(TransactionRulesDataService.Matches(rule, 1, -10m, "market", null, "merchant-456"));
+        Assert.Equal("COFFEE SHOP", TransactionRulesDataService.NormalizeMerchant("Coffee-Shop #0421"));
+    }
+
+    [Fact]
+    public async Task LearnedProposals_RequireDominanceAndRemainUserLocal()
+    {
+        await using var db = Db();
+        SeedOutputs(db);
+        db.Accounts.AddRange(Account(1, 1), Account(2, 2));
+        for (var index = 1; index <= 3; index++)
+        {
+            db.Transactions.Add(new Transaction { TransactionId = index, UserId = 1, AccountId = 1, PayeeId = 2, CategoryId = 2, Amount = -5m, Cleared = true, TransactionDate = new DateOnly(2026, 1, index) });
+            db.PlaidTransactionStaging.Add(new PlaidTransactionStaging { UserId = 1, BudgetAccountId = 1, PlaidItemId = 1, PlaidTransactionId = $"tx-{index}", PlaidAccountId = "account", MerchantEntityId = "coffee", MerchantName = "Coffee Shop", ReviewState = PlaidReconciliationReviewState.Confirmed, LinkedTransactionId = index, TransactionDate = new DateOnly(2026, 1, index), FirstSeenAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow });
+        }
+        db.Transactions.Add(new Transaction { TransactionId = 9, UserId = 2, AccountId = 2, PayeeId = 2, CategoryId = 2, Amount = -5m, Cleared = true, TransactionDate = new DateOnly(2026, 1, 9) });
+        db.PlaidTransactionStaging.Add(new PlaidTransactionStaging { UserId = 2, BudgetAccountId = 2, PlaidItemId = 2, PlaidTransactionId = "other", PlaidAccountId = "other", MerchantEntityId = "coffee", MerchantName = "Coffee Shop", ReviewState = PlaidReconciliationReviewState.Confirmed, LinkedTransactionId = 9, TransactionDate = new DateOnly(2026, 1, 9), FirstSeenAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var proposals = await new TransactionRulesDataService(db).GetLearnedProposalsAsync(1);
+        var proposal = Assert.Single(proposals);
+        Assert.Equal(3, proposal.MatchCount);
+        Assert.Equal("coffee", proposal.MerchantEntityId);
+        await new TransactionRulesDataService(db).SaveLearnedProposalAsync(1, proposal);
+        Assert.Equal(TransactionRuleSource.Learned, Assert.Single(db.TransactionRules).Source);
+    }
+
+    private static TransactionRule Rule() => new() { IsEnabled = true, ContainsText = "market", ApprovalState = TransactionRuleApprovalState.Approved };
     private static TransactionRule Rule(int userId, string payee, int priority, string? category = null, string? notes = null) => new() { UserId = userId, ContainsText = "store", PayeeName = payee, CategoryName = category, Notes = notes, Priority = priority, IsEnabled = true };
     private static Account Account(int id, int userId) => new() { AccountId = id, UserId = userId, AccountName = $"Account {id}", AccountTypeId = 1 };
     private static ClintonFranklandDbContext Db() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

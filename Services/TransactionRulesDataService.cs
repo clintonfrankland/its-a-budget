@@ -97,7 +97,77 @@ public class TransactionRulesDataService
     {
         var rules = await GetRulesAsync(userId);
         var rule = rules.FirstOrDefault(candidate => Matches(candidate, accountId, amount, payee, notes));
-        return rule is null ? null : new(rule.TransactionRuleId, rule.CategoryName, rule.PayeeName, rule.Notes);
+        if (rule is null) return null;
+        await RecordUseAsync(rule.TransactionRuleId, userId);
+        return new(rule.TransactionRuleId, rule.CategoryName, rule.PayeeName, rule.Notes);
+    }
+
+    /// <summary>Returns explainable proposals only; no history can enable or create a rule by itself.</summary>
+    public async Task<List<LearnedTransactionRuleProposal>> GetLearnedProposalsAsync(int userId, int minimumSamples = 3, decimal minimumDominance = .80m)
+    {
+        minimumSamples = Math.Max(2, minimumSamples);
+        var evidence = await (from staged in _db.PlaidTransactionStaging.AsNoTracking()
+                              join ledger in _db.Transactions.AsNoTracking().Include(transaction => transaction.Payee).Include(transaction => transaction.Category)
+                                  on staged.LinkedTransactionId equals ledger.TransactionId
+                              where staged.UserId == userId && staged.ReviewState == PlaidReconciliationReviewState.Confirmed && !staged.IsRemoved && !staged.IsPending &&
+                                    ledger.UserId == userId && ledger.Cleared
+                              select new { staged.BudgetAccountId, staged.MerchantEntityId, staged.MerchantName, staged.Name, ledger.Amount,
+                                  Payee = ledger.Payee!.PayeeName, Category = ledger.Category!.CategoryName }).ToListAsync();
+
+        return evidence.GroupBy(item => new { item.BudgetAccountId, MerchantEntityId = Trim(item.MerchantEntityId), NormalizedMerchant = NormalizeMerchant(item.MerchantName ?? item.Name) })
+            .Where(group => !string.IsNullOrWhiteSpace(group.Key.MerchantEntityId) || !string.IsNullOrWhiteSpace(group.Key.NormalizedMerchant))
+            .Select(group =>
+            {
+                var outputs = group.GroupBy(item => new { item.Payee, item.Category }).OrderByDescending(output => output.Count()).First();
+                var count = group.Count(); var confidence = Math.Round((decimal)outputs.Count() / count, 4);
+                var label = group.First().MerchantName ?? group.First().Name ?? group.Key.NormalizedMerchant!;
+                return new LearnedTransactionRuleProposal(label, group.Key.MerchantEntityId, group.Key.NormalizedMerchant!, group.Key.BudgetAccountId,
+                    group.Min(item => item.Amount), group.Max(item => item.Amount), outputs.Key.Category, outputs.Key.Payee, count, confidence,
+                    $"{outputs.Count()} of {count} cleared, confirmed transactions agree on {outputs.Key.Payee} / {outputs.Key.Category}.",
+                    group.OrderByDescending(item => item.Amount).Take(3).Select(item => $"{item.Amount:C} · {item.Payee} · {item.Category}").ToList());
+            })
+            .Where(proposal => proposal.MatchCount >= minimumSamples && proposal.Confidence >= minimumDominance)
+            .OrderByDescending(proposal => proposal.Confidence).ThenByDescending(proposal => proposal.MatchCount).ToList();
+    }
+
+    public async Task SaveLearnedProposalAsync(int userId, LearnedTransactionRuleProposal proposal)
+    {
+        if (!await _db.Accounts.AnyAsync(account => account.AccountId == proposal.AccountId && account.UserId == userId && account.IsDeleted != true)) throw new InvalidOperationException("Choose an account you own.");
+        if (proposal.MatchCount < 2 || proposal.Confidence < .80m) throw new InvalidOperationException("History is not strong enough to remember this rule.");
+        var existing = await _db.TransactionRules.SingleOrDefaultAsync(rule => rule.UserId == userId && rule.AccountId == proposal.AccountId &&
+            ((!string.IsNullOrEmpty(proposal.MerchantEntityId) && rule.MerchantEntityId == proposal.MerchantEntityId) ||
+             (string.IsNullOrEmpty(proposal.MerchantEntityId) && rule.NormalizedMerchant == proposal.NormalizedMerchant)));
+        if (existing is null)
+        {
+            existing = new TransactionRule { UserId = userId, Priority = (await _db.TransactionRules.Where(rule => rule.UserId == userId).MaxAsync(rule => (int?)rule.Priority) ?? -1) + 1 };
+            _db.TransactionRules.Add(existing);
+        }
+        existing.ContainsText = proposal.NormalizedMerchant;
+        existing.MerchantEntityId = Trim(proposal.MerchantEntityId);
+        existing.NormalizedMerchant = proposal.NormalizedMerchant;
+        existing.AccountId = proposal.AccountId;
+        existing.MinimumAmount = proposal.MinimumAmount;
+        existing.MaximumAmount = proposal.MaximumAmount;
+        existing.CategoryName = proposal.CategoryName;
+        existing.PayeeName = proposal.PayeeName;
+        existing.Source = TransactionRuleSource.Learned;
+        existing.ApprovalState = TransactionRuleApprovalState.Approved;
+        existing.MatchCount = proposal.MatchCount;
+        existing.Confidence = proposal.Confidence;
+        existing.EvidenceSummary = proposal.EvidenceSummary;
+        existing.IsEnabled = true;
+        existing.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task RejectProposalAsync(int userId, LearnedTransactionRuleProposal proposal)
+    {
+        var existing = await _db.TransactionRules.SingleOrDefaultAsync(rule => rule.UserId == userId && rule.AccountId == proposal.AccountId && rule.NormalizedMerchant == proposal.NormalizedMerchant);
+        if (existing is null) return;
+        existing.ApprovalState = TransactionRuleApprovalState.Rejected;
+        existing.IsEnabled = false;
+        existing.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
     }
 
     public async Task<List<TransactionRulePreviewItem>> PreviewAsync(int userId)
@@ -150,11 +220,25 @@ public class TransactionRulesDataService
         return changed;
     }
 
-    public static bool Matches(TransactionRule rule, int? accountId, decimal amount, string? payee, string? notes) => rule.IsEnabled &&
+    public static bool Matches(TransactionRule rule, int? accountId, decimal amount, string? payee, string? notes, string? merchantEntityId = null) => rule.IsEnabled && rule.ApprovalState == TransactionRuleApprovalState.Approved &&
         (rule.AccountId is null || rule.AccountId == accountId) &&
         (rule.MinimumAmount is null || amount >= rule.MinimumAmount) &&
         (rule.MaximumAmount is null || amount <= rule.MaximumAmount) &&
-        ($"{payee} {notes}").Contains(rule.ContainsText, StringComparison.OrdinalIgnoreCase);
+        (string.IsNullOrWhiteSpace(rule.MerchantEntityId)
+            ? (string.IsNullOrWhiteSpace(rule.NormalizedMerchant) ? $"{payee} {notes}".Contains(rule.ContainsText, StringComparison.OrdinalIgnoreCase) : NormalizeMerchant($"{payee} {notes}").Contains(rule.NormalizedMerchant, StringComparison.Ordinal))
+            : string.Equals(rule.MerchantEntityId, merchantEntityId, StringComparison.Ordinal));
+
+    public static string NormalizeMerchant(string? value) => string.Join(' ', new string((value ?? string.Empty).ToUpperInvariant()
+        .Select(character => char.IsLetterOrDigit(character) || char.IsWhiteSpace(character) ? character : ' ').ToArray()).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Where(token => !token.All(char.IsDigit))).Trim();
+
+    private async Task RecordUseAsync(int ruleId, int userId)
+    {
+        var rule = await _db.TransactionRules.SingleOrDefaultAsync(candidate => candidate.TransactionRuleId == ruleId && candidate.UserId == userId);
+        if (rule is null) return;
+        rule.LastUsedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+    }
 
     private static List<string> GetChanges(Transaction transaction, TransactionRule rule)
     {

@@ -329,6 +329,13 @@ public class ClintonFranklandDbContext : DbContext
             entity.HasIndex(x => x.LinkedTransactionId).IsUnique().HasFilter("[LinkedTransactionId] IS NOT NULL");
             entity.HasIndex(x => new { x.UserId, x.BudgetAccountId });
         });
+        modelBuilder.Entity<TransactionRule>(entity =>
+        {
+            entity.Property(rule => rule.Confidence).HasPrecision(5, 4);
+            entity.Property(rule => rule.Source).HasMaxLength(32).HasDefaultValue(TransactionRuleSource.Manual);
+            entity.Property(rule => rule.ApprovalState).HasMaxLength(32).HasDefaultValue(TransactionRuleApprovalState.Approved);
+            entity.HasIndex(rule => new { rule.UserId, rule.AccountId, rule.MerchantEntityId });
+        });
         modelBuilder.Entity<PlaidSyncRun>(entity => { entity.HasKey(x => x.PlaidSyncRunId); entity.HasIndex(x => x.PlaidItemId); });
         modelBuilder.Entity<PlaidWebhookDelivery>(entity => { entity.HasKey(x => x.PlaidWebhookDeliveryId); entity.HasIndex(x => x.DeliveryKey).IsUnique(); entity.HasIndex(x => new { x.Status, x.ProcessingStartedAtUtc }); });
 

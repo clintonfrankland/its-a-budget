@@ -21,6 +21,7 @@ public class PlaidTransactionStaging
     public bool IsPending { get; set; }
     public bool IsRemoved { get; set; }
     [StringLength(256)] public string? MerchantName { get; set; }
+    [StringLength(128)] public string? MerchantEntityId { get; set; }
     [StringLength(256)] public string? Name { get; set; }
     [StringLength(24)] public string ReviewState { get; set; } = PlaidReconciliationReviewState.Pending;
     public int? LinkedTransactionId { get; set; }

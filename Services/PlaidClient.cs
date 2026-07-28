@@ -8,7 +8,7 @@ public sealed record PlaidLinkToken(string Token, DateTimeOffset Expiration);
 public sealed record PlaidExchangeResult(string AccessToken, string ItemId);
 public sealed record PlaidDiscoveredAccount(string AccountId, string Name, string? Mask, string Type, string Subtype);
 public sealed record PlaidSyncPage(IReadOnlyList<PlaidSyncTransaction> Added, IReadOnlyList<PlaidSyncTransaction> Modified, IReadOnlyList<string> Removed, string NextCursor, bool HasMore);
-public sealed record PlaidSyncTransaction(string TransactionId, string AccountId, decimal Amount, string IsoCurrencyCode, DateOnly Date, bool Pending, string? PendingTransactionId, string? MerchantName, string? Name);
+public sealed record PlaidSyncTransaction(string TransactionId, string AccountId, decimal Amount, string IsoCurrencyCode, DateOnly Date, bool Pending, string? PendingTransactionId, string? MerchantName, string? MerchantEntityId, string? Name);
 public sealed record PlaidWebhookVerificationKey(string KeyId, string Algorithm, string KeyType, string Curve, string X, string Y);
 public sealed class PlaidSyncMutationDuringPaginationException : Exception { public PlaidSyncMutationDuringPaginationException() : base("Plaid transactions changed during pagination.") { } }
 
@@ -154,7 +154,7 @@ public sealed class PlaidClient : IPlaidClient
     private sealed record SyncTransactionResponse([property: JsonPropertyName("transaction_id")] string TransactionId, [property: JsonPropertyName("account_id")] string AccountId,
         [property: JsonPropertyName("amount")] decimal Amount, [property: JsonPropertyName("iso_currency_code")] string? IsoCurrencyCode, [property: JsonPropertyName("date")] DateOnly Date,
         [property: JsonPropertyName("pending")] bool Pending, [property: JsonPropertyName("pending_transaction_id")] string? PendingTransactionId,
-        [property: JsonPropertyName("merchant_name")] string? MerchantName, [property: JsonPropertyName("name")] string? Name);
+        [property: JsonPropertyName("merchant_name")] string? MerchantName, [property: JsonPropertyName("merchant_entity_id")] string? MerchantEntityId, [property: JsonPropertyName("name")] string? Name);
     private static PlaidSyncTransaction ToTransaction(SyncTransactionResponse source) => new(source.TransactionId, source.AccountId, source.Amount,
-        source.IsoCurrencyCode ?? "USD", source.Date, source.Pending, source.PendingTransactionId, source.MerchantName, source.Name);
+        source.IsoCurrencyCode ?? "USD", source.Date, source.Pending, source.PendingTransactionId, source.MerchantName, source.MerchantEntityId, source.Name);
 }
