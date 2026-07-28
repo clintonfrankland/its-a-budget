@@ -75,6 +75,43 @@ public sealed class PlaidTransactionSyncServiceTests
     }
 
     [Fact]
+    public async Task RemovedPendingPredecessor_ProducesPendingToPostedReconciliationEvidence()
+    {
+        await using var db = CreateDatabase();
+        var provider = SeedItemAndMapping(db, itemId: 1, userId: 7, plaidItemId: "item-one", accountId: "account", budgetAccountId: 3);
+        db.Accounts.Add(new Account { AccountId = 3, AccountName = "Checking", UserId = 7 });
+        db.Transactions.Add(new Transaction
+        {
+            TransactionId = 1,
+            UserId = 7,
+            AccountId = 3,
+            PayeeId = 1,
+            Payee = new Payee { PayeeId = 1, UserId = 7, PayeeName = "Test" },
+            CategoryId = 1,
+            TransactionDate = new DateOnly(2026, 7, 27),
+            Amount = -10m
+        });
+        await db.SaveChangesAsync();
+
+        var service = new PlaidTransactionSyncService(db, new SequencedClient(
+            new PlaidSyncPage([Tx("pending-id", pending: true, pendingId: null, amount: 10m)], [], [], "one", false),
+            new PlaidSyncPage([Tx("posted-id", pending: false, pendingId: "pending-id", amount: 10m)], [], ["pending-id"], "two", false)), provider);
+
+        await service.SyncItemAsync(1, CancellationToken.None);
+        await service.SyncItemAsync(1, CancellationToken.None);
+
+        db.ChangeTracker.Clear();
+        var postedStagingId = db.PlaidTransactionStaging.Single(transaction => transaction.PlaidTransactionId == "posted-id").PlaidTransactionStagingId;
+        var posted = Assert.Single(await new PlaidReconciliationService(db).ReconcileAsync(7, CancellationToken.None),
+            result => result.PlaidTransactionStagingId == postedStagingId);
+
+        Assert.Single(posted.Candidates);
+        Assert.Equal(PlaidReconciliationDisposition.HighConfidence, posted.Disposition);
+        Assert.Contains("pending-to-posted-relationship", Assert.Single(posted.Candidates).Evidence);
+        Assert.True((await db.PlaidTransactionStaging.SingleAsync(transaction => transaction.PlaidTransactionId == "pending-id")).IsRemoved);
+    }
+
+    [Fact]
     public async Task Sync_ScopesEvidenceToMappedAccountAndOwningItemUser()
     {
         await using var db = CreateDatabase();

@@ -64,8 +64,11 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
 
         var isPendingToPosted = !string.IsNullOrWhiteSpace(stagedTransaction.PendingTransactionId)
             && allStagedTransactions.Any(candidate => candidate.PlaidItemId == stagedTransaction.PlaidItemId
+                && candidate.UserId == stagedTransaction.UserId
+                && candidate.BudgetAccountId == stagedTransaction.BudgetAccountId
                 && candidate.PlaidTransactionId == stagedTransaction.PendingTransactionId
-                && !candidate.IsRemoved);
+                && candidate.IsPending
+                && candidate.IsRemoved);
         var stagingDescription = string.Join(' ', new[] { stagedTransaction.MerchantName, stagedTransaction.Name }.Where(value => !string.IsNullOrWhiteSpace(value)));
         var isConservativeType = HasConservativeKeyword(stagingDescription);
         var candidates = ledgerTransactions
