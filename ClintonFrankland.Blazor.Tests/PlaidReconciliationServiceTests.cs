@@ -41,6 +41,22 @@ public sealed class PlaidReconciliationServiceTests
     }
 
     [Fact]
+    public async Task ExistingPlaidLink_OutsideGenericDateWindow_IsHighConfidence()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database);
+        AddStaged(database, plaidTransactionId: "posted-link", amount: 30m, name: "Market");
+        AddLedger(database, amount: -30m, payeeName: "Market", notes: "plaid:posted-link", date: new DateOnly(2026, 8, 3));
+        await database.SaveChangesAsync();
+
+        var result = Assert.Single(await new PlaidReconciliationService(database).ReconcileAsync(1, CancellationToken.None));
+
+        Assert.Equal(PlaidReconciliationDisposition.HighConfidence, result.Disposition);
+        Assert.Contains("existing-plaid-link", Assert.Single(result.Candidates).Evidence);
+        Assert.Empty(Assert.Single(result.Candidates).RejectionReasons);
+    }
+
+    [Fact]
     public async Task RoundedAmountAndBoundedDate_IsProbable()
     {
         await using var database = CreateDatabase();
@@ -70,6 +86,24 @@ public sealed class PlaidReconciliationServiceTests
 
         Assert.Equal(PlaidReconciliationDisposition.Ambiguous, result.Disposition);
         Assert.Contains("Duplicate amount", Assert.Single(result.RejectionReasons));
+    }
+
+    [Fact]
+    public async Task ExactAndRoundedNearDuplicateAmounts_AreAmbiguous()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database);
+        AddStaged(database, amount: 20m, name: "Store");
+        AddLedger(database, amount: -20m, payeeName: "Store");
+        AddLedger(database, amount: -20.01m, payeeName: "Store", date: new DateOnly(2026, 7, 28));
+        await database.SaveChangesAsync();
+
+        var result = Assert.Single(await new PlaidReconciliationService(database).ReconcileAsync(1, CancellationToken.None));
+
+        Assert.Equal(PlaidReconciliationDisposition.Ambiguous, result.Disposition);
+        Assert.Contains("Duplicate amount", Assert.Single(result.RejectionReasons));
+        Assert.Contains(result.Candidates, candidate => candidate.Evidence.Contains("amount-exact"));
+        Assert.Contains(result.Candidates, candidate => candidate.Evidence.Contains("amount-rounded"));
     }
 
     [Fact]

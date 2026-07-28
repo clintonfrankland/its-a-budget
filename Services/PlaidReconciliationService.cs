@@ -70,16 +70,18 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
         var isConservativeType = HasConservativeKeyword(stagingDescription);
         var candidates = ledgerTransactions
             .Where(transaction => transaction.AccountId == stagedTransaction.BudgetAccountId)
-            .Where(transaction => Math.Abs(transaction.TransactionDate.DayNumber - stagedTransaction.TransactionDate.DayNumber) <= ProbableDateWindowDays)
+            .Where(transaction => ContainsPlaidLink(transaction.Notes, stagedTransaction.PlaidTransactionId)
+                || Math.Abs(transaction.TransactionDate.DayNumber - stagedTransaction.TransactionDate.DayNumber) <= ProbableDateWindowDays)
             .Select(transaction => Evaluate(stagedTransaction, transaction, isPendingToPosted, isConservativeType))
             .OrderByDescending(candidate => candidate.Confidence)
             .ThenBy(candidate => candidate.TransactionId)
             .ToList();
 
         var viableCandidates = candidates.Where(candidate => candidate.RejectionReasons.Count == 0).ToList();
-        var exactAmountCandidates = viableCandidates.Where(candidate => candidate.Evidence.Contains("amount-exact")).ToList();
+        var sameAmountCandidates = viableCandidates.Where(candidate => candidate.Evidence.Contains("amount-exact")
+            || candidate.Evidence.Contains("amount-rounded")).ToList();
         var highConfidenceCandidates = viableCandidates.Where(candidate => candidate.Confidence >= 90).ToList();
-        var hasDuplicateAmounts = exactAmountCandidates.Count > 1;
+        var hasDuplicateAmounts = sameAmountCandidates.Count > 1;
         var highConfidenceIsUnique = highConfidenceCandidates.Count == 1 && !hasDuplicateAmounts;
 
         if (isConservativeType)
@@ -141,10 +143,10 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
         if (isPendingToPosted) evidence.Add("pending-to-posted-relationship");
         if (isExactAmount) evidence.Add("amount-exact");
         else if (isRoundedAmount) evidence.Add("amount-rounded");
-        else rejectionReasons.Add("Amount does not match Plaid's sign-correct ledger amount.");
+        else if (!hasExistingPlaidLink) rejectionReasons.Add("Amount does not match Plaid's sign-correct ledger amount.");
         if (dateDifference <= ExactDateWindowDays) evidence.Add("date-near");
         else if (dateDifference <= ProbableDateWindowDays) evidence.Add("date-window");
-        else rejectionReasons.Add("Transaction date is outside the reconciliation window.");
+        else if (!hasExistingPlaidLink) rejectionReasons.Add("Transaction date is outside the reconciliation window.");
         if (descriptionMatches) evidence.Add("payee-description");
         if (hasCheckReference) evidence.Add("check-reference");
         if (isConservativeType || HasConservativeKeyword(ledgerTransaction.Payee?.PayeeName) || HasConservativeKeyword(ledgerTransaction.Notes))
