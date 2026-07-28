@@ -43,6 +43,10 @@ public sealed class PlaidMigrationTests
         Assert.Contains("IF OBJECT_ID('cfPlaidTransactionStaging', 'U') IS NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("IF EXISTS (SELECT LinkedTransactionId", sql, StringComparison.Ordinal);
         Assert.Contains("THROW 51000", sql, StringComparison.Ordinal);
+        var schemaBatch = sql.IndexOf("migrationBuilder.Sql(@\"", StringComparison.Ordinal);
+        var indexBatch = sql.IndexOf("CREATE UNIQUE INDEX UX_cfPlaidTransactionStaging_LinkedTransactionId", StringComparison.Ordinal);
+        Assert.True(schemaBatch >= 0 && indexBatch > schemaBatch);
+        Assert.Contains("END;\");\n\n        migrationBuilder.Sql(@\"", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.Ordinal);
     }
 }
