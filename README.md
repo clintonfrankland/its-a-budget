@@ -353,7 +353,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Components/Pages/Checkbook.razor(.cs)` | Transaction ledger with running balance and budget panel |
 | `Components/Pages/Budget.razor(.cs)` | Budget forecast chart and upcoming items list |
 | `Components/Pages/Insights.razor(.cs)` | Legacy route redirect to the Spending section of Reports |
-| `Components/Pages/PlaidReconciliation.razor(.cs)` | Accessible review-first Plaid reconciliation inbox with explicit confirm, add-to-Checkbook, defer, ignore, stale-state, and changed-source handling. |
+| `Components/Pages/PlaidReconciliation.razor(.cs)` | Accessible review-first Plaid reconciliation inbox with approved-rule suggestions, explicit confirm, save-once Checkbook entry creation, defer, ignore, stale-state, and changed-source handling. |
 | `Components/Pages/Reports.razor(.cs)` | Authenticated reporting dashboard with four focused sections |
 | `Components/Pages/BudgetItems.razor(.cs)` | CRUD for recurring budget items plus near-term record/skip preview calendar |
 | `Components/Pages/Accounts.razor(.cs)` | Account list with balances and details |
@@ -377,7 +377,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
 | `Services/PlaidClient.cs` | Server-only Plaid Sandbox REST client and DTOs; never returns access tokens to browser code |
 | `Services/PlaidConnectionService.cs` | Encrypted Item persistence, discovery, explicit account mapping, update, and disconnect authorization |
-| `Services/PlaidReconciliationService.cs` | Deterministic staged-Plaid-to-ledger matching plus authorization-scoped, source-fingerprint-checked explicit confirmation and atomic add-to-Checkbook actions. |
+| `Services/PlaidReconciliationService.cs` | Deterministic staged-Plaid-to-ledger matching plus authorization-scoped, source-fingerprint-checked explicit confirmation, approved-rule inbox suggestions, and atomic save-once Checkbook actions. |
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
 | `Services/BudgetScheduleService.cs` | Forecast and recurring occurrence handling, including preview record/skip actions |
 | `Services/InsightsDataService.cs` | User-scoped expense reporting queries used by the Spending reports |

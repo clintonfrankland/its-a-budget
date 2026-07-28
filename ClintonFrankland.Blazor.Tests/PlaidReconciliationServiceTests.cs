@@ -376,6 +376,28 @@ public sealed class PlaidReconciliationServiceTests
             new PlaidAddToCheckbookRequest(999, unauthorized.TransactionDate, "Store", "General", null, PlaidReconciliationService.CreateSourceFingerprint(unauthorized)), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Inbox_ExposesApprovedMerchantRuleAsSuggestion_AndSavingOnceDoesNotCreateAnotherRule()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database);
+        AddStaged(database, amount: 12m, name: "Coffee Shop");
+        database.PlaidTransactionStaging.Local.Single().MerchantEntityId = "coffee-entity";
+        database.TransactionRules.Add(new TransactionRule { UserId = 1, AccountId = 10, ContainsText = "COFFEE SHOP", MerchantEntityId = "coffee-entity", NormalizedMerchant = "COFFEE SHOP", PayeeName = "Coffee Shop", CategoryName = "Dining", Priority = 0, IsEnabled = true, ApprovalState = TransactionRuleApprovalState.Approved, Source = TransactionRuleSource.Learned });
+        await database.SaveChangesAsync();
+        var rules = new TransactionRulesDataService(database);
+        var service = new PlaidReconciliationService(database, rules);
+
+        var item = Assert.Single(await service.GetInboxAsync(1, CancellationToken.None));
+        Assert.NotNull(item.RuleSuggestion);
+        Assert.Equal("Coffee Shop", item.RuleSuggestion!.PayeeName);
+        Assert.Equal("Dining", item.RuleSuggestion.CategoryName);
+        Assert.Equal(PlaidReconciliationActionResult.AddedToCheckbook, await service.AddToCheckbookAsync(1, item.PlaidTransactionStagingId,
+            new PlaidAddToCheckbookRequest(10, item.TransactionDate, item.RuleSuggestion.PayeeName!, item.RuleSuggestion.CategoryName!, null, item.SourceFingerprint), CancellationToken.None));
+        Assert.Single(database.TransactionRules);
+        Assert.Single(database.Transactions);
+    }
+
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 

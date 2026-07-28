@@ -93,10 +93,11 @@ public class TransactionRulesDataService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<TransactionRuleSuggestion?> SuggestAsync(int userId, int? accountId, decimal amount, string? payee, string? notes)
+    public async Task<TransactionRuleSuggestion?> SuggestAsync(int userId, int? accountId, decimal amount, string? payee, string? notes,
+        string? merchantEntityId = null)
     {
         var rules = await GetRulesAsync(userId);
-        var rule = rules.FirstOrDefault(candidate => Matches(candidate, accountId, amount, payee, notes));
+        var rule = rules.FirstOrDefault(candidate => Matches(candidate, accountId, amount, payee, notes, merchantEntityId));
         if (rule is null) return null;
         await RecordUseAsync(rule.TransactionRuleId, userId);
         return new(rule.TransactionRuleId, rule.CategoryName, rule.PayeeName, rule.Notes);
@@ -114,14 +115,32 @@ public class TransactionRulesDataService
                               select new { staged.BudgetAccountId, staged.MerchantEntityId, staged.MerchantName, staged.Name, ledger.Amount,
                                   Payee = ledger.Payee!.PayeeName, Category = ledger.Category!.CategoryName }).ToListAsync();
 
-        return evidence.GroupBy(item => new { item.BudgetAccountId, MerchantEntityId = Trim(item.MerchantEntityId), NormalizedMerchant = NormalizeMerchant(item.MerchantName ?? item.Name) })
-            .Where(group => !string.IsNullOrWhiteSpace(group.Key.MerchantEntityId) || !string.IsNullOrWhiteSpace(group.Key.NormalizedMerchant))
+        var rejectedKeys = await _db.TransactionRules.AsNoTracking()
+            .Where(rule => rule.UserId == userId && rule.ApprovalState == TransactionRuleApprovalState.Rejected)
+            .Select(rule => new { rule.AccountId, rule.MerchantEntityId, rule.NormalizedMerchant })
+            .ToListAsync();
+
+        return evidence.GroupBy(item => new
+            {
+                item.BudgetAccountId,
+                MerchantEntityId = Trim(item.MerchantEntityId),
+                NormalizedMerchant = string.IsNullOrWhiteSpace(Trim(item.MerchantEntityId)) ? NormalizeMerchant(item.MerchantName ?? item.Name) : null,
+                MerchantKey = Trim(item.MerchantEntityId) ?? NormalizeMerchant(item.MerchantName ?? item.Name)
+            })
+            .Where(group => !string.IsNullOrWhiteSpace(group.Key.MerchantKey))
+            .Where(group => !rejectedKeys.Any(rejected => rejected.AccountId == group.Key.BudgetAccountId &&
+                (!string.IsNullOrWhiteSpace(group.Key.MerchantEntityId)
+                    ? string.Equals(rejected.MerchantEntityId, group.Key.MerchantEntityId, StringComparison.Ordinal)
+                    : string.Equals(rejected.NormalizedMerchant, group.Key.NormalizedMerchant, StringComparison.Ordinal))))
             .Select(group =>
             {
                 var outputs = group.GroupBy(item => new { item.Payee, item.Category }).OrderByDescending(output => output.Count()).First();
                 var count = group.Count(); var confidence = Math.Round((decimal)outputs.Count() / count, 4);
-                var label = group.First().MerchantName ?? group.First().Name ?? group.Key.NormalizedMerchant!;
-                return new LearnedTransactionRuleProposal(label, group.Key.MerchantEntityId, group.Key.NormalizedMerchant!, group.Key.BudgetAccountId,
+                var representative = group.OrderByDescending(item => !string.IsNullOrWhiteSpace(item.MerchantName)).First();
+                var normalizedMerchant = group.Select(item => NormalizeMerchant(item.MerchantName ?? item.Name))
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).GroupBy(value => value).OrderByDescending(values => values.Count()).First().Key;
+                var label = representative.MerchantName ?? representative.Name ?? normalizedMerchant;
+                return new LearnedTransactionRuleProposal(label, group.Key.MerchantEntityId, normalizedMerchant, group.Key.BudgetAccountId,
                     group.Min(item => item.Amount), group.Max(item => item.Amount), outputs.Key.Category, outputs.Key.Payee, count, confidence,
                     $"{outputs.Count()} of {count} cleared, confirmed transactions agree on {outputs.Key.Payee} / {outputs.Key.Category}.",
                     group.OrderByDescending(item => item.Amount).Take(3).Select(item => $"{item.Amount:C} · {item.Payee} · {item.Category}").ToList());
@@ -162,8 +181,29 @@ public class TransactionRulesDataService
 
     public async Task RejectProposalAsync(int userId, LearnedTransactionRuleProposal proposal)
     {
-        var existing = await _db.TransactionRules.SingleOrDefaultAsync(rule => rule.UserId == userId && rule.AccountId == proposal.AccountId && rule.NormalizedMerchant == proposal.NormalizedMerchant);
-        if (existing is null) return;
+        var existing = await _db.TransactionRules.SingleOrDefaultAsync(rule => rule.UserId == userId && rule.AccountId == proposal.AccountId &&
+            (!string.IsNullOrWhiteSpace(proposal.MerchantEntityId)
+                ? rule.MerchantEntityId == proposal.MerchantEntityId
+                : rule.NormalizedMerchant == proposal.NormalizedMerchant));
+        if (existing is null)
+        {
+            existing = new TransactionRule
+            {
+                UserId = userId,
+                Priority = (await _db.TransactionRules.Where(rule => rule.UserId == userId).MaxAsync(rule => (int?)rule.Priority) ?? -1) + 1,
+                ContainsText = proposal.NormalizedMerchant,
+                MerchantEntityId = Trim(proposal.MerchantEntityId),
+                NormalizedMerchant = proposal.NormalizedMerchant,
+                AccountId = proposal.AccountId,
+                CategoryName = proposal.CategoryName,
+                PayeeName = proposal.PayeeName,
+                Source = TransactionRuleSource.Learned,
+                MatchCount = proposal.MatchCount,
+                Confidence = proposal.Confidence,
+                EvidenceSummary = proposal.EvidenceSummary
+            };
+            _db.TransactionRules.Add(existing);
+        }
         existing.ApprovalState = TransactionRuleApprovalState.Rejected;
         existing.IsEnabled = false;
         existing.UpdatedAtUtc = DateTime.UtcNow;

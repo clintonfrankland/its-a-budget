@@ -51,7 +51,12 @@ public partial class PlaidReconciliation
         foreach (var item in items)
         {
             selectedTransactionIds[item.PlaidTransactionStagingId] = item.RecommendedTransactionId;
-            addDrafts[item.PlaidTransactionStagingId] = new AddToCheckbookDraft(item.TransactionDate, item.CleanedMerchant ?? item.BankDescription);
+            addDrafts[item.PlaidTransactionStagingId] = new AddToCheckbookDraft(item.TransactionDate,
+                item.RuleSuggestion?.PayeeName ?? item.CleanedMerchant ?? item.BankDescription)
+            {
+                CategoryName = item.RuleSuggestion?.CategoryName ?? string.Empty,
+                Notes = item.RuleSuggestion?.Notes
+            };
         }
         isLoading = false;
     }

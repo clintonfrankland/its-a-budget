@@ -49,4 +49,20 @@ public sealed class PlaidMigrationTests
         Assert.Contains("END;\");\n\n        migrationBuilder.Sql(@\"", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LearnedRulesMigration_IsDiscoverableAndCreatesIndexInSeparateBatch()
+    {
+        var services = new ServiceCollection().AddEntityFrameworkSqlServer().AddDbContext<ClintonFranklandDbContext>(options =>
+            options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=PlaidMigrationDiscovery;Trusted_Connection=True")).BuildServiceProvider();
+        using var scope = services.CreateScope();
+        var migrations = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>().GetService<IMigrationsAssembly>();
+        Assert.Contains("20260728154500_AddLearnedPlaidTransactionRules", migrations.Migrations.Keys);
+        var migrationPath = Path.Combine(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../")), "Migrations", "20260728154500_AddLearnedPlaidTransactionRules.cs");
+        var sql = File.ReadAllText(migrationPath);
+        Assert.Contains("[Migration(\"20260728154500_AddLearnedPlaidTransactionRules\")]", sql, StringComparison.Ordinal);
+        Assert.True(sql.Split("migrationBuilder.Sql", StringSplitOptions.None).Length >= 3, "Schema and index operations must use separate migration batches.");
+        Assert.Contains("NOT EXISTS (SELECT 1 FROM sys.indexes", sql, StringComparison.Ordinal);
+        Assert.Contains("IF COL_LENGTH('dbo.cfTransactionRules', 'ApprovalState') IS NULL", sql, StringComparison.Ordinal);
+    }
 }

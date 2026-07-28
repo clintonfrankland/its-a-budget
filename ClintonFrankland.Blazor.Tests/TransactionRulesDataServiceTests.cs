@@ -156,6 +156,33 @@ public class TransactionRulesDataServiceTests
         Assert.Equal(TransactionRuleSource.Learned, Assert.Single(db.TransactionRules).Source);
     }
 
+    [Fact]
+    public async Task LearnedProposals_GroupStableMerchantIdAcrossDescriptionAliases_AndPersistFreshRejection()
+    {
+        await using var db = Db();
+        SeedOutputs(db);
+        db.Accounts.Add(Account(1, 1));
+        var aliases = new[] { "Coffee Shop #0421", "COFFEE-SHOP", "Coffee Shop Downtown" };
+        for (var index = 0; index < aliases.Length; index++)
+        {
+            var transactionId = index + 1;
+            db.Transactions.Add(new Transaction { TransactionId = transactionId, UserId = 1, AccountId = 1, PayeeId = 2, CategoryId = 2, Amount = -5m, Cleared = true, TransactionDate = new DateOnly(2026, 2, transactionId) });
+            db.PlaidTransactionStaging.Add(new PlaidTransactionStaging { UserId = 1, BudgetAccountId = 1, PlaidItemId = 1, PlaidTransactionId = $"alias-{transactionId}", PlaidAccountId = "account", MerchantEntityId = "stable-coffee", MerchantName = aliases[index], ReviewState = PlaidReconciliationReviewState.Confirmed, LinkedTransactionId = transactionId, TransactionDate = new DateOnly(2026, 2, transactionId), FirstSeenAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow });
+        }
+        await db.SaveChangesAsync();
+        var service = new TransactionRulesDataService(db);
+
+        var proposal = Assert.Single(await service.GetLearnedProposalsAsync(1));
+        Assert.Equal(3, proposal.MatchCount);
+        Assert.Equal("stable-coffee", proposal.MerchantEntityId);
+        await service.RejectProposalAsync(1, proposal);
+
+        var rejection = Assert.Single(db.TransactionRules);
+        Assert.Equal(TransactionRuleApprovalState.Rejected, rejection.ApprovalState);
+        Assert.False(rejection.IsEnabled);
+        Assert.Empty(await service.GetLearnedProposalsAsync(1));
+    }
+
     private static TransactionRule Rule() => new() { IsEnabled = true, ContainsText = "market", ApprovalState = TransactionRuleApprovalState.Approved };
     private static TransactionRule Rule(int userId, string payee, int priority, string? category = null, string? notes = null) => new() { UserId = userId, ContainsText = "store", PayeeName = payee, CategoryName = category, Notes = notes, Priority = priority, IsEnabled = true };
     private static Account Account(int id, int userId) => new() { AccountId = id, UserId = userId, AccountName = $"Account {id}", AccountTypeId = 1 };

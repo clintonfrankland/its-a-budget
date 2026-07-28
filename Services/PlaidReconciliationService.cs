@@ -1,5 +1,6 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
+using ClintonFrankland.Models.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Security.Cryptography;
@@ -11,7 +12,7 @@ namespace ClintonFrankland.Services;
 /// Produces read-only, explainable reconciliation recommendations for posted Plaid evidence.
 /// This phase never updates a ledger transaction or a Plaid staging record.
 /// </summary>
-public sealed class PlaidReconciliationService(ClintonFranklandDbContext database)
+public sealed class PlaidReconciliationService(ClintonFranklandDbContext database, TransactionRulesDataService? transactionRules = null)
 {
     private const int ExactDateWindowDays = 2;
     private const int ProbableDateWindowDays = 5;
@@ -59,7 +60,8 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
             .ToDictionaryAsync(transaction => transaction.TransactionId, cancellationToken);
         var recommendationByStageId = recommendations.ToDictionary(result => result.PlaidTransactionStagingId);
 
-        return stagedTransactions.Select(stagedTransaction =>
+        var inboxItems = new List<PlaidReconciliationInboxItem>();
+        foreach (var stagedTransaction in stagedTransactions)
         {
             var recommendation = recommendationByStageId[stagedTransaction.PlaidTransactionStagingId];
             var fingerprint = CreateSourceFingerprint(stagedTransaction);
@@ -70,7 +72,11 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
                 : recommendation.Disposition == PlaidReconciliationDisposition.HighConfidence ? PlaidReconciliationInboxGroup.Confident
                 : recommendation.Disposition is PlaidReconciliationDisposition.Probable or PlaidReconciliationDisposition.Ambiguous ? PlaidReconciliationInboxGroup.ProbableOrAmbiguous
                 : PlaidReconciliationInboxGroup.Unmatched;
-            return new PlaidReconciliationInboxItem(
+            var suggestion = transactionRules is null || stagedTransaction.IsPending || stagedTransaction.IsRemoved || stagedTransaction.LinkedTransactionId.HasValue
+                ? null
+                : await transactionRules.SuggestAsync(userId, stagedTransaction.BudgetAccountId, -stagedTransaction.PlaidAmount,
+                    stagedTransaction.MerchantName ?? stagedTransaction.Name, stagedTransaction.Name, stagedTransaction.MerchantEntityId);
+            inboxItems.Add(new PlaidReconciliationInboxItem(
                 stagedTransaction.PlaidTransactionStagingId, stagedTransaction.BudgetAccountId, group, stagedTransaction.ReviewState, stagedTransaction.TransactionDate,
                 -stagedTransaction.PlaidAmount, stagedTransaction.Name ?? string.Empty, stagedTransaction.MerchantName,
                 accountNames.GetValueOrDefault(stagedTransaction.BudgetAccountId, "Unavailable account"), stagedTransaction.LinkedTransactionId,
@@ -78,8 +84,9 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
                 recommendation.Candidates.Select(candidate => new PlaidReconciliationInboxCandidate(candidate.TransactionId, candidate.Confidence,
                     candidate.Evidence, ledger.TryGetValue(candidate.TransactionId, out var transaction)
                         ? $"{transaction.TransactionDate:MMM d, yyyy} · {transaction.Amount:C} · {transaction.Payee?.PayeeName ?? "(no payee)"}"
-                        : "Unavailable transaction")).ToList(), sourceChangedAfterConfirmation);
-        }).ToList();
+                        : "Unavailable transaction")).ToList(), sourceChangedAfterConfirmation, suggestion));
+        }
+        return inboxItems;
     }
 
     public async Task<PlaidReconciliationActionResult> ConfirmAsync(int userId, int stagingId, int transactionId,
@@ -367,7 +374,7 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
     public static string CreateSourceFingerprint(PlaidTransactionStaging transaction)
     {
         var source = string.Join('|', transaction.PlaidTransactionId, transaction.PlaidAccountId, transaction.PlaidAmount,
-            transaction.TransactionDate, transaction.IsPending, transaction.IsRemoved, transaction.MerchantName, transaction.Name);
+            transaction.TransactionDate, transaction.IsPending, transaction.IsRemoved, transaction.MerchantEntityId, transaction.MerchantName, transaction.Name);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     }
 
@@ -398,5 +405,5 @@ public sealed record PlaidAddToCheckbookRequest(int AccountId, DateOnly Transact
 public sealed record PlaidReconciliationInboxItem(int PlaidTransactionStagingId, int BudgetAccountId, PlaidReconciliationInboxGroup Group, string ReviewState,
     DateOnly TransactionDate, decimal SignCorrectAmount, string BankDescription, string? CleanedMerchant, string AccountName,
     int? LinkedTransactionId, int? RecommendedTransactionId, string SourceFingerprint, IReadOnlyList<string> Reasons,
-    IReadOnlyList<PlaidReconciliationInboxCandidate> Candidates, bool SourceChangedAfterConfirmation);
+    IReadOnlyList<PlaidReconciliationInboxCandidate> Candidates, bool SourceChangedAfterConfirmation, TransactionRuleSuggestion? RuleSuggestion);
 public sealed record PlaidReconciliationInboxCandidate(int TransactionId, int Confidence, IReadOnlyList<string> Evidence, string Description);
