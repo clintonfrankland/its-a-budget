@@ -71,7 +71,7 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
                 : recommendation.Disposition is PlaidReconciliationDisposition.Probable or PlaidReconciliationDisposition.Ambiguous ? PlaidReconciliationInboxGroup.ProbableOrAmbiguous
                 : PlaidReconciliationInboxGroup.Unmatched;
             return new PlaidReconciliationInboxItem(
-                stagedTransaction.PlaidTransactionStagingId, group, stagedTransaction.ReviewState, stagedTransaction.TransactionDate,
+                stagedTransaction.PlaidTransactionStagingId, stagedTransaction.BudgetAccountId, group, stagedTransaction.ReviewState, stagedTransaction.TransactionDate,
                 -stagedTransaction.PlaidAmount, stagedTransaction.Name ?? string.Empty, stagedTransaction.MerchantName,
                 accountNames.GetValueOrDefault(stagedTransaction.BudgetAccountId, "Unavailable account"), stagedTransaction.LinkedTransactionId,
                 recommendation.RecommendedTransactionId, fingerprint, recommendation.RejectionReasons,
@@ -138,6 +138,79 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
         stagedTransaction.ReviewedAtUtc = DateTime.UtcNow;
         await database.SaveChangesAsync(cancellationToken);
         return PlaidReconciliationActionResult.Updated;
+    }
+
+    /// <summary>
+    /// Creates a cleared, sign-correct Checkbook entry from one posted Plaid record and links it in the same database transaction.
+    /// Plaid categories are intentionally not represented in this request: the user must choose or enter a Budget category.
+    /// </summary>
+    public async Task<PlaidReconciliationActionResult> AddToCheckbookAsync(int userId, int stagingId,
+        PlaidAddToCheckbookRequest request, CancellationToken cancellationToken)
+    {
+        if (request.TransactionDate == DateOnly.MinValue || string.IsNullOrWhiteSpace(request.PayeeName) || string.IsNullOrWhiteSpace(request.CategoryName))
+            return PlaidReconciliationActionResult.RequiredFieldsMissing;
+
+        await using var transactionScope = await BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var stagedTransaction = await database.PlaidTransactionStaging.SingleOrDefaultAsync(transaction =>
+                transaction.PlaidTransactionStagingId == stagingId && transaction.UserId == userId, cancellationToken);
+            if (stagedTransaction is null) return PlaidReconciliationActionResult.NotFound;
+            if (stagedTransaction.IsPending || stagedTransaction.IsRemoved || !string.Equals(CreateSourceFingerprint(stagedTransaction), request.ExpectedSourceFingerprint, StringComparison.Ordinal))
+                return PlaidReconciliationActionResult.Stale;
+            if (stagedTransaction.LinkedTransactionId.HasValue) return PlaidReconciliationActionResult.AlreadyReviewed;
+            if (request.AccountId != stagedTransaction.BudgetAccountId) return PlaidReconciliationActionResult.Unauthorized;
+
+            var account = await database.Accounts.SingleOrDefaultAsync(candidate => candidate.AccountId == request.AccountId
+                && candidate.UserId == userId && candidate.SharedBudgetId == null && candidate.IsDeleted != true, cancellationToken);
+            if (account is null) return PlaidReconciliationActionResult.Unauthorized;
+
+            var payeeName = request.PayeeName.Trim();
+            var categoryName = request.CategoryName.Trim();
+            var payee = (await database.Payees.Where(candidate => candidate.UserId == userId && !candidate.IsDeleted).ToListAsync(cancellationToken))
+                .FirstOrDefault(candidate => string.Equals(candidate.PayeeName, payeeName, StringComparison.OrdinalIgnoreCase));
+            if (payee is null)
+            {
+                payee = new Payee { UserId = userId, PayeeName = payeeName, IsDeleted = false };
+                database.Payees.Add(payee);
+            }
+
+            var category = (await database.Categories.Where(candidate => candidate.UserId == userId && candidate.SharedBudgetId == null).ToListAsync(cancellationToken))
+                .FirstOrDefault(candidate => string.Equals(candidate.CategoryName, categoryName, StringComparison.OrdinalIgnoreCase));
+            if (category is null)
+            {
+                category = new Category { UserId = userId, SharedBudgetId = null, CategoryName = categoryName };
+                database.Categories.Add(category);
+            }
+
+            var ledgerTransaction = new Transaction
+            {
+                UserId = userId,
+                SharedBudgetId = null,
+                AccountId = account.AccountId,
+                TransactionDate = request.TransactionDate,
+                Amount = CurrencyPolicy.RoundSignedSqlAmount(-stagedTransaction.PlaidAmount, CurrencyPolicy.TransactionPrecision),
+                Payee = payee,
+                Category = category,
+                Cleared = true,
+                Notes = AppendPlaidLink(request.Notes, stagedTransaction.PlaidTransactionId)
+            };
+            database.Transactions.Add(ledgerTransaction);
+            await database.SaveChangesAsync(cancellationToken);
+            stagedTransaction.LinkedTransactionId = ledgerTransaction.TransactionId;
+            stagedTransaction.LinkedSourceFingerprint = CreateSourceFingerprint(stagedTransaction);
+            stagedTransaction.ReviewState = PlaidReconciliationReviewState.Confirmed;
+            stagedTransaction.ReviewedAtUtc = DateTime.UtcNow;
+
+            await database.SaveChangesAsync(cancellationToken);
+            if (transactionScope is not null) await transactionScope.CommitAsync(cancellationToken);
+            return PlaidReconciliationActionResult.AddedToCheckbook;
+        }
+        catch (DbUpdateException)
+        {
+            if (transactionScope is not null) await transactionScope.RollbackAsync(cancellationToken);
+            return PlaidReconciliationActionResult.AlreadyReviewed;
+        }
     }
 
     private static PlaidReconciliationResult Reconcile(
@@ -319,8 +392,10 @@ public sealed record PlaidReconciliationCandidate(int TransactionId, int Confide
     IReadOnlyList<string> RejectionReasons);
 
 public enum PlaidReconciliationInboxGroup { Confident, ProbableOrAmbiguous, Unmatched, Pending, ModifiedOrRemoved }
-public enum PlaidReconciliationActionResult { Confirmed, Updated, NotFound, Stale, Unauthorized, AlreadyReviewed, InvalidCandidate }
-public sealed record PlaidReconciliationInboxItem(int PlaidTransactionStagingId, PlaidReconciliationInboxGroup Group, string ReviewState,
+public enum PlaidReconciliationActionResult { Confirmed, AddedToCheckbook, Updated, NotFound, Stale, Unauthorized, AlreadyReviewed, InvalidCandidate, RequiredFieldsMissing }
+public sealed record PlaidAddToCheckbookRequest(int AccountId, DateOnly TransactionDate, string PayeeName, string CategoryName,
+    string? Notes, string ExpectedSourceFingerprint);
+public sealed record PlaidReconciliationInboxItem(int PlaidTransactionStagingId, int BudgetAccountId, PlaidReconciliationInboxGroup Group, string ReviewState,
     DateOnly TransactionDate, decimal SignCorrectAmount, string BankDescription, string? CleanedMerchant, string AccountName,
     int? LinkedTransactionId, int? RecommendedTransactionId, string SourceFingerprint, IReadOnlyList<string> Reasons,
     IReadOnlyList<PlaidReconciliationInboxCandidate> Candidates, bool SourceChangedAfterConfirmation);

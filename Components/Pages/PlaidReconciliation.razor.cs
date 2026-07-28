@@ -13,6 +13,7 @@ public partial class PlaidReconciliation
 
     private readonly List<PlaidReconciliationInboxItem> items = [];
     private readonly Dictionary<int, int?> selectedTransactionIds = [];
+    private readonly Dictionary<int, AddToCheckbookDraft> addDrafts = [];
     private readonly HashSet<int> busyIds = [];
     private bool isLoading = true;
     private bool isError;
@@ -45,14 +46,20 @@ public partial class PlaidReconciliation
         isLoading = true;
         items.Clear();
         selectedTransactionIds.Clear();
+        addDrafts.Clear();
         items.AddRange(await Reconciliation.GetInboxAsync(CurrentUser.UserId, CancellationToken.None));
-        foreach (var item in items) selectedTransactionIds[item.PlaidTransactionStagingId] = item.RecommendedTransactionId;
+        foreach (var item in items)
+        {
+            selectedTransactionIds[item.PlaidTransactionStagingId] = item.RecommendedTransactionId;
+            addDrafts[item.PlaidTransactionStagingId] = new AddToCheckbookDraft(item.TransactionDate, item.CleanedMerchant ?? item.BankDescription);
+        }
         isLoading = false;
     }
 
     private int? GetSelectedTransactionId(PlaidReconciliationInboxItem item) => selectedTransactionIds.GetValueOrDefault(item.PlaidTransactionStagingId);
     private void SelectTransaction(int stagingId, int transactionId) => selectedTransactionIds[stagingId] = transactionId;
     private bool IsBusy(PlaidReconciliationInboxItem item) => busyIds.Contains(item.PlaidTransactionStagingId);
+    private AddToCheckbookDraft GetAddDraft(PlaidReconciliationInboxItem item) => addDrafts[item.PlaidTransactionStagingId];
 
     private async Task ConfirmAsync(PlaidReconciliationInboxItem item)
     {
@@ -69,13 +76,24 @@ public partial class PlaidReconciliation
         await FinishActionAsync(result);
     }
 
+    private async Task AddToCheckbookAsync(PlaidReconciliationInboxItem item)
+    {
+        busyIds.Add(item.PlaidTransactionStagingId);
+        var draft = GetAddDraft(item);
+        var result = await Reconciliation.AddToCheckbookAsync(CurrentUser.UserId, item.PlaidTransactionStagingId,
+            new PlaidAddToCheckbookRequest(item.BudgetAccountId, draft.TransactionDate, draft.PayeeName, draft.CategoryName, draft.Notes, item.SourceFingerprint), CancellationToken.None);
+        await FinishActionAsync(result);
+    }
+
     private async Task FinishActionAsync(PlaidReconciliationActionResult result)
     {
-        isError = result is not (PlaidReconciliationActionResult.Confirmed or PlaidReconciliationActionResult.Updated);
+        isError = result is not (PlaidReconciliationActionResult.Confirmed or PlaidReconciliationActionResult.AddedToCheckbook or PlaidReconciliationActionResult.Updated);
         message = result switch
         {
             PlaidReconciliationActionResult.Confirmed => "Match confirmed and the existing Checkbook entry was marked cleared.",
+            PlaidReconciliationActionResult.AddedToCheckbook => "A cleared Checkbook entry was added and linked to this Plaid record.",
             PlaidReconciliationActionResult.Updated => "Review state saved.",
+            PlaidReconciliationActionResult.RequiredFieldsMissing => "Payee, category, and date are required before adding to Checkbook.",
             PlaidReconciliationActionResult.Stale => "This bank record changed while you were reviewing it. Reloaded current evidence; no ledger entry was changed.",
             PlaidReconciliationActionResult.Unauthorized => "That Checkbook entry is not authorized for this Plaid account.",
             PlaidReconciliationActionResult.AlreadyReviewed => "This record or Checkbook entry was already linked or cleared by another action.",
@@ -87,4 +105,11 @@ public partial class PlaidReconciliation
 
     private void BackToConnections() => Navigation.NavigateTo("/accounts/plaid");
     private sealed record InboxGroup(PlaidReconciliationInboxGroup Group, string HeadingId, string Title, string Description);
+    private sealed class AddToCheckbookDraft(DateOnly transactionDate, string payeeName)
+    {
+        public DateOnly TransactionDate { get; set; } = transactionDate;
+        public string PayeeName { get; set; } = payeeName;
+        public string CategoryName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
 }

@@ -12,10 +12,10 @@ else
 {
     <div class="container plaid-reconciliation-inbox" style="max-width: 1100px;">
         <div class="d-flex flex-wrap align-items-center gap-2 mt-3 mb-2">
-            <div><h1 class="mb-0">Reconciliation inbox</h1><p class="text-muted mb-0">Review bank evidence before clearing an existing Checkbook entry.</p></div>
+            <div><h1 class="mb-0">Reconciliation inbox</h1><p class="text-muted mb-0">Review bank evidence before clearing an existing Checkbook entry or adding a new one.</p></div>
             <RadzenButton Text="Bank connections" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" class="ms-auto" Click="BackToConnections" />
         </div>
-        <div class="alert alert-info" role="status">Nothing is cleared automatically. Confirming a match safely links this Plaid record to one existing Checkbook entry and marks only that entry cleared.</div>
+        <div class="alert alert-info" role="status">Nothing is cleared automatically. Confirming a match safely links an existing Checkbook entry; unmatched posted records can be added only after you review the account, date, payee, category, and notes.</div>
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@message</div>
@@ -70,6 +70,22 @@ else
                                         <RadzenButton Text="Defer" Icon="schedule" ButtonStyle="ButtonStyle.Light" Disabled="@IsBusy(item)" Click="() => SetReviewStateAsync(item, PlaidReconciliationReviewState.Deferred)" />
                                         <RadzenButton Text="Ignore" Icon="block" ButtonStyle="ButtonStyle.Light" Disabled="@IsBusy(item)" Click="() => SetReviewStateAsync(item, PlaidReconciliationReviewState.Ignored)" />
                                     </div>
+                                    @if (item.Group == PlaidReconciliationInboxGroup.Unmatched)
+                                    {
+                                        var add = GetAddDraft(item);
+                                        <fieldset class="border rounded p-3 mt-3"><legend class="fs-6">Add to Checkbook</legend>
+                                            <p class="small text-muted">Review the mapped account and enter a Budget App payee and category. The category is never inferred from Plaid.</p>
+                                            <div class="row g-2">
+                                                <div class="col-md-4"><label class="form-label" for="account-@item.PlaidTransactionStagingId">Account</label><input id="account-@item.PlaidTransactionStagingId" class="form-control" value="@item.AccountName" readonly /></div>
+                                                <div class="col-md-4"><label class="form-label" for="date-@item.PlaidTransactionStagingId">Date</label><input id="date-@item.PlaidTransactionStagingId" class="form-control" type="date" @bind="add.TransactionDate" /></div>
+                                                <div class="col-md-4"><label class="form-label" for="amount-@item.PlaidTransactionStagingId">Amount</label><input id="amount-@item.PlaidTransactionStagingId" class="form-control" value="@item.SignCorrectAmount" readonly /></div>
+                                                <div class="col-md-6"><label class="form-label" for="payee-@item.PlaidTransactionStagingId">Payee</label><input id="payee-@item.PlaidTransactionStagingId" class="form-control" @bind="add.PayeeName" required /></div>
+                                                <div class="col-md-6"><label class="form-label" for="category-@item.PlaidTransactionStagingId">Category</label><input id="category-@item.PlaidTransactionStagingId" class="form-control" @bind="add.CategoryName" required /></div>
+                                                <div class="col-12"><label class="form-label" for="notes-@item.PlaidTransactionStagingId">Notes</label><input id="notes-@item.PlaidTransactionStagingId" class="form-control" @bind="add.Notes" /></div>
+                                            </div>
+                                            <RadzenButton Text="Add to checkbook" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" class="mt-3" Disabled="@IsBusy(item)" Click="() => AddToCheckbookAsync(item)" />
+                                        </fieldset>
+                                    }
                                 }
                             </div>
                         </article>

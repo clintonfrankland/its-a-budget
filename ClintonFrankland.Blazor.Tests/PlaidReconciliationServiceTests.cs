@@ -294,6 +294,88 @@ public sealed class PlaidReconciliationServiceTests
         Assert.True((await database.Transactions.SingleAsync()).Cleared);
     }
 
+    [Fact]
+    public async Task AddToCheckbook_RequiresPayeeAndCategory()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m); await database.SaveChangesAsync();
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+
+        var result = await new PlaidReconciliationService(database).AddToCheckbookAsync(1, staged.PlaidTransactionStagingId,
+            new PlaidAddToCheckbookRequest(10, staged.TransactionDate, "", "", null, PlaidReconciliationService.CreateSourceFingerprint(staged)), CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.RequiredFieldsMissing, result);
+        Assert.Empty(database.Transactions);
+    }
+
+    [Fact]
+    public async Task AddToCheckbook_CreatesNewPayeeAndCategoryWithSignCorrectClearedLedgerEntry()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, plaidTransactionId: "add-expense", amount: 24.255m, name: "Shop"); await database.SaveChangesAsync();
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+
+        var result = await new PlaidReconciliationService(database).AddToCheckbookAsync(1, 1,
+            new PlaidAddToCheckbookRequest(10, staged.TransactionDate, "Shop", "Groceries", "reviewed", PlaidReconciliationService.CreateSourceFingerprint(staged)), CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.AddedToCheckbook, result);
+        var ledger = await database.Transactions.Include(transaction => transaction.Payee).Include(transaction => transaction.Category).SingleAsync();
+        Assert.Equal(-24.26m, ledger.Amount);
+        Assert.True(ledger.Cleared);
+        Assert.Equal("Shop", ledger.Payee!.PayeeName);
+        Assert.Equal("Groceries", ledger.Category!.CategoryName);
+        Assert.Contains("reviewed", ledger.Notes);
+        Assert.Contains("plaid:add-expense", ledger.Notes);
+        Assert.Equal(ledger.TransactionId, (await database.PlaidTransactionStaging.SingleAsync()).LinkedTransactionId);
+        Assert.Equal(-24.26m, (await database.Transactions.Where(transaction => transaction.Cleared).SumAsync(transaction => transaction.Amount)));
+    }
+
+    [Fact]
+    public async Task AddToCheckbook_UsesExistingAuthorizedPayeeAndCategoryAndSupportsRefundCredit()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, plaidTransactionId: "refund", amount: -12m, name: "Refund");
+        database.Payees.Add(new Payee { PayeeId = 7, UserId = 1, PayeeName = "Store", IsDeleted = false });
+        database.Categories.Add(new Category { CategoryId = 8, UserId = 1, CategoryName = "Returns" });
+        await database.SaveChangesAsync();
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+
+        var result = await new PlaidReconciliationService(database).AddToCheckbookAsync(1, 1,
+            new PlaidAddToCheckbookRequest(10, staged.TransactionDate, "store", "returns", null, PlaidReconciliationService.CreateSourceFingerprint(staged)), CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.AddedToCheckbook, result);
+        var ledger = await database.Transactions.SingleAsync();
+        Assert.Equal(12m, ledger.Amount);
+        Assert.Equal(7, ledger.PayeeId);
+        Assert.Equal(8, ledger.CategoryId);
+        Assert.Single(database.Payees);
+        Assert.Single(database.Categories);
+    }
+
+    [Fact]
+    public async Task AddToCheckbook_IsIdempotentAndRejectsPendingOrUnauthorizedAccounts()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, plaidTransactionId: "once", amount: 12m); await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+        var request = new PlaidAddToCheckbookRequest(10, staged.TransactionDate, "Store", "General", null, PlaidReconciliationService.CreateSourceFingerprint(staged));
+
+        Assert.Equal(PlaidReconciliationActionResult.AddedToCheckbook, await service.AddToCheckbookAsync(1, 1, request, CancellationToken.None));
+        Assert.Equal(PlaidReconciliationActionResult.AlreadyReviewed, await service.AddToCheckbookAsync(1, 1, request, CancellationToken.None));
+        Assert.Single(database.Transactions);
+
+        AddStaged(database, plaidTransactionId: "pending-add", amount: 2m, isPending: true); await database.SaveChangesAsync();
+        var pending = await database.PlaidTransactionStaging.SingleAsync(transaction => transaction.PlaidTransactionId == "pending-add");
+        Assert.Equal(PlaidReconciliationActionResult.Stale, await service.AddToCheckbookAsync(1, pending.PlaidTransactionStagingId,
+            new PlaidAddToCheckbookRequest(10, pending.TransactionDate, "Store", "General", null, PlaidReconciliationService.CreateSourceFingerprint(pending)), CancellationToken.None));
+
+        AddStaged(database, plaidTransactionId: "unauthorized-add", amount: 2m); await database.SaveChangesAsync();
+        var unauthorized = await database.PlaidTransactionStaging.SingleAsync(transaction => transaction.PlaidTransactionId == "unauthorized-add");
+        Assert.Equal(PlaidReconciliationActionResult.Unauthorized, await service.AddToCheckbookAsync(1, unauthorized.PlaidTransactionStagingId,
+            new PlaidAddToCheckbookRequest(999, unauthorized.TransactionDate, "Store", "General", null, PlaidReconciliationService.CreateSourceFingerprint(unauthorized)), CancellationToken.None));
+    }
+
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
