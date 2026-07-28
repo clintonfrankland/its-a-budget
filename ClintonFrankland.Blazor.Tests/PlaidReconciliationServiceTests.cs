@@ -259,6 +259,23 @@ public sealed class PlaidReconciliationServiceTests
         Assert.False((await database.Transactions.SingleAsync()).Cleared);
     }
 
+    [Theory]
+    [InlineData(PlaidReconciliationReviewState.Deferred)]
+    [InlineData(PlaidReconciliationReviewState.Ignored)]
+    public async Task ReviewActions_UpdateOnlyTheReviewState(string reviewState)
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m); AddLedger(database, -24m, "Store"); await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var item = Assert.Single(await service.GetInboxAsync(1, CancellationToken.None));
+
+        var result = await service.SetReviewStateAsync(1, item.PlaidTransactionStagingId, reviewState, item.SourceFingerprint, CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.Updated, result);
+        Assert.Equal(reviewState, (await database.PlaidTransactionStaging.SingleAsync()).ReviewState);
+        Assert.False((await database.Transactions.SingleAsync()).Cleared);
+    }
+
     [Fact]
     public async Task ModifiedOrRemovedConfirmedSource_IsSurfacedWithoutUnclearingLedger()
     {
