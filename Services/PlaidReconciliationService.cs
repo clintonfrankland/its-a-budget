@@ -65,7 +65,7 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
             var fingerprint = CreateSourceFingerprint(stagedTransaction);
             var sourceChangedAfterConfirmation = stagedTransaction.LinkedTransactionId.HasValue
                 && (!string.Equals(stagedTransaction.LinkedSourceFingerprint, fingerprint, StringComparison.Ordinal) || stagedTransaction.IsRemoved);
-            var group = sourceChangedAfterConfirmation ? PlaidReconciliationInboxGroup.ModifiedOrRemoved
+            var group = stagedTransaction.IsRemoved || sourceChangedAfterConfirmation ? PlaidReconciliationInboxGroup.ModifiedOrRemoved
                 : stagedTransaction.IsPending ? PlaidReconciliationInboxGroup.Pending
                 : recommendation.Disposition == PlaidReconciliationDisposition.HighConfidence ? PlaidReconciliationInboxGroup.Confident
                 : recommendation.Disposition is PlaidReconciliationDisposition.Probable or PlaidReconciliationDisposition.Ambiguous ? PlaidReconciliationInboxGroup.ProbableOrAmbiguous

@@ -67,6 +67,24 @@ public sealed class PlaidReconciliationUiLifecycleTests
         Assert.True(database.Transactions.Single(transaction => transaction.TransactionId == 3).Cleared);
     }
 
+    [Fact]
+    public void OnlyCurrentUnmatchedPostedRecords_OfferAddToCheckbook()
+    {
+        using var context = CreateContext();
+        var database = context.Services.GetRequiredService<ClintonFranklandDbContext>();
+        AddStaged(database, 1, "Posted unmatched", 24m);
+        AddStaged(database, 2, "Pending unmatched", 25m, isPending: true);
+        AddStaged(database, 3, "Removed unmatched", 26m, isRemoved: true);
+        database.SaveChanges();
+
+        var page = context.Render<PlaidReconciliation>();
+        page.WaitForAssertion(() => Assert.Equal(3, page.FindAll("article").Count));
+
+        Assert.Contains("Add to Checkbook", Article(page, "Posted unmatched").TextContent);
+        Assert.DoesNotContain("Add to Checkbook", Article(page, "Pending unmatched").TextContent);
+        Assert.DoesNotContain("Add to Checkbook", Article(page, "Removed unmatched").TextContent);
+    }
+
     private static BunitContext CreateContext()
     {
         var context = new BunitContext();
@@ -94,6 +112,9 @@ public sealed class PlaidReconciliationUiLifecycleTests
     private static AngleSharp.Dom.IElement ActionButton(IRenderedComponent<PlaidReconciliation> page, int recordIndex, string action) =>
         page.FindAll("article")[recordIndex]
             .QuerySelectorAll("button").First(button => button.TextContent.Contains(action));
+
+    private static AngleSharp.Dom.IElement Article(IRenderedComponent<PlaidReconciliation> page, string description) =>
+        page.FindAll("article").Single(article => article.TextContent.Contains(description));
 
     private static void AddStaged(ClintonFranklandDbContext database, int id, string name, decimal amount, bool isPending = false, bool isRemoved = false, bool confirmed = false) =>
         database.PlaidTransactionStaging.Add(new PlaidTransactionStaging { PlaidTransactionStagingId = id, UserId = 1, PlaidItemId = 1, BudgetAccountId = 10, PlaidTransactionId = $"staged-{id}", PlaidAccountId = "account", PlaidAmount = amount, TransactionDate = new DateOnly(2026, 7, 27), Name = name, IsPending = isPending, IsRemoved = isRemoved, ReviewState = confirmed ? PlaidReconciliationReviewState.Confirmed : PlaidReconciliationReviewState.Pending, LinkedTransactionId = confirmed ? id : null, LinkedSourceFingerprint = confirmed ? "old-fingerprint" : null });
