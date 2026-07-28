@@ -49,6 +49,67 @@ public sealed class PlaidTransactionSyncServiceTests
         Assert.Equal("failed", (await db.PlaidSyncRuns.SingleAsync()).Status);
     }
 
+    [Fact]
+    public async Task AddedModifiedRemoved_AndPendingToPostedLifecycle_IsIdempotentAndCaseSensitive()
+    {
+        await using var db = CreateDatabase();
+        var provider = SeedItemAndMapping(db, itemId: 1, userId: 7, plaidItemId: "item-one", accountId: "account", budgetAccountId: 3);
+        var service = new PlaidTransactionSyncService(db, new SequencedClient(
+            new PlaidSyncPage([Tx("CaseSensitive_Id", pending: true, pendingId: null, amount: 10m)], [], [], "one", false),
+            new PlaidSyncPage([], [Tx("CaseSensitive_Id", pending: false, pendingId: "pending-id", amount: 11m), Tx("casesensitive_id", pending: false, pendingId: null, amount: 12m)], [], "two", false),
+            new PlaidSyncPage([], [], ["CaseSensitive_Id"], "three", false)), provider);
+
+        await service.SyncItemAsync(1, CancellationToken.None);
+        await service.SyncItemAsync(1, CancellationToken.None);
+        await service.SyncItemAsync(1, CancellationToken.None);
+
+        var staged = await db.PlaidTransactionStaging.OrderBy(x => x.PlaidTransactionId).ToListAsync();
+        Assert.Equal(2, staged.Count);
+        var posted = Assert.Single(staged, x => x.PlaidTransactionId == "CaseSensitive_Id");
+        Assert.True(posted.IsRemoved);
+        Assert.False(posted.IsPending);
+        Assert.Equal("pending-id", posted.PendingTransactionId);
+        Assert.Equal(11m, posted.PlaidAmount);
+        Assert.Contains(staged, x => x.PlaidTransactionId == "casesensitive_id" && !x.IsRemoved);
+        Assert.Empty(db.Transactions);
+    }
+
+    [Fact]
+    public async Task Sync_ScopesEvidenceToMappedAccountAndOwningItemUser()
+    {
+        await using var db = CreateDatabase();
+        var provider = SeedItemAndMapping(db, 1, 7, "item-one", "approved", 3);
+        SeedItemAndMapping(db, 2, 8, "item-two", "approved", 4, provider);
+        await db.SaveChangesAsync();
+        var service = new PlaidTransactionSyncService(db, new PerItemClient(), provider);
+
+        await service.SyncItemAsync(1, CancellationToken.None);
+        await service.SyncItemAsync(2, CancellationToken.None);
+
+        var staged = await db.PlaidTransactionStaging.OrderBy(x => x.PlaidItemId).ToListAsync();
+        Assert.Equal(2, staged.Count);
+        Assert.Collection(staged,
+            x => { Assert.Equal(1, x.PlaidItemId); Assert.Equal(7, x.UserId); Assert.Equal(3, x.BudgetAccountId); Assert.Equal("shared-id", x.PlaidTransactionId); },
+            x => { Assert.Equal(2, x.PlaidItemId); Assert.Equal(8, x.UserId); Assert.Equal(4, x.BudgetAccountId); Assert.Equal("shared-id", x.PlaidTransactionId); });
+    }
+
+    private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+        .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    private static IDataProtectionProvider SeedItemAndMapping(ClintonFranklandDbContext db, int itemId, int userId, string plaidItemId,
+        string accountId, int budgetAccountId, IDataProtectionProvider? provider = null)
+    {
+        provider ??= DataProtectionProvider.Create($"plaid-lifecycle-{Guid.NewGuid()}");
+        var protector = provider.CreateProtector("BudgetApp.Plaid.AccessToken.v1");
+        db.PlaidItems.Add(new PlaidItem { PlaidItemId = itemId, UserId = userId, ItemId = plaidItemId, EncryptedAccessToken = protector.Protect("token"), Status = PlaidItemStatus.Active });
+        db.PlaidAccountMappings.Add(new PlaidAccountMapping { PlaidItemId = itemId, PlaidAccountId = accountId, BudgetAccountId = budgetAccountId });
+        db.SaveChanges();
+        return provider;
+    }
+
+    private static PlaidSyncTransaction Tx(string id, bool pending, string? pendingId, decimal amount) =>
+        new(id, "account", amount, "USD", new DateOnly(2026, 7, 27), pending, pendingId, null, "Test");
+
     private sealed class RestartingClient : IPlaidClient
     {
         public List<string?> Cursors { get; } = [];
@@ -73,6 +134,28 @@ public sealed class PlaidTransactionSyncServiceTests
         public Task<PlaidSyncPage> SyncTransactionsAsync(string token, string? cursor, CancellationToken ct) => ++calls == 1
             ? Task.FromResult(new PlaidSyncPage([new PlaidSyncTransaction("partial", "account", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, "partial")], [], [], "next", true))
             : throw new InvalidOperationException("network failure");
+        public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
+        public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();
+        public Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken c) => throw new NotSupportedException();
+        public Task RemoveItemAsync(string a, CancellationToken c) => throw new NotSupportedException();
+    }
+
+    private sealed class SequencedClient(params PlaidSyncPage[] pages) : IPlaidClient
+    {
+        private int index;
+        public Task<PlaidSyncPage> SyncTransactionsAsync(string token, string? cursor, CancellationToken ct) => Task.FromResult(pages[index++]);
+        public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
+        public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();
+        public Task<PlaidWebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId, CancellationToken c) => throw new NotSupportedException();
+        public Task RemoveItemAsync(string a, CancellationToken c) => throw new NotSupportedException();
+    }
+
+    private sealed class PerItemClient : IPlaidClient
+    {
+        public Task<PlaidSyncPage> SyncTransactionsAsync(string token, string? cursor, CancellationToken ct) => Task.FromResult(
+            new PlaidSyncPage([new PlaidSyncTransaction("shared-id", "approved", 1m, "USD", new DateOnly(2026, 7, 27), false, null, null, "Mapped")], [], [], "done", false));
         public Task<PlaidLinkToken> CreateLinkTokenAsync(int u, bool a, string? b, CancellationToken c) => throw new NotSupportedException();
         public Task<PlaidExchangeResult> ExchangePublicTokenAsync(string p, CancellationToken c) => throw new NotSupportedException();
         public Task<IReadOnlyList<PlaidDiscoveredAccount>> GetAccountsAsync(string a, CancellationToken c) => throw new NotSupportedException();

@@ -11,6 +11,23 @@ namespace ClintonFrankland.Blazor.Tests;
 public sealed class PlaidWebhookQueueTests
 {
     [Fact]
+    public async Task AuthenticatedPlaidDelivery_RetryIsDeduplicatedByJwtEvidence()
+    {
+        await using var database = new ClintonFranklandDbContext(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var queue = new PlaidWebhookQueue(database);
+        var delivery = new PlaidWebhookVerification("plaid-key", 1_785_000_000, "raw-body-sha256");
+
+        Assert.True(await queue.EnqueueAsync(delivery, "item-id", "TRANSACTIONS", CancellationToken.None));
+        Assert.False(await queue.EnqueueAsync(delivery, "item-id", "TRANSACTIONS", CancellationToken.None));
+
+        var saved = Assert.Single(await database.PlaidWebhookDeliveries.ToListAsync());
+        Assert.Equal("item-id", saved.ItemId);
+        Assert.Equal("TRANSACTIONS", saved.WebhookType);
+        Assert.Equal("queued", saved.Status);
+    }
+
+    [Fact]
     public async Task StaleProcessingLease_IsRecoveredAndCompleted()
     {
         var services = new ServiceCollection();

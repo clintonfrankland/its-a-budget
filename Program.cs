@@ -60,6 +60,7 @@ builder.Services.Configure<AuthentikOidcOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<PlaidOptions>(builder.Configuration.GetSection(PlaidOptions.SectionName));
 builder.Services.AddHttpClient<IPlaidClient, PlaidClient>(client => client.BaseAddress = new Uri("https://sandbox.plaid.com/"));
 builder.Services.AddScoped<PlaidWebhookAuthenticator>();
+builder.Services.AddScoped<PlaidWebhookQueue>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -451,7 +452,7 @@ app.MapDelete("/api/plaid/items/{plaidItemId:int}", async (HttpContext context, 
     return Results.NoContent();
 }).RequireAuthorization().RequireAntiforgery();
 
-app.MapPost("/api/plaid/webhook", async (HttpContext context, PlaidWebhookAuthenticator authenticator, ClintonFranklandDbContext db, CancellationToken ct) =>
+app.MapPost("/api/plaid/webhook", async (HttpContext context, PlaidWebhookAuthenticator authenticator, PlaidWebhookQueue queue, CancellationToken ct) =>
 {
     // Webhooks have no browser identity. Verify Plaid's signed JWT over the exact raw body.
     using var reader = new StreamReader(context.Request.Body, System.Text.Encoding.UTF8, leaveOpen: false);
@@ -463,14 +464,7 @@ app.MapPost("/api/plaid/webhook", async (HttpContext context, PlaidWebhookAuthen
         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     if (request is null) return Results.BadRequest();
     if (string.IsNullOrWhiteSpace(request.WebhookCode) || string.IsNullOrWhiteSpace(request.ItemId)) return Results.BadRequest();
-    // JWT body evidence is stable across delivery retries; webhook type/code/item alone is not.
-    var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
-        $"{verification.KeyId}:{verification.IssuedAtUnixSeconds}:{verification.RequestBodySha256}"))).ToLowerInvariant();
-    if (await db.PlaidWebhookDeliveries.AnyAsync(x => x.DeliveryKey == key, ct)) return Results.Ok();
-    db.PlaidWebhookDeliveries.Add(new() { DeliveryKey = key, ItemId = request.ItemId, WebhookType = request.WebhookType, ReceivedAtUtc = DateTime.UtcNow, QueuedAtUtc = DateTime.UtcNow });
-    try { await db.SaveChangesAsync(ct); }
-    catch (Microsoft.EntityFrameworkCore.DbUpdateException) { return Results.Ok(); } // concurrent retry won the unique-key race
-    return Results.Accepted();
+    return await queue.EnqueueAsync(verification, request.ItemId, request.WebhookType, ct) ? Results.Accepted() : Results.Ok();
 }).DisableAntiforgery();
 
 app.MapRazorComponents<ClintonFrankland.Components.App>()
