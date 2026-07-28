@@ -44,7 +44,7 @@ Required browser interop assets use the application version in their URL so depl
 
 SproutPenny keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
 
-Plaid Sandbox connections are opt-in server-side integrations. A Plaid Item access token is encrypted with ASP.NET Core Data Protection, and every discovered Plaid account must be explicitly mapped to a Budget account the user can manage. This foundation intentionally does not import or modify checkbook transactions.
+Plaid Sandbox connections are opt-in server-side integrations. A Plaid Item access token is encrypted with ASP.NET Core Data Protection, and every discovered Plaid account must be explicitly mapped to a Budget account the user can manage. Posted staged transactions can be evaluated by a read-only reconciliation engine; it produces explainable, unique high-confidence recommendations only and never clears or changes checkbook transactions.
 
 Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to manage members, create email or username invites for Viewer, Editor, or Admin access, resend/revoke pending invites, update non-owner roles, and remove non-owner members. Members can leave budgets where they are not the current Owner; Owners transfer ownership to another active member before leaving. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users. Dashboard totals, Reports, bill-due notices, and Monday weekly upcoming-bills summaries are scoped to active readable memberships; Viewer members can receive read-only summaries, removed members receive nothing, and multi-budget email summaries identify each budget by name.
 
@@ -306,6 +306,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
 | **Safe to spend** | The lowest projected balance between today and the next paydate — used as a guardrail for discretionary spending. |
 | **Cleared** | A flag on a transaction indicating it has settled in the bank. The cleared balance is the sum of cleared transactions only. |
+| **Plaid reconciliation recommendation** | A read-only comparison of posted Plaid evidence and exclusively owned ledger transactions. It requires sign-correct amount and bounded-date evidence, then uses normalized payee, check/reference, pending-to-posted, or an existing `plaid:{transactionId}` notes marker as explainable supporting evidence. Pending, removed, shared, transfer/cash/refund/split-like, duplicate, and non-unique cases cannot produce a clear recommendation. |
 
 ### Money and date policy
 
@@ -373,6 +374,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
 | `Services/PlaidClient.cs` | Server-only Plaid Sandbox REST client and DTOs; never returns access tokens to browser code |
 | `Services/PlaidConnectionService.cs` | Encrypted Item persistence, discovery, explicit account mapping, update, and disconnect authorization |
+| `Services/PlaidReconciliationService.cs` | Read-only deterministic staged-Plaid-to-ledger candidate matching with confidence, evidence, and conservative ambiguity handling |
 | `Services/CheckbookDataService.cs` | Transaction queries, payee/category lookups, monthly analytics |
 | `Services/BudgetScheduleService.cs` | Forecast and recurring occurrence handling, including preview record/skip actions |
 | `Services/InsightsDataService.cs` | User-scoped expense reporting queries used by the Spending reports |
@@ -441,7 +443,7 @@ All tables use the `cf` prefix.
 | `cfAccounts` | Financial accounts (checking, credit card, etc.). Tracks balance, cleared balance, credit limit, min payment, interest rate, due day. |
 | `cfPlaidItems` | Per-user Plaid Item metadata and Data Protection-encrypted access tokens. |
 | `cfPlaidAccountMappings` | Case-sensitive Plaid account IDs explicitly mapped to managed Budget accounts. |
-| `cfPlaidTransactionStaging` | Idempotent Plaid sync evidence only; Plaid outflows are positive while Budget expenses remain negative. |
+| `cfPlaidTransactionStaging` | Idempotent Plaid sync evidence only; Plaid outflows are positive while Budget expenses remain negative. The reconciliation engine reads this table but does not mutate it or `cfTransactions`. |
 | `cfTransactions` | Ledger entries. Date, amount, payee, category, account, cleared flag, optional notes and attachment path. |
 | `cfBudgets` | Recurring income/expense items. Frequency, next due date, end date, `IsBill`, `IsAutomatic`, `IsLate`, optional payee. |
 | `cfCategories` | User-owned transaction and budget categories. |

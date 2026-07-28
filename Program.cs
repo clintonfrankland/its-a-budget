@@ -223,6 +223,7 @@ builder.Services.AddScoped<ReportsDataService>();
 builder.Services.AddScoped<DashboardApiAuthService>();
 builder.Services.AddScoped<PlaidConnectionService>();
 builder.Services.AddScoped<PlaidTransactionSyncService>();
+builder.Services.AddScoped<PlaidReconciliationService>();
 builder.Services.AddHostedService<PlaidWebhookSyncWorker>();
 builder.Services.Configure<ReceiptAttachmentOptions>(builder.Configuration.GetSection(ReceiptAttachmentOptions.SectionName));
 builder.Services.Configure<CategoryBudgetAlertOptions>(builder.Configuration.GetSection(CategoryBudgetAlertOptions.SectionName));
