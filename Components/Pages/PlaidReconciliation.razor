@@ -1,0 +1,81 @@
+@page "/accounts/plaid/reconciliation"
+@rendermode InteractiveServer
+@using ClintonFrankland.Models.Entities
+
+<PageTitle>Reconciliation inbox</PageTitle>
+
+@if (!AuthService.IsAuthenticated)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <div class="container plaid-reconciliation-inbox" style="max-width: 1100px;">
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3 mb-2">
+            <div><h1 class="mb-0">Reconciliation inbox</h1><p class="text-muted mb-0">Review bank evidence before clearing an existing Checkbook entry.</p></div>
+            <RadzenButton Text="Bank connections" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" class="ms-auto" Click="BackToConnections" />
+        </div>
+        <div class="alert alert-info" role="status">Nothing is cleared automatically. Confirming a match safely links this Plaid record to one existing Checkbook entry and marks only that entry cleared.</div>
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@message</div>
+        }
+        @if (isLoading)
+        {
+            <p>Loading reconciliation evidence…</p>
+        }
+        else if (items.Count == 0)
+        {
+            <div class="alert alert-secondary">There are no staged Plaid records to review.</div>
+        }
+        else
+        {
+            @foreach (var group in Groups)
+            {
+                var groupItems = items.Where(item => item.Group == group.Group).ToList();
+                if (groupItems.Count == 0) { continue; }
+                <section class="mb-4" aria-labelledby="@group.HeadingId">
+                    <h2 id="@group.HeadingId" class="h4">@group.Title <span class="badge text-bg-secondary">@groupItems.Count</span></h2>
+                    <p class="text-muted">@group.Description</p>
+                    @foreach (var item in groupItems)
+                    {
+                        <article class="card mb-3 shadow-sm" @key="item.PlaidTransactionStagingId">
+                            <div class="card-body">
+                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                                    <div><strong>@item.BankDescription</strong>@if (!string.IsNullOrWhiteSpace(item.CleanedMerchant)) { <span class="text-muted"> · @item.CleanedMerchant</span> }<div class="small text-muted">@item.TransactionDate.ToString("MMM d, yyyy") · @item.AccountName · <strong>@item.SignCorrectAmount.ToString("C")</strong></div></div>
+                                    <span class="badge text-bg-light border align-self-start">@item.ReviewState</span>
+                                </div>
+                                @if (item.SourceChangedAfterConfirmation)
+                                {
+                                    <div class="alert alert-warning mt-3 mb-0" role="alert">Plaid changed or removed this source record after it was confirmed. The linked Checkbook entry remains cleared and has not been deleted or uncleared. Review it manually.</div>
+                                }
+                                else
+                                {
+                                    @if (item.Reasons.Count > 0) { <p class="small text-muted mt-2 mb-2">@string.Join(" ", item.Reasons)</p> }
+                                    @if (item.Candidates.Count > 0)
+                                    {
+                                        <fieldset class="mt-3"><legend class="fs-6">Authorized Checkbook candidates</legend>
+                                        @foreach (var candidate in item.Candidates)
+                                        {
+                                            var inputId = $"candidate-{item.PlaidTransactionStagingId}-{candidate.TransactionId}";
+                                            <div class="form-check border rounded p-2 mb-2">
+                                                <input id="@inputId" class="form-check-input" type="radio" name="@($"candidate-{item.PlaidTransactionStagingId}")" checked="@(GetSelectedTransactionId(item) == candidate.TransactionId)" @onchange="() => SelectTransaction(item.PlaidTransactionStagingId, candidate.TransactionId)" />
+                                                <label class="form-check-label w-100" for="@inputId"><strong>@candidate.Description</strong><br /><small>Confidence @candidate.Confidence% · @string.Join(", ", candidate.Evidence)</small></label>
+                                            </div>
+                                        }
+                                        </fieldset>
+                                    }
+                                    <div class="d-flex flex-wrap gap-2 mt-3">
+                                        <RadzenButton Text="Confirm and clear" Icon="check_circle" ButtonStyle="ButtonStyle.Success" Disabled="@(GetSelectedTransactionId(item) is null || IsBusy(item))" Click="() => ConfirmAsync(item)" />
+                                        <RadzenButton Text="Defer" Icon="schedule" ButtonStyle="ButtonStyle.Light" Disabled="@IsBusy(item)" Click="() => SetReviewStateAsync(item, PlaidReconciliationReviewState.Deferred)" />
+                                        <RadzenButton Text="Ignore" Icon="block" ButtonStyle="ButtonStyle.Light" Disabled="@IsBusy(item)" Click="() => SetReviewStateAsync(item, PlaidReconciliationReviewState.Ignored)" />
+                                    </div>
+                                }
+                            </div>
+                        </article>
+                    }
+                </section>
+            }
+        }
+    </div>
+}

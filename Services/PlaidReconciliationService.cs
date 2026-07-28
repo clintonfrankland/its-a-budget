@@ -1,6 +1,9 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ClintonFrankland.Services;
 
@@ -41,6 +44,102 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
             ledgerTransactions)).ToList();
     }
 
+    public async Task<IReadOnlyList<PlaidReconciliationInboxItem>> GetInboxAsync(int userId, CancellationToken cancellationToken)
+    {
+        var recommendations = await ReconcileAsync(userId, cancellationToken);
+        var stagedTransactions = await database.PlaidTransactionStaging.AsNoTracking()
+            .Where(transaction => transaction.UserId == userId)
+            .OrderBy(transaction => transaction.TransactionDate).ThenBy(transaction => transaction.PlaidTransactionStagingId)
+            .ToListAsync(cancellationToken);
+        var accountNames = await database.Accounts.AsNoTracking().Where(account => account.UserId == userId)
+            .ToDictionaryAsync(account => account.AccountId, account => account.AccountName, cancellationToken);
+        var candidateIds = recommendations.SelectMany(result => result.Candidates).Select(candidate => candidate.TransactionId).Distinct().ToList();
+        var ledger = await database.Transactions.AsNoTracking().Include(transaction => transaction.Payee)
+            .Where(transaction => candidateIds.Contains(transaction.TransactionId))
+            .ToDictionaryAsync(transaction => transaction.TransactionId, cancellationToken);
+        var recommendationByStageId = recommendations.ToDictionary(result => result.PlaidTransactionStagingId);
+
+        return stagedTransactions.Select(stagedTransaction =>
+        {
+            var recommendation = recommendationByStageId[stagedTransaction.PlaidTransactionStagingId];
+            var fingerprint = CreateSourceFingerprint(stagedTransaction);
+            var sourceChangedAfterConfirmation = stagedTransaction.LinkedTransactionId.HasValue
+                && (!string.Equals(stagedTransaction.LinkedSourceFingerprint, fingerprint, StringComparison.Ordinal) || stagedTransaction.IsRemoved);
+            var group = sourceChangedAfterConfirmation ? PlaidReconciliationInboxGroup.ModifiedOrRemoved
+                : stagedTransaction.IsPending ? PlaidReconciliationInboxGroup.Pending
+                : recommendation.Disposition == PlaidReconciliationDisposition.HighConfidence ? PlaidReconciliationInboxGroup.Confident
+                : recommendation.Disposition is PlaidReconciliationDisposition.Probable or PlaidReconciliationDisposition.Ambiguous ? PlaidReconciliationInboxGroup.ProbableOrAmbiguous
+                : PlaidReconciliationInboxGroup.Unmatched;
+            return new PlaidReconciliationInboxItem(
+                stagedTransaction.PlaidTransactionStagingId, group, stagedTransaction.ReviewState, stagedTransaction.TransactionDate,
+                -stagedTransaction.PlaidAmount, stagedTransaction.Name ?? string.Empty, stagedTransaction.MerchantName,
+                accountNames.GetValueOrDefault(stagedTransaction.BudgetAccountId, "Unavailable account"), stagedTransaction.LinkedTransactionId,
+                recommendation.RecommendedTransactionId, fingerprint, recommendation.RejectionReasons,
+                recommendation.Candidates.Select(candidate => new PlaidReconciliationInboxCandidate(candidate.TransactionId, candidate.Confidence,
+                    candidate.Evidence, ledger.TryGetValue(candidate.TransactionId, out var transaction)
+                        ? $"{transaction.TransactionDate:MMM d, yyyy} · {transaction.Amount:C} · {transaction.Payee?.PayeeName ?? "(no payee)"}"
+                        : "Unavailable transaction")).ToList(), sourceChangedAfterConfirmation);
+        }).ToList();
+    }
+
+    public async Task<PlaidReconciliationActionResult> ConfirmAsync(int userId, int stagingId, int transactionId,
+        string expectedSourceFingerprint, CancellationToken cancellationToken)
+    {
+        await using var transactionScope = await BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var stagedTransaction = await database.PlaidTransactionStaging.SingleOrDefaultAsync(transaction =>
+                transaction.PlaidTransactionStagingId == stagingId && transaction.UserId == userId, cancellationToken);
+            if (stagedTransaction is null) return PlaidReconciliationActionResult.NotFound;
+            if (stagedTransaction.IsPending || stagedTransaction.IsRemoved || !string.Equals(CreateSourceFingerprint(stagedTransaction), expectedSourceFingerprint, StringComparison.Ordinal))
+                return PlaidReconciliationActionResult.Stale;
+            if (stagedTransaction.LinkedTransactionId.HasValue) return PlaidReconciliationActionResult.AlreadyReviewed;
+
+            var ownedAccount = await database.Accounts.AnyAsync(account => account.AccountId == stagedTransaction.BudgetAccountId
+                && account.UserId == userId && account.SharedBudgetId == null && account.IsDeleted != true, cancellationToken);
+            var ledgerTransaction = await database.Transactions.SingleOrDefaultAsync(ledger => ledger.TransactionId == transactionId
+                && ledger.UserId == userId && ledger.SharedBudgetId == null && ledger.AccountId == stagedTransaction.BudgetAccountId, cancellationToken);
+            if (!ownedAccount || ledgerTransaction is null) return PlaidReconciliationActionResult.Unauthorized;
+            if (ledgerTransaction.Cleared || await database.PlaidTransactionStaging.AnyAsync(stage =>
+                stage.LinkedTransactionId == transactionId, cancellationToken)) return PlaidReconciliationActionResult.AlreadyReviewed;
+            if (Math.Abs(ledgerTransaction.Amount + stagedTransaction.PlaidAmount) > RoundingTolerance
+                || Math.Abs(ledgerTransaction.TransactionDate.DayNumber - stagedTransaction.TransactionDate.DayNumber) > ProbableDateWindowDays)
+                return PlaidReconciliationActionResult.InvalidCandidate;
+
+            stagedTransaction.LinkedTransactionId = transactionId;
+            stagedTransaction.LinkedSourceFingerprint = CreateSourceFingerprint(stagedTransaction);
+            stagedTransaction.ReviewState = PlaidReconciliationReviewState.Confirmed;
+            stagedTransaction.ReviewedAtUtc = DateTime.UtcNow;
+            ledgerTransaction.Cleared = true;
+            ledgerTransaction.Notes = AppendPlaidLink(ledgerTransaction.Notes, stagedTransaction.PlaidTransactionId);
+            await database.SaveChangesAsync(cancellationToken);
+            if (transactionScope is not null) await transactionScope.CommitAsync(cancellationToken);
+            return PlaidReconciliationActionResult.Confirmed;
+        }
+        catch (DbUpdateException)
+        {
+            if (transactionScope is not null) await transactionScope.RollbackAsync(cancellationToken);
+            return PlaidReconciliationActionResult.AlreadyReviewed;
+        }
+    }
+
+    public async Task<PlaidReconciliationActionResult> SetReviewStateAsync(int userId, int stagingId, string reviewState,
+        string expectedSourceFingerprint, CancellationToken cancellationToken)
+    {
+        if (reviewState is not (PlaidReconciliationReviewState.Ignored or PlaidReconciliationReviewState.Deferred))
+            return PlaidReconciliationActionResult.InvalidCandidate;
+        var stagedTransaction = await database.PlaidTransactionStaging.SingleOrDefaultAsync(transaction =>
+            transaction.PlaidTransactionStagingId == stagingId && transaction.UserId == userId, cancellationToken);
+        if (stagedTransaction is null) return PlaidReconciliationActionResult.NotFound;
+        if (!string.Equals(CreateSourceFingerprint(stagedTransaction), expectedSourceFingerprint, StringComparison.Ordinal))
+            return PlaidReconciliationActionResult.Stale;
+        if (stagedTransaction.LinkedTransactionId.HasValue) return PlaidReconciliationActionResult.AlreadyReviewed;
+        stagedTransaction.ReviewState = reviewState;
+        stagedTransaction.ReviewedAtUtc = DateTime.UtcNow;
+        await database.SaveChangesAsync(cancellationToken);
+        return PlaidReconciliationActionResult.Updated;
+    }
+
     private static PlaidReconciliationResult Reconcile(
         PlaidTransactionStaging stagedTransaction,
         IReadOnlyCollection<PlaidTransactionStaging> allStagedTransactions,
@@ -73,6 +172,7 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
         var isConservativeType = HasConservativeKeyword(stagingDescription);
         var candidates = ledgerTransactions
             .Where(transaction => transaction.AccountId == stagedTransaction.BudgetAccountId)
+            .Where(transaction => !transaction.Cleared || ContainsPlaidLink(transaction.Notes, stagedTransaction.PlaidTransactionId))
             .Where(transaction => ContainsPlaidLink(transaction.Notes, stagedTransaction.PlaidTransactionId)
                 || Math.Abs(transaction.TransactionDate.DayNumber - stagedTransaction.TransactionDate.DayNumber) <= ProbableDateWindowDays)
             .Select(transaction => Evaluate(stagedTransaction, transaction, isPendingToPosted, isConservativeType))
@@ -190,6 +290,24 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
 
     private static string Normalize(string? value) => string.Concat((value ?? string.Empty)
         .Where(char.IsLetterOrDigit)).ToUpperInvariant();
+
+    public static string CreateSourceFingerprint(PlaidTransactionStaging transaction)
+    {
+        var source = string.Join('|', transaction.PlaidTransactionId, transaction.PlaidAccountId, transaction.PlaidAmount,
+            transaction.TransactionDate, transaction.IsPending, transaction.IsRemoved, transaction.MerchantName, transaction.Name);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+    }
+
+    private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken cancellationToken) =>
+        database.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true
+            ? null : await database.Database.BeginTransactionAsync(cancellationToken);
+
+    private static string AppendPlaidLink(string? notes, string plaidTransactionId)
+    {
+        var marker = $"plaid:{plaidTransactionId}";
+        return ContainsPlaidLink(notes, plaidTransactionId) ? notes ?? marker
+            : string.IsNullOrWhiteSpace(notes) ? marker : $"{notes}\n{marker}";
+    }
 }
 
 public enum PlaidReconciliationDisposition { HighConfidence, Probable, Ambiguous, NoMatch, Ineligible }
@@ -199,3 +317,11 @@ public sealed record PlaidReconciliationResult(int PlaidTransactionStagingId, Pl
 
 public sealed record PlaidReconciliationCandidate(int TransactionId, int Confidence, IReadOnlyList<string> Evidence,
     IReadOnlyList<string> RejectionReasons);
+
+public enum PlaidReconciliationInboxGroup { Confident, ProbableOrAmbiguous, Unmatched, Pending, ModifiedOrRemoved }
+public enum PlaidReconciliationActionResult { Confirmed, Updated, NotFound, Stale, Unauthorized, AlreadyReviewed, InvalidCandidate }
+public sealed record PlaidReconciliationInboxItem(int PlaidTransactionStagingId, PlaidReconciliationInboxGroup Group, string ReviewState,
+    DateOnly TransactionDate, decimal SignCorrectAmount, string BankDescription, string? CleanedMerchant, string AccountName,
+    int? LinkedTransactionId, int? RecommendedTransactionId, string SourceFingerprint, IReadOnlyList<string> Reasons,
+    IReadOnlyList<PlaidReconciliationInboxCandidate> Candidates, bool SourceChangedAfterConfirmation);
+public sealed record PlaidReconciliationInboxCandidate(int TransactionId, int Confidence, IReadOnlyList<string> Evidence, string Description);

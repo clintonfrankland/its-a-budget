@@ -167,6 +167,7 @@ public partial class PlaidConnections
     }
 
     private void BackToAccounts() => Navigation.NavigateTo("/accounts");
+    private void OpenReconciliationInbox() => Navigation.NavigateTo("/accounts/plaid/reconciliation");
 
     private sealed record PlaidLinkResult(string PublicToken, string? InstitutionId, string? InstitutionName);
 }

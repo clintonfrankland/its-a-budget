@@ -22,8 +22,21 @@ public class PlaidTransactionStaging
     public bool IsRemoved { get; set; }
     [StringLength(256)] public string? MerchantName { get; set; }
     [StringLength(256)] public string? Name { get; set; }
+    [StringLength(24)] public string ReviewState { get; set; } = PlaidReconciliationReviewState.Pending;
+    public int? LinkedTransactionId { get; set; }
+    [StringLength(128)] public string? LinkedSourceFingerprint { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    [Timestamp] public byte[]? RowVersion { get; set; }
     public DateTime FirstSeenAtUtc { get; set; }
     public DateTime LastSeenAtUtc { get; set; }
+}
+
+public static class PlaidReconciliationReviewState
+{
+    public const string Pending = "pending";
+    public const string Deferred = "deferred";
+    public const string Ignored = "ignored";
+    public const string Confirmed = "confirmed";
 }
 
 [Table("cfPlaidSyncRuns")]

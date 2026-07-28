@@ -181,6 +181,102 @@ public sealed class PlaidReconciliationServiceTests
         Assert.Empty(result.Candidates);
     }
 
+    [Fact]
+    public async Task Confirm_AtomicallyLinksAndClearsExistingLedgerTransaction()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database);
+        AddStaged(database, plaidTransactionId: "confirm", amount: 24m, name: "Market");
+        AddLedger(database, amount: -24m, payeeName: "Market");
+        await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var inboxItem = Assert.Single(await service.GetInboxAsync(1, CancellationToken.None));
+
+        var result = await service.ConfirmAsync(1, inboxItem.PlaidTransactionStagingId, 1, inboxItem.SourceFingerprint, CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.Confirmed, result);
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+        Assert.Equal(1, staged.LinkedTransactionId);
+        Assert.Equal(PlaidReconciliationReviewState.Confirmed, staged.ReviewState);
+        var ledger = await database.Transactions.SingleAsync();
+        Assert.True(ledger.Cleared);
+        Assert.Contains("plaid:confirm", ledger.Notes);
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsStaleSourceWithoutChangingLedger()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m); AddLedger(database, -24m, "Store"); await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var fingerprint = (await service.GetInboxAsync(1, CancellationToken.None)).Single().SourceFingerprint;
+        (await database.PlaidTransactionStaging.SingleAsync()).Name = "Changed Store";
+        await database.SaveChangesAsync();
+
+        var result = await service.ConfirmAsync(1, 1, 1, fingerprint, CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.Stale, result);
+        Assert.False((await database.Transactions.SingleAsync()).Cleared);
+    }
+
+    [Fact]
+    public async Task Confirm_PreventsDuplicateLinkSubmissions()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m); AddLedger(database, -24m, "Store"); await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var fingerprint = (await service.GetInboxAsync(1, CancellationToken.None)).Single().SourceFingerprint;
+        Assert.Equal(PlaidReconciliationActionResult.Confirmed, await service.ConfirmAsync(1, 1, 1, fingerprint, CancellationToken.None));
+
+        Assert.Equal(PlaidReconciliationActionResult.AlreadyReviewed, await service.ConfirmAsync(1, 1, 1, fingerprint, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsUnauthorizedOrSharedLedgerTransaction()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m); AddLedger(database, -24m, "Store");
+        database.Transactions.Local.Single().UserId = 2;
+        await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var fingerprint = PlaidReconciliationService.CreateSourceFingerprint(await database.PlaidTransactionStaging.SingleAsync());
+
+        Assert.Equal(PlaidReconciliationActionResult.Unauthorized, await service.ConfirmAsync(1, 1, 1, fingerprint, CancellationToken.None));
+        Assert.False((await database.Transactions.SingleAsync()).Cleared);
+    }
+
+    [Fact]
+    public async Task PendingEvidence_CannotBeConfirmed()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, amount: 24m, isPending: true); AddLedger(database, -24m, "Store"); await database.SaveChangesAsync();
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+
+        var result = await new PlaidReconciliationService(database).ConfirmAsync(1, 1, 1,
+            PlaidReconciliationService.CreateSourceFingerprint(staged), CancellationToken.None);
+
+        Assert.Equal(PlaidReconciliationActionResult.Stale, result);
+        Assert.False((await database.Transactions.SingleAsync()).Cleared);
+    }
+
+    [Fact]
+    public async Task ModifiedOrRemovedConfirmedSource_IsSurfacedWithoutUnclearingLedger()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database); AddStaged(database, plaidTransactionId: "removed", amount: 24m); AddLedger(database, -24m, "Store"); await database.SaveChangesAsync();
+        var service = new PlaidReconciliationService(database);
+        var item = (await service.GetInboxAsync(1, CancellationToken.None)).Single();
+        Assert.Equal(PlaidReconciliationActionResult.Confirmed, await service.ConfirmAsync(1, 1, 1, item.SourceFingerprint, CancellationToken.None));
+        (await database.PlaidTransactionStaging.SingleAsync()).IsRemoved = true;
+        await database.SaveChangesAsync();
+
+        var modified = (await service.GetInboxAsync(1, CancellationToken.None)).Single();
+
+        Assert.Equal(PlaidReconciliationInboxGroup.ModifiedOrRemoved, modified.Group);
+        Assert.True(modified.SourceChangedAfterConfirmation);
+        Assert.True((await database.Transactions.SingleAsync()).Cleared);
+    }
+
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
