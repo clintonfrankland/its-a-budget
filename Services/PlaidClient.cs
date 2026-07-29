@@ -136,7 +136,7 @@ public sealed class PlaidClient : IPlaidClient
             Language = language;
             CountryCodes = countryCodes;
             AccessToken = accessToken;
-            RedirectUri = redirectUri;
+            RedirectUri = string.IsNullOrWhiteSpace(redirectUri) ? null : redirectUri;
         }
 
         [JsonPropertyName("client_id")] public string ClientId { get; }
@@ -147,7 +147,7 @@ public sealed class PlaidClient : IPlaidClient
         [JsonPropertyName("language")] public string Language { get; }
         [JsonPropertyName("country_codes")] public string[] CountryCodes { get; }
         [JsonPropertyName("access_token")] public string? AccessToken { get; }
-        [JsonPropertyName("redirect_uri")] public string? RedirectUri { get; }
+        [JsonPropertyName("redirect_uri"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? RedirectUri { get; }
     }
     private sealed record TokenExchangeRequest([property: JsonPropertyName("client_id")] string ClientId,
         [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("public_token")] string PublicToken);

@@ -164,6 +164,26 @@ public sealed class PlaidConnectionServiceTests
     }
 
     [Fact]
+    public async Task InitialLinkToken_OmitsBlankRedirectUri()
+    {
+        var handler = new RecordingHandler();
+        var client = new PlaidClient(new HttpClient(handler) { BaseAddress = new Uri("https://production.plaid.com/") },
+            Options.Create(new PlaidOptions
+            {
+                Enabled = true,
+                Environment = "production",
+                ClientId = "client",
+                ClientSecret = "secret",
+                RedirectUri = ""
+            }));
+
+        await client.CreateLinkTokenAsync(1, updateMode: false, accessToken: null, CancellationToken.None);
+
+        Assert.Contains("\"client_name\":\"Budget App\"", handler.RequestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"redirect_uri\"", handler.RequestBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PlaidApiError_ReportsSafePlaidDiagnostic()
     {
         var handler = new RecordingHandler(HttpStatusCode.BadRequest,
