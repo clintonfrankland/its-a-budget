@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
@@ -40,7 +41,7 @@ public sealed class PlaidClient : IPlaidClient
         // Plaid update-mode Link tokens identify the existing Item with its access token.
         // Products are intentionally omitted: specifying them can request an unintended
         // product update and is not required for ordinary credential-maintenance Link.
-        var request = new LinkTokenRequest(_options.ClientId, _options.ClientSecret, $"budget-{userId}",
+        var request = new LinkTokenRequest(_options.ClientId, _options.ClientSecret, _options.ClientName, $"budget-{userId}",
             updateMode ? null : _options.Products, "en", new[] { "US" }, updateMode ? accessToken : null, _options.RedirectUri);
         var response = await PostAsync<LinkTokenRequest, LinkTokenResponse>("link/token/create", request, cancellationToken);
         return new PlaidLinkToken(response.LinkToken, response.Expiration);
@@ -93,11 +94,29 @@ public sealed class PlaidClient : IPlaidClient
     private async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
-        if (path == "transactions/sync" && !response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode)
         {
             var failure = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (failure.Contains("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION", StringComparison.Ordinal))
+            if (path == "transactions/sync" && failure.Contains("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION", StringComparison.Ordinal))
                 throw new PlaidSyncMutationDuringPaginationException();
+
+            PlaidErrorResponse? plaidError = null;
+            try
+            {
+                plaidError = JsonSerializer.Deserialize<PlaidErrorResponse>(failure);
+            }
+            catch (JsonException)
+            {
+                // Fall through to the ordinary HTTP status error when Plaid does
+                // not return its documented error envelope.
+            }
+
+            if (plaidError is not null)
+            {
+                var requestId = string.IsNullOrWhiteSpace(plaidError.RequestId) ? string.Empty : $" Request ID: {plaidError.RequestId}.";
+                throw new InvalidOperationException(
+                    $"Plaid request failed ({plaidError.ErrorCode ?? "UNKNOWN"}): {plaidError.ErrorMessage ?? response.ReasonPhrase}.{requestId}");
+            }
         }
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken: cancellationToken)
@@ -106,11 +125,12 @@ public sealed class PlaidClient : IPlaidClient
 
     private sealed class LinkTokenRequest
     {
-        public LinkTokenRequest(string clientId, string secret, string clientUserId, string[]? products,
+        public LinkTokenRequest(string clientId, string secret, string clientName, string clientUserId, string[]? products,
             string language, string[] countryCodes, string? accessToken, string? redirectUri)
         {
             ClientId = clientId;
             Secret = secret;
+            ClientName = clientName;
             User = new { client_user_id = clientUserId };
             Products = products;
             Language = language;
@@ -121,6 +141,7 @@ public sealed class PlaidClient : IPlaidClient
 
         [JsonPropertyName("client_id")] public string ClientId { get; }
         [JsonPropertyName("secret")] public string Secret { get; }
+        [JsonPropertyName("client_name")] public string ClientName { get; }
         [JsonPropertyName("user")] public object User { get; }
         [JsonPropertyName("products"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string[]? Products { get; }
         [JsonPropertyName("language")] public string Language { get; }
@@ -136,6 +157,10 @@ public sealed class PlaidClient : IPlaidClient
         [property: JsonPropertyName("access_token")] string AccessToken, [property: JsonPropertyName("cursor")] string? Cursor);
     private sealed record WebhookVerificationKeyRequest([property: JsonPropertyName("client_id")] string ClientId,
         [property: JsonPropertyName("secret")] string Secret, [property: JsonPropertyName("key_id")] string KeyId);
+    private sealed record PlaidErrorResponse(
+        [property: JsonPropertyName("error_code")] string? ErrorCode,
+        [property: JsonPropertyName("error_message")] string? ErrorMessage,
+        [property: JsonPropertyName("request_id")] string? RequestId);
     private sealed record LinkTokenResponse([property: JsonPropertyName("link_token")] string LinkToken,
         [property: JsonPropertyName("expiration")] DateTimeOffset Expiration);
     private sealed record TokenExchangeResponse([property: JsonPropertyName("access_token")] string AccessToken,

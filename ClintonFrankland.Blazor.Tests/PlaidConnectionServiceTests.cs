@@ -158,8 +158,32 @@ public sealed class PlaidConnectionServiceTests
 
         await client.CreateLinkTokenAsync(1, updateMode: true, accessToken: "stored-access-token", CancellationToken.None);
 
+        Assert.Contains("\"client_name\":\"Budget App\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("\"access_token\":\"stored-access-token\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.DoesNotContain("\"products\"", handler.RequestBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlaidApiError_ReportsSafePlaidDiagnostic()
+    {
+        var handler = new RecordingHandler(HttpStatusCode.BadRequest,
+            "{\"error_code\":\"MISSING_FIELDS\",\"error_message\":\"client_name is required\",\"request_id\":\"request-123\"}");
+        var client = new PlaidClient(new HttpClient(handler) { BaseAddress = new Uri("https://production.plaid.com/") },
+            Options.Create(new PlaidOptions
+            {
+                Enabled = true,
+                Environment = "production",
+                ClientId = "client",
+                ClientSecret = "secret"
+            }));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.CreateLinkTokenAsync(1, updateMode: false, accessToken: null, CancellationToken.None));
+
+        Assert.Contains("MISSING_FIELDS", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("client_name is required", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("request-123", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", exception.Message, StringComparison.Ordinal);
     }
 
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
@@ -197,16 +221,18 @@ public sealed class PlaidConnectionServiceTests
         public Task RemoveItemAsync(string accessToken, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class RecordingHandler : HttpMessageHandler
+    private sealed class RecordingHandler(
+        HttpStatusCode statusCode = HttpStatusCode.OK,
+        string responseBody = "{\"link_token\":\"link-token\",\"expiration\":\"2026-07-27T01:00:00Z\"}") : HttpMessageHandler
     {
         public string RequestBody { get; private set; } = string.Empty;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(statusCode)
             {
-                Content = new StringContent("{\"link_token\":\"link-token\",\"expiration\":\"2026-07-27T01:00:00Z\"}", Encoding.UTF8, "application/json")
+                Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
             };
         }
     }
