@@ -1,0 +1,166 @@
+# It's a Budget Rebrand and Public Launch Plan
+
+Last updated: 2026-07-29
+
+## Goal
+
+Rebrand the existing Budget App as **It's a Budget**, create the public-facing
+website and supporting brand assets, update integrations and documentation, and
+deploy the changes safely without renaming stable internal .NET, database, or
+historical migration identifiers.
+
+## Working Rules
+
+- Use **It's a Budget** for human-facing product text.
+- Use `its-a-budget` for machine-safe slugs where a new identifier is required.
+- Preserve `ClintonFrankland` namespaces, `ClintonFranklandDbContext`, database
+  objects, EF migration history, and other stable internal identifiers.
+- Preserve the supplied transparent PNG as the master logo.
+- Do not expose credentials or private financial information in public pages,
+  screenshots, logs, or repository content.
+- Complete and verify one chunk before moving to the next.
+- Record anything requiring Clinton's choice, credentials, approval, or an
+  external account action in **Needs Clinton**.
+
+## Source of Truth
+
+- Canonical repository: `/home/clinton/src/budget-app`
+- Canonical remote: Mission Control project **Budget App**
+- Production application: `https://budget.clintandtara.com`
+- Master logo received 2026-07-29:
+  `FullLogo_Transparent_NoBuffer_1---ae7c5ebf-33b9-4de6-934f-4f7e894b2e38.png`
+- Public display name: **It's a Budget**
+- Preferred new slug: `its-a-budget`
+
+## Chunk 1: Discovery and Plan
+
+- [x] Confirm the canonical repository and production project through Mission
+  Control.
+- [x] Confirm the repository is clean and tracks the canonical Gitea remote.
+- [x] Locate and inspect the supplied master logo.
+- [x] Inventory current SproutPenny and Budget App references.
+- [x] Create this tracked implementation plan.
+- [x] Inspect routing, authentication boundaries, metadata, email behavior,
+  styling, versioning, and deployment configuration.
+- [x] Decide the safest public-site architecture based on the existing app.
+
+## Chunk 2: Brand Foundation and Assets
+
+- [x] Preserve the supplied original under a clearly named brand-assets path.
+- [x] Create optimized web versions of the primary stacked logo.
+- [x] Derive a compact icon mark for navigation and small surfaces.
+- [x] Create favicon sizes and an application icon.
+- [x] Create a square Plaid-compatible logo.
+- [x] Create a horizontal header/email lockup where the source artwork permits.
+- [x] Create a social sharing image.
+- [x] Record the logo colors and typography guidance in a concise brand guide.
+- [x] Verify transparency, dimensions, file sizes, and rendering on light and
+  dark backgrounds.
+
+## Chunk 3: Application Rebrand
+
+- [x] Change configured and fallback site names to **It's a Budget**.
+- [x] Replace homepage and navigation branding.
+- [x] Update browser titles, favicon, accessibility labels, and image metadata.
+- [x] Change Plaid's default `client_name` to **It's a Budget**.
+- [x] Update user-facing references in errors, invitations, reconciliation,
+  login/profile/help text, SMTP test messages, and email display text.
+- [x] Keep security-sensitive internal group names and stable identifiers
+  unchanged unless a compatibility-safe alias is appropriate.
+- [x] Add regression tests for the public product name and Plaid client name.
+
+## Chunk 4: Public Website and Trust Pages
+
+- [x] Make the public homepage useful to signed-out visitors without exposing
+  private application data.
+- [x] Add a clear product overview, benefits, workflow explanation, and calls to
+  action.
+- [x] Add an About/Contact page.
+- [x] Add a Privacy Policy covering account data, Plaid data, cookies,
+  authentication, retention, deletion, and contact.
+- [x] Add Terms of Service.
+- [x] Add a Security and Data Use page.
+- [x] Add account/data-deletion instructions.
+- [x] Add consistent footer links to all public trust pages.
+- [x] Add canonical, Open Graph, and social metadata with safe defaults.
+- [x] Add a public robots file and sitemap where appropriate.
+- [x] Avoid invented corporate, mailing-address, support-email, or legal claims;
+  clearly mark externally supplied details as pending when necessary.
+
+## Chunk 5: Documentation and Administration
+
+- [x] Rebrand the root README and user guide.
+- [x] Replace or archive stale SproutPenny branding notes.
+- [x] Document brand assets and their intended uses.
+- [ ] Document required production configuration and OAuth callback behavior.
+- [x] Update Mission Control's project display name if its API safely supports
+  the change.
+- [ ] Leave the Gitea repository slug unchanged unless Clinton explicitly wants
+  a repository rename.
+- [x] Increment the application version using the repository's SemVer rules.
+
+## Chunk 6: Verification and Deployment
+
+- [ ] Run focused branding, routing, metadata, and Plaid tests.
+- [ ] Run the full Release test suite.
+- [ ] Build the production image.
+- [ ] Commit and push the complete canonical source change.
+- [ ] Deploy/recreate production from the canonical checkout.
+- [ ] Verify clean startup, database diagnostics, public pages, authenticated
+  routes, assets, and HTTP status.
+- [ ] Verify that no secrets or private information appear in public output.
+- [ ] Update this plan with commit, test, and deployment evidence.
+
+## Chunk 7: External Launch Configuration
+
+- [ ] Configure the final public domain, DNS, HTTPS, and redirect strategy.
+- [ ] Create or configure the branded support email.
+- [ ] Update Authentik application/provider display branding.
+- [ ] Update Authentik callback/logout URLs if the hostname changes.
+- [ ] Update nginx, monitoring, and production URLs if the hostname changes.
+- [ ] Update the Plaid application profile with the name, logos, site, Privacy
+  Policy, Terms, support details, and final OAuth redirect URI.
+- [ ] Complete institution registration after the public identity is approved.
+- [ ] Smoke-test the final Plaid OAuth flow.
+
+## Needs Clinton
+
+These items are not blockers for beginning the code and asset work. They may
+require Clinton's choice, account access, approval, or externally verified
+details before the public launch can be fully complete.
+
+- [ ] Choose and acquire the final domain, or confirm that
+  `budget.clintandtara.com` will remain the permanent public hostname.
+- [ ] Confirm the public support email address.
+- [ ] Confirm the public operator/legal name to use in Privacy Policy and Terms.
+- [ ] Confirm whether a public mailing address should be listed or omitted.
+- [ ] Approve any external-account changes that cannot be made safely through
+  existing local configuration.
+- [ ] Complete Plaid dashboard and institution-registration steps that require
+  the account owner.
+
+## Progress Log
+
+- **2026-07-29, Chunk 1 started:** Confirmed the canonical repository, clean
+  worktree, production project record, current public hostname, and supplied
+  1280×1046 transparent master logo. Initial user-facing reference inventory is
+  complete. Detailed architecture and deployment inspection is next.
+- **2026-07-29, Chunk 1 complete:** The existing root route already has separate
+  signed-out marketing and signed-in dashboard experiences, so the safest
+  launch architecture is to expand that public surface and add public trust
+  routes inside the existing application. This avoids a second deployment and
+  preserves the current authentication and production topology. OIDC group and
+  cookie identifiers remain internal compatibility contracts. Email sender
+  identity remains database-configured and will be reported separately if it
+  cannot be updated safely.
+- **2026-07-29, Chunks 2–4 implementation complete:** Archived the original
+  artwork and produced stacked, compact, favicon/app, horizontal, Plaid-square,
+  and social assets. Added the brand guide, updated the application identity and
+  Plaid client name, expanded the signed-out homepage, and added public About,
+  Contact, Privacy, Terms, Security, and Data Deletion routes with footer links,
+  metadata, manifest, robots file, and sitemap. Focused branding and Plaid tests
+  pass 23/23.
+- **2026-07-29, Chunk 5 in progress:** Rebranded source and canonical docs,
+  removed the obsolete SproutPenny idea file and served assets, bumped version
+  from 5.31.1/190 to 5.32.0/191, updated the production `SiteName`
+  configuration, and renamed the Mission Control project to **It's a Budget**.

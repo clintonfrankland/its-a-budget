@@ -1,7 +1,7 @@
 # Globalization and Culture Strategy
 
 ## Overview
-The Budget App intentionally pins culture to **en-US** (United States - English) for all server-side rendering and formatting operations. This is a product policy, not an environment setting. Development, review/dispatch, and production should all format values the same way.
+The It's a Budget intentionally pins culture to **en-US** (United States - English) for all server-side rendering and formatting operations. This is a product policy, not an environment setting. Development, review/dispatch, and production should all format values the same way.
 
 ## Rationale for en-US Culture
 

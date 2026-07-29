@@ -24,6 +24,6 @@ The inviter chooses one of these roles:
 
 Owner/Admin users can resend and revoke pending invites. They can also change non-owner member roles and remove non-owner members. The Owner can transfer ownership to another active member. A member can leave a shared budget when they are not the active Owner; Owners must transfer ownership before leaving.
 
-Invite links contain a high-entropy one-time token. Budget App stores only the token hash, never the plaintext token. Invites expire, and Owner/Admin users can revoke or resend pending invites from the same page.
+Invite links contain a high-entropy one-time token. It's a Budget stores only the token hash, never the plaintext token. Invites expire, and Owner/Admin users can revoke or resend pending invites from the same page.
 
 The accept page requires sign-in before membership is created. It shows the inviter, shared budget, and role before the user accepts. Existing Authentik-linked users and local Budget users can accept as long as the invite target matches their Budget username or email.

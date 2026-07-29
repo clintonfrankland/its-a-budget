@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using ClintonFrankland.Models.Entities
 
-<PageTitle>Reconciliation inbox</PageTitle>
+<PageTitle>Reconciliation inbox | It's a Budget</PageTitle>
 
 @if (!AuthService.IsAuthenticated)
 {
@@ -78,7 +78,7 @@ else
                                     {
                                         var add = GetAddDraft(item);
                                         <fieldset class="border rounded p-3 mt-3"><legend class="fs-6">Add to Checkbook</legend>
-                                            <p class="small text-muted">Review the mapped account and enter a Budget App payee and category. The category is never inferred from Plaid.</p>
+                                            <p class="small text-muted">Review the mapped account and enter a It's a Budget payee and category. The category is never inferred from Plaid.</p>
                                             <div class="row g-2">
                                                 <div class="col-md-4"><label class="form-label" for="account-@item.PlaidTransactionStagingId">Account</label><input id="account-@item.PlaidTransactionStagingId" class="form-control" value="@item.AccountName" readonly /></div>
                                                 <div class="col-md-4"><label class="form-label" for="date-@item.PlaidTransactionStagingId">Date</label><input id="date-@item.PlaidTransactionStagingId" class="form-control" type="date" @bind="add.TransactionDate" /></div>

@@ -20,7 +20,7 @@ public static class AuthentikOidcDiagnostics
     {
         logger.LogWarning(
             MissingRequiredGroup,
-            "Authentik login denied: required Budget App group missing. RequiredGroups={RequiredGroups}; ReceivedGroupCount={ReceivedGroupCount}; ReceivedGroups={ReceivedGroups}",
+            "Authentik login denied: required It's a Budget group missing. RequiredGroups={RequiredGroups}; ReceivedGroupCount={ReceivedGroupCount}; ReceivedGroups={ReceivedGroups}",
             string.Join(",", requiredGroups),
             receivedGroups.Count,
             string.Join(",", receivedGroups));
@@ -38,7 +38,7 @@ public static class AuthentikOidcDiagnostics
     {
         logger.LogWarning(
             UnknownLinkedUser,
-            "Authentik login denied: subject is not linked to an active Budget App user. Provider={Provider}; SubjectFingerprint={SubjectFingerprint}",
+            "Authentik login denied: subject is not linked to an active It's a Budget user. Provider={Provider}; SubjectFingerprint={SubjectFingerprint}",
             profile.Provider,
             Fingerprint(profile.Subject));
     }
@@ -51,7 +51,7 @@ public static class AuthentikOidcDiagnostics
     {
         logger.LogInformation(
             LinkedUserSuccess,
-            "Authentik login accepted for linked Budget App user. Provider={Provider}; SubjectFingerprint={SubjectFingerprint}; BudgetUserId={BudgetUserId}; ReceivedGroupCount={ReceivedGroupCount}",
+            "Authentik login accepted for linked It's a Budget user. Provider={Provider}; SubjectFingerprint={SubjectFingerprint}; BudgetUserId={BudgetUserId}; ReceivedGroupCount={ReceivedGroupCount}",
             profile.Provider,
             Fingerprint(profile.Subject),
             userId,
@@ -76,7 +76,7 @@ public static class AuthentikOidcDiagnostics
         logger.LogWarning(
             RemoteFailure,
             exception,
-            "Authentik remote login failed before Budget App user mapping completed.");
+            "Authentik remote login failed before It's a Budget user mapping completed.");
     }
 
     public static string Fingerprint(string value)

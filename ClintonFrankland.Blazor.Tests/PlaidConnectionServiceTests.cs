@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -158,7 +159,7 @@ public sealed class PlaidConnectionServiceTests
 
         await client.CreateLinkTokenAsync(1, updateMode: true, accessToken: "stored-access-token", CancellationToken.None);
 
-        Assert.Contains("\"client_name\":\"Budget App\"", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Equal("It's a Budget", ReadJsonString(handler.RequestBody, "client_name"));
         Assert.Contains("\"access_token\":\"stored-access-token\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.DoesNotContain("\"products\"", handler.RequestBody, StringComparison.Ordinal);
     }
@@ -179,7 +180,7 @@ public sealed class PlaidConnectionServiceTests
 
         await client.CreateLinkTokenAsync(1, updateMode: false, accessToken: null, CancellationToken.None);
 
-        Assert.Contains("\"client_name\":\"Budget App\"", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Equal("It's a Budget", ReadJsonString(handler.RequestBody, "client_name"));
         Assert.DoesNotContain("\"redirect_uri\"", handler.RequestBody, StringComparison.Ordinal);
     }
 
@@ -208,6 +209,12 @@ public sealed class PlaidConnectionServiceTests
 
     private static ClintonFranklandDbContext CreateDatabase() => new(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    private static string? ReadJsonString(string json, string propertyName)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.GetProperty(propertyName).GetString();
+    }
 
     private static void SeedUsersAndAccounts(ClintonFranklandDbContext database)
     {

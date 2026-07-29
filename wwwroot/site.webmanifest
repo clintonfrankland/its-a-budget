@@ -1,0 +1,21 @@
+{
+  "name": "It's a Budget",
+  "short_name": "It's a Budget",
+  "description": "A practical, checkbook-first way to plan ahead and stay in control.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ff",
+  "theme_color": "#46327e",
+  "icons": [
+    {
+      "src": "/images/brand/its-a-budget-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/brand/its-a-budget-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

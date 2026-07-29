@@ -2,10 +2,11 @@
 @implements IDisposable
 
 <RadzenComponents @rendermode="InteractiveAuto" />
-<nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top brand-navbar">
     <div class="container-fluid">
-        <a class="navbar-brand" href="/" @onclick="CollapseNavbar">
-            <i class="@GetIconClass()"></i>&nbsp;@SiteInfoService.SiteInfo.SiteName
+        <a class="navbar-brand brand-lockup" href="/" @onclick="CollapseNavbar" aria-label="It's a Budget home">
+            <img src="images/brand/its-a-budget-48.png" alt="" class="brand-navbar-mark" />
+            <span>@SiteInfoService.SiteInfo.SiteName</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -97,7 +98,19 @@
 
     @Body
     <hr />
-    <footer>
-        <p>&copy; @DateTime.Now.Year - @SiteInfoService.SiteInfo.SiteName <small class="text-muted">(@SiteInfoService.SiteInfo.Version)</small></p>
+    <footer class="site-footer">
+        <div>
+            <strong>@SiteInfoService.SiteInfo.SiteName</strong>
+            <small class="text-muted">v@SiteInfoService.SiteInfo.Version</small>
+        </div>
+        <nav aria-label="Legal and support">
+            <a href="/about">About</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/security">Security</a>
+            <a href="/data-deletion">Data deletion</a>
+            <a href="/contact">Contact</a>
+        </nav>
+        <p class="small text-muted mb-0">&copy; @DateTime.Now.Year @SiteInfoService.SiteInfo.SiteName</p>
     </footer>
 </div>

@@ -4,11 +4,11 @@
 
 Production policy:
 
-- Authentik controls who may enter Budget App.
-- Budget App controls what a signed-in person can do and which financial data they own.
-- Authentik users must belong to the `budget-users` group before Budget App accepts the OIDC sign-in.
+- Authentik controls who may enter It's a Budget.
+- It's a Budget controls what a signed-in person can do and which financial data they own.
+- Authentik users must belong to the `budget-users` group before It's a Budget accepts the OIDC sign-in.
 - Every accepted Authentik sign-in must resolve to one active `cfUsers` row by provider plus stable OIDC `sub`.
-- Budget App admin access is still controlled by `cfUsers.IsAdmin`; Authentik group membership never grants Budget App admin rights by itself.
+- It's a Budget admin access is still controlled by `cfUsers.IsAdmin`; Authentik group membership never grants It's a Budget admin rights by itself.
 
 Keep local database login and the `AppSettings` fallback login available until the complete rollout checklist passes and normal local password login is intentionally disabled in a later change.
 
@@ -24,7 +24,7 @@ Create or verify the Authentik provider/application with these settings:
 - Group claim: `groups`, `group`, `roles`, or standard role claims must include `budget-users`.
 - Access policy: only users in the Authentik `budget-users` group can authorize the Budget provider.
 
-Configure Budget App with environment variables:
+Configure It's a Budget with environment variables:
 
 ```bash
 Authentication__Authentik__Enabled=true
@@ -42,7 +42,7 @@ Do not commit client IDs, client secrets, SQL connection strings, fallback login
 ## Rollout Order
 
 1. Keep DB login and `AppSettings` fallback enabled.
-2. Configure the Authentik provider and Budget App environment variables.
+2. Configure the Authentik provider and It's a Budget environment variables.
 3. Deploy with `Authentication__Authentik__AllowedGroups__0="budget-users"`.
 4. Sign in locally with the fallback path.
 5. Link Clinton's active Budget user row from **Profile > Link Authentik Account**, or use **Settings > Users** for admin-managed setup.
@@ -94,11 +94,11 @@ Reverse proxy checks:
 - Forward `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host`.
 - Keep OIDC response mode as `query`.
 - Ensure HTTPS scheme reaches the app so auth, correlation, and nonce cookies are secure.
-- Set `proxy_buffer_size 16k;` on the Budget App nginx location to avoid callback failures from large encrypted auth cookies.
+- Set `proxy_buffer_size 16k;` on the It's a Budget nginx location to avoid callback failures from large encrypted auth cookies.
 
 ## Diagnostics
 
-Budget App logs these OIDC decisions through the `ClintonFrankland.AuthentikOidc` logger:
+It's a Budget logs these OIDC decisions through the `ClintonFrankland.AuthentikOidc` logger:
 
 - Missing required Authentik group.
 - Missing stable subject claim.
@@ -114,7 +114,7 @@ If Authentik login blocks access:
 
 1. Keep the app running if local fallback still works.
 2. Sign in with the local database login or `AppSettings` fallback.
-3. Set `Authentication__Authentik__Enabled=false` and recreate the Budget App container if OIDC causes a login loop or callback failure.
+3. Set `Authentication__Authentik__Enabled=false` and recreate the It's a Budget container if OIDC causes a login loop or callback failure.
 4. Verify `http://localhost:6080/` and `/login` return `200`.
 5. Re-check nginx `proxy_buffer_size 16k;`, forwarded headers, Authentik redirect URI, group claim, and the Budget user link before re-enabling OIDC.
 6. If a linked subject is wrong, use **Settings > Users** to relink or unlink after confirmation.

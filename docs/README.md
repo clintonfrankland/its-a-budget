@@ -1,6 +1,6 @@
-# Budget App User Guide
+# It's a Budget User Guide
 
-Welcome! This guide walks you through each page of the Budget App from a user point of view.
+Welcome! This guide walks you through each page of the It's a Budget from a user point of view.
 
 This app is designed to be simple, fast, and practical. It helps you:
 

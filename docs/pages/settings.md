@@ -98,7 +98,7 @@ Admins can link, relink, or unlink an Authentik identity from the Users grid. Li
 
 Regular users only see their own row and cannot change Authentik links.
 
-Authentik group membership controls whether the external login can enter Budget App. Budget App admin permission still comes from the user row's `IsAdmin` flag.
+Authentik group membership controls whether the external login can enter It's a Budget. It's a Budget admin permission still comes from the user row's `IsAdmin` flag.
 
 ### Manual first-user linking process
 

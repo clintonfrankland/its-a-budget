@@ -209,7 +209,7 @@ public partial class Settings
 
             await EmailSenderService.SendWithDiagnosticsAsync(
                 target,
-                "Budget App SMTP Test",
+                "It's a Budget SMTP Test",
                 "SMTP configuration is working.",
                 log: msg => _ = AppendTestLogAsync(msg));
 

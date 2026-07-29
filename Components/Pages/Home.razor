@@ -1,7 +1,17 @@
 @page "/"
 @rendermode InteractiveServer
 
-<PageTitle>Welcome</PageTitle>
+<PageTitle>It's a Budget | Plan ahead. Stay in control.</PageTitle>
+<HeadContent>
+    <meta name="description" content="It's a Budget is a practical, checkbook-first way to track spending, plan upcoming bills, and understand the balance ahead." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="It's a Budget" />
+    <meta property="og:description" content="Your money, finally in one place. Plan ahead, track honestly, and stay in control." />
+    <meta property="og:image" content="/images/brand/its-a-budget-social.png" />
+    <meta property="og:url" content="https://budget.clintandtara.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://budget.clintandtara.com/" />
+</HeadContent>
 
 @if (AuthService.IsAuthenticated)
 {
@@ -10,11 +20,11 @@
             <div class="row align-items-center g-4">
                 <div class="col-lg-8">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <img src="images/sproutpenny.png" alt="SproutPenny" class="hero-logo" />
+                        <img src="images/brand/its-a-budget-mark.png" alt="" class="hero-logo" />
                         <h1 class="display-5 fw-semibold mb-0">Your money, finally in one place</h1>
                     </div>
                     <p class="lead text-muted mb-4">
-                        Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
+                        It's a Budget is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
                         and see your balance before life surprises you.
                     </p>
                     <h2 class="h3 mb-1">At a glance</h2>
@@ -195,11 +205,14 @@ else
             <div class="row align-items-center g-4">
                 <div class="col-lg-7">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <img src="images/sproutpenny.png" alt="SproutPenny" class="hero-logo" />
-                        <h1 class="display-5 fw-semibold mb-0">Your money, finally in one place</h1>
+                        <img src="images/brand/its-a-budget-mark.png" alt="" class="hero-logo" />
+                        <div>
+                            <div class="brand-eyebrow">IT'S A BUDGET</div>
+                            <h1 class="display-5 fw-semibold mb-0">Your money, finally in one place</h1>
+                        </div>
                     </div>
                     <p class="lead text-muted mb-4">
-                        Budget App is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
+                        It's a Budget is a practical, checkbook-first way to stay on top of your spending, plan for upcoming bills,
                         and see your balance before life surprises you.
                     </p>
 
@@ -218,19 +231,20 @@ else
                         </div>
                         <div class="col-md-6">
                             <div class="feature-pill">
-                                <div class="feature-title">Recurring bills</div>
-                                <div class="feature-sub">Keep a clean list of bills and income you can trust.</div>
+                                <div class="feature-title">Bank connections</div>
+                                <div class="feature-sub">Review eligible transactions from Plaid before they affect your checkbook.</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="feature-pill">
-                                <div class="feature-title">Email reminders</div>
-                                <div class="feature-sub">Optional bill-due notices, sent by the server in the background.</div>
+                                <div class="feature-title">Shared budgets</div>
+                                <div class="feature-sub">Plan together with explicit household membership and role-based access.</div>
                             </div>
                         </div>
                     </div>
 
                     <div class="d-flex flex-wrap gap-2">
+                        <a class="btn btn-brand btn-lg" href="/login">Sign in securely</a>
                         <a class="btn btn-outline-secondary btn-lg" href="#features">See what you get</a>
                         <a class="btn btn-outline-secondary btn-lg" href="#how-it-works">How it works</a>
                     </div>
@@ -283,7 +297,7 @@ else
                         </EditForm>
 
                         <div class="mt-3 small text-muted">
-                            Tip: You can opt-in to bill reminders from <strong>Profile</strong>. Admins can configure SMTP and reminder windows in <strong>Settings</strong>.
+                            Your financial information stays behind your account. Read the <a href="/privacy">Privacy Policy</a> to learn how It's a Budget handles data.
                         </div>
                     </RadzenCard>
                 </div>
@@ -352,7 +366,7 @@ else
                     <div class="card-body">
                         <h3 class="h5">Self-host friendly</h3>
                         <p class="text-muted mb-0">
-                            Built to run as a simple container-based app with a SQL Server database. No external dependencies required.
+                            Built as a focused application with clear access controls, explicit review steps, and practical exports and backups.
                         </p>
                     </div>
                 </div>
@@ -366,6 +380,7 @@ else
                     <li><strong>Create Budget Items</strong> for scheduled bills, income, and category spending allowances.</li>
                     <li><strong>Enter transactions</strong> in Checkbook as life happens.</li>
                     <li><strong>Use Budget Forecast</strong> when you want to see what's coming.</li>
+                    <li><strong>Review connected transactions</strong> when you choose to link an eligible bank through Plaid.</li>
                     <li><strong>Turn on reminders</strong> (optional) so you do less remembering and more living.</li>
                 </ol>
             </div>

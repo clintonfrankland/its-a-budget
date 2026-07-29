@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">It's a Budget</title>
+  <desc id="description">A checkbook-first way to plan ahead and stay in control.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f4ff" />
+      <stop offset="1" stop-color="#e8f8f8" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#background)" />
+  <circle cx="1050" cy="90" r="210" fill="#59c391" opacity="0.14" />
+  <circle cx="1040" cy="590" r="290" fill="#b41b8d" opacity="0.10" />
+  <image href="../../wwwroot/images/brand/its-a-budget-mark.png" x="72" y="91" width="448" height="448" />
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="550" y="225" fill="#46327e" font-size="83" font-weight="800">IT'S A</text>
+    <text x="550" y="315" fill="#46327e" font-size="83" font-weight="800">BUDGET</text>
+    <text x="556" y="385" fill="#0d6170" font-size="28" font-weight="600">Your money, finally in one place.</text>
+    <text x="556" y="438" fill="#46505c" font-size="24">Plan ahead. Track honestly.</text>
+    <text x="556" y="476" fill="#46505c" font-size="24">Stay in control.</text>
+  </g>
+</svg>

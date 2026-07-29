@@ -1,0 +1,59 @@
+@page "/security"
+
+<PageTitle>Security and Data Use | It's a Budget</PageTitle>
+<HeadContent>
+    <meta name="description" content="How It's a Budget uses and protects account, transaction, authentication, and Plaid-connected data." />
+    <link rel="canonical" href="https://budget.clintandtara.com/security" />
+</HeadContent>
+
+<article class="public-page">
+    <p class="public-page-kicker">SECURITY</p>
+    <h1>Security and Data Use</h1>
+    <p class="lead">
+        Financial records deserve deliberate controls. It's a Budget is designed
+        to keep private application data behind authenticated, authorized access.
+    </p>
+
+    <h2>Access controls</h2>
+    <ul>
+        <li>Production traffic uses HTTPS.</li>
+        <li>Authentication cookies are HTTP-only and configured for secure production use.</li>
+        <li>Application permissions and shared-budget roles restrict data access.</li>
+        <li>Administrative actions require an active administrator account.</li>
+    </ul>
+
+    <h2>Connected financial data</h2>
+    <p>
+        Plaid Link handles financial-institution credential entry. It's a Budget
+        does not receive or store those institution passwords. Access tokens
+        used to maintain connections are server-side secrets and are not sent
+        to the browser.
+    </p>
+    <p>
+        Imported transaction data is staged and reconciled. Suggested matches
+        require review before they change the checkbook, and account mappings
+        are checked against the signed-in user and shared-budget permissions.
+    </p>
+
+    <h2>Operations</h2>
+    <p>
+        The application records diagnostic events needed to detect failures and
+        investigate security issues. Backups and restore checks support
+        recovery. Secrets are supplied through server configuration rather than
+        committed to public application source.
+    </p>
+
+    <h2>Responsible reporting</h2>
+    <p>
+        If you believe you found a vulnerability, do not access or alter other
+        users' information. Preserve the minimum evidence needed and use the
+        <a href="/contact">contact instructions</a> to report it privately.
+    </p>
+
+    <h2>Scope</h2>
+    <p>
+        No list of safeguards can guarantee absolute security. This page
+        describes the application's current approach and is not a certification
+        or promise that every attack can be prevented.
+    </p>
+</article>

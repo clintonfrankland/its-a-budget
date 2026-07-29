@@ -2,7 +2,7 @@
 
 ## What this page is
 
-Your **Profile** page is where you manage your personal settings for the Budget App.
+Your **Profile** page is where you manage your personal settings for the It's a Budget.
 
 Think of it as “your defaults” and “how the app should treat you”. It’s also where you can control whether you want certain reminders.
 
@@ -49,7 +49,7 @@ You can:
 
 - **Link Authentik Account**
   - Starts Authentik sign-in with an account-link intent.
-  - After Authentik returns, Budget App shows a confirmation page with the Authentik display name/email and your current Budget username.
+  - After Authentik returns, It's a Budget shows a confirmation page with the Authentik display name/email and your current Budget username.
   - The link is saved only after you confirm.
 
 - **Relink Authentik Account**
@@ -58,7 +58,7 @@ You can:
 - **Unlink Authentik Account**
   - Requires confirmation and clears only your own linked Authentik identity.
 
-Budget App never links by email alone. The stable Authentik subject is stored only after confirmation, and duplicate Authentik subjects are rejected if they already belong to another active Budget user.
+It's a Budget never links by email alone. The stable Authentik subject is stored only after confirmation, and duplicate Authentik subjects are rejected if they already belong to another active Budget user.
 
 ## Saving changes
 

@@ -4,7 +4,7 @@
 
 The **Users** page is for **administrators**.
 
-It’s where you manage who can access the Budget App and what permissions they have.
+It’s where you manage who can access the It's a Budget and what permissions they have.
 
 If you are not an admin, you won’t be able to access this page.
 

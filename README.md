@@ -1,6 +1,12 @@
-# SproutPenny Budget App
+# It's a Budget
 
 A personal budget and checkbook management application. Keeps a running transaction ledger, tracks recurring bills and income, forecasts your balance over time, and sends bill-due email reminders.
+
+The public product name is **It's a Budget**. Signed-out visitors can use the
+marketing homepage and the public `/about`, `/contact`, `/privacy`, `/terms`,
+`/security`, and `/data-deletion` trust pages. Brand usage and assets are
+documented in [the brand guide](docs/brand-guide.md), and the staged launch work
+is tracked in [the rebrand plan](docs/its-a-budget-rebrand-plan.md).
 
 Transaction rules let each signed-in user define ordered, account-aware rules that automatically suggest category, payee, and notes during Checkbook create/edit. Users review or override every suggestion before saving and can preview exact field differences before transactionally applying rules to existing transactions. The same rule system can propose explainable Plaid-derived rules from at least three cleared, user-confirmed reconciliations with 80% agreement; it shows examples and confidence, and only saves after explicit approval. Stable Plaid merchant entity IDs are preferred, with normalized merchant descriptions as a fallback. Learned rules are inbox suggestions only—automatic clearing remains unavailable. See [Transaction rules](docs/pages/transaction-rules.md).
 
@@ -42,7 +48,7 @@ Required browser interop assets use the application version in their URL so depl
 
 ## Sharing foundation
 
-SproutPenny keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
+It's a Budget keeps the legacy `UserId` ownership checks in place while adding a shared budget household foundation for future spouse/family sharing. Each active legacy user receives one default shared budget container during migration, plus an active owner membership. Accounts, transactions, categories, recurring budget items, category budget targets, and notification/reporting records now have a nullable `SharedBudgetId` so existing data remains readable and new data can be attached to the user's default shared budget.
 
 Plaid Sandbox connections are opt-in server-side integrations. A Plaid Item access token is encrypted with ASP.NET Core Data Protection, and every discovered Plaid account must be explicitly mapped to a Budget account the user can manage. The **Reconciliation inbox** groups posted evidence into confident, probable/ambiguous, unmatched, pending, and changed/removed records. It never clears anything automatically: a user must explicitly confirm an authorized candidate, which atomically creates a one-to-one Plaid-to-ledger link and marks that existing transaction cleared. For an unmatched posted record, the user can instead add one cleared Checkbook entry after reviewing the mapped personal account, date, notes, payee, and category; payee and category are required, can be existing or newly entered Budget values, and Plaid never supplies a category automatically. Later Plaid changes or removals leave the ledger untouched and visible for manual review.
 
@@ -111,9 +117,9 @@ Use placeholders in documentation and commands. Never copy a real connection str
 
 Authentik/OpenID Connect login is disabled by default. The production access policy is:
 
-- Authentik controls entry to Budget App through the required `budget-users` group.
-- Budget App controls application authorization, admin rights, and data ownership through active `cfUsers` rows.
-- `cfUsers.IsAdmin` remains the source for Budget App admin permission. Authentik groups do not grant app admin rights.
+- Authentik controls entry to It's a Budget through the required `budget-users` group.
+- It's a Budget controls application authorization, admin rights, and data ownership through active `cfUsers` rows.
+- `cfUsers.IsAdmin` remains the source for It's a Budget admin permission. Authentik groups do not grant app admin rights.
 - Local database login and the `AppSettings` fallback login remain the break-glass path until rollout is complete and disabling normal local password login has been explicitly tested and approved.
 
 Enable Authentik only when all required settings are present:
@@ -128,7 +134,7 @@ Authentication__Authentik__AllowedGroups__0="budget-users"
 
 The Authentik provider must use redirect URI `https://budget.clintandtara.com/signin-oidc` and logout redirect URI `https://budget.clintandtara.com/signout-callback-oidc` for production. The OIDC client must request the `openid`, `profile`, and `email` scopes, and it must emit a `groups`, `group`, `roles`, or standard role claim containing `budget-users`.
 
-Budget App reads the stable `sub` claim and only grants access when that Authentik subject is already linked to an active `cfUsers` row. Group claims are captured when Authentik provides them; set `Authentication:Authentik:AllowedGroups` to require membership in one or more groups. Production should require `budget-users`; leave the list empty only for temporary local or review testing.
+It's a Budget reads the stable `sub` claim and only grants access when that Authentik subject is already linked to an active `cfUsers` row. Group claims are captured when Authentik provides them; set `Authentication:Authentik:AllowedGroups` to require membership in one or more groups. Production should require `budget-users`; leave the list empty only for temporary local or review testing.
 
 OIDC diagnostics log denied access for missing required groups, missing stable subject claims, unknown/unlinked subjects, remote failures, and linked-user success. Logs include provider names, group counts/names, Budget user IDs on success, and short subject fingerprints. They never log tokens, client secrets, or raw OIDC subjects.
 
@@ -145,7 +151,7 @@ Rollout checklist, production/review smoke checks, and emergency rollback steps 
 
 ## Identity ownership
 
-Budget App keeps `cfUsers` as the durable application profile, permission, preference, and financial data-ownership record. A future Authentik/OIDC login can prove who signed in, but it must resolve to an active Budget user before the app grants access to Budget-owned data.
+It's a Budget keeps `cfUsers` as the durable application profile, permission, preference, and financial data-ownership record. A future Authentik/OIDC login can prove who signed in, but it must resolve to an active Budget user before the app grants access to Budget-owned data.
 
 External identity mapping is stored directly on active `cfUsers` rows:
 
@@ -396,7 +402,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/StartupDiagnosticsState.cs` | Holds DB connectivity and pending-migration results for the admin banner |
 | `Migrations/` | EF Core SQL Server migrations; applied automatically on startup |
 | `wwwroot/css/app.css` | Global CSS overrides |
-| `wwwroot/images/` | `sproutpenny.png`, `favicon.png` |
+| `wwwroot/images/brand/` | It's a Budget stacked logo, compact mark, favicons, application icons, horizontal lockup, and social-sharing artwork |
 | `docs/` | Per-page user guides and test plans |
 
 ---

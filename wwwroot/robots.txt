@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /settings
+Disallow: /profile
+Disallow: /accounts
+Disallow: /checkbook
+Disallow: /budget
+Disallow: /budgetitems
+Disallow: /reports
+Disallow: /sharing
+Disallow: /users
+Disallow: /transaction-rules
+
+Sitemap: https://budget.clintandtara.com/sitemap.xml

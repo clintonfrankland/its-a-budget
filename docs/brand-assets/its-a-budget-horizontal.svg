@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title description">
+  <title id="title">It's a Budget</title>
+  <desc id="description">It's a Budget logo with the wallet and banknote mark.</desc>
+  <image href="../../wwwroot/images/brand/its-a-budget-mark.png" x="24" y="24" width="312" height="312" />
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="370" y="190" fill="#46327e" font-size="130" font-weight="800" letter-spacing="-5">IT'S A BUDGET</text>
+    <text x="376" y="270" fill="#0d6170" font-size="54" font-weight="500" letter-spacing="18">SINCE 2026</text>
+  </g>
+</svg>

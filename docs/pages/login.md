@@ -28,7 +28,7 @@ If everything matches, you’ll be taken into the app and you’ll be able to us
 - Budget Items
 - Accounts
 
-When Authentik is enabled, use **Sign in with Authentik** first. Authentik membership in `budget-users` controls entry. Budget App still controls app permissions and data ownership through the linked Budget user row.
+When Authentik is enabled, use **Sign in with Authentik** first. Authentik membership in `budget-users` controls entry. It's a Budget still controls app permissions and data ownership through the linked Budget user row.
 
 The username/password form remains available as the local fallback during rollout and emergency access.
 
@@ -38,7 +38,7 @@ Once you are signed in, the app resolves your effective Budget user through the 
 
 - If you’re on your own device, your browser may remember your username for faster sign-ins.
 - If you keep getting the invalid login message, double-check spelling and capitalization.
-- If Authentik says your account is not linked, an admin needs to link your Authentik subject to an active Budget App user before external login can grant access.
+- If Authentik says your account is not linked, an admin needs to link your Authentik subject to an active It's a Budget user before external login can grant access.
 
 ## Why it matters
 

@@ -53,7 +53,7 @@ public partial class AcceptShareInvite
             BudgetInviteAcceptStatus.AlreadyAccepted => "This invite has already been accepted.",
             BudgetInviteAcceptStatus.Expired => "This invite has expired. Ask the budget owner or admin to resend it.",
             BudgetInviteAcceptStatus.Revoked => "This invite has been revoked.",
-            BudgetInviteAcceptStatus.WrongUser => "This invite is for a different Budget App user.",
+            BudgetInviteAcceptStatus.WrongUser => "This invite is for a different It's a Budget user.",
             BudgetInviteAcceptStatus.AuthenticationRequired => "Sign in before accepting this invite.",
             _ => "This invite link is not valid."
         };

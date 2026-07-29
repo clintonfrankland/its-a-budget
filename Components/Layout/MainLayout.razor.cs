@@ -86,18 +86,6 @@ public partial class MainLayout : IDisposable
         });
     }
 
-    private string GetIconClass()
-    {
-        var icon = SiteInfoService.SiteInfo.Icon;
-        if (icon.Contains("<i class='"))
-        {
-            var start = icon.IndexOf("'") + 1;
-            var end = icon.IndexOf("'", start);
-            return icon.Substring(start, end - start);
-        }
-        return "fa fa-address-card";
-    }
-
     private async Task HandleLogoutClick()
     {
         await CollapseNavbar();

@@ -1,6 +1,6 @@
 # Backups (SQL Server)
 
-Budget App includes a simple SQL Server `.bak` export and a restore smoke test command.
+It's a Budget includes a simple SQL Server `.bak` export and a restore smoke test command.
 
 ## One-shot backup
 

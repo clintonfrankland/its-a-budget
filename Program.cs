@@ -129,7 +129,7 @@ if (authentikOidcOptions.IsUsable)
                 if (!AuthentikOidcClaims.IsInAllowedGroup(context.Principal!, settings.AllowedGroups))
                 {
                     AuthentikOidcDiagnostics.LogMissingRequiredGroup(logger, requiredGroups, receivedGroups);
-                    context.Fail("Authentik user is not in an allowed Budget App group.");
+                    context.Fail("Authentik user is not in an allowed It's a Budget group.");
                     return;
                 }
 
@@ -157,7 +157,7 @@ if (authentikOidcOptions.IsUsable)
                 if (user is null)
                 {
                     AuthentikOidcDiagnostics.LogUnknownLinkedUser(logger, profile);
-                    context.Fail("Authentik user is not linked to an active Budget App user.");
+                    context.Fail("Authentik user is not linked to an active It's a Budget user.");
                     return;
                 }
 

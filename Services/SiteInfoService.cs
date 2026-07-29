@@ -19,7 +19,7 @@ public class SiteInfoService
             if (_siteInfo == null)
             {
                 _siteInfo = new SiteInfo(
-                    _configuration["AppSettings:SiteName"] ?? "Clinton Frankland",
+                    _configuration["AppSettings:SiteName"] ?? "It's a Budget",
                     _configuration["AppSettings:BaseUrl"] ?? "/",
                     _configuration["AppSettings:DatabaseName"] ?? "",
                     0,
