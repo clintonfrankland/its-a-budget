@@ -58,7 +58,12 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 builder.Services.Configure<AuthentikOidcOptions>(builder.Configuration.GetSection(AuthentikOidcOptions.SectionName));
 builder.Services.Configure<PlaidOptions>(builder.Configuration.GetSection(PlaidOptions.SectionName));
-builder.Services.AddHttpClient<IPlaidClient, PlaidClient>(client => client.BaseAddress = new Uri("https://sandbox.plaid.com/"));
+builder.Services.AddHttpClient<IPlaidClient, PlaidClient>((serviceProvider, client) =>
+{
+    var plaidOptions = serviceProvider.GetRequiredService<IOptions<PlaidOptions>>().Value;
+    client.BaseAddress = plaidOptions.ApiBaseAddress
+        ?? throw new InvalidOperationException($"Unsupported Plaid environment '{plaidOptions.Environment}'.");
+});
 builder.Services.AddScoped<PlaidWebhookAuthenticator>();
 builder.Services.AddScoped<PlaidWebhookQueue>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

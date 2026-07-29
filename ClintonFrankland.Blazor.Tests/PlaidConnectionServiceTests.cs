@@ -11,6 +11,42 @@ namespace ClintonFrankland.Blazor.Tests;
 
 public sealed class PlaidConnectionServiceTests
 {
+    [Theory]
+    [InlineData("sandbox", "https://sandbox.plaid.com/")]
+    [InlineData("SANDBOX", "https://sandbox.plaid.com/")]
+    [InlineData("production", "https://production.plaid.com/")]
+    public void PlaidOptions_RecognizesSupportedEnvironmentAndSelectsEndpoint(string environment, string endpoint)
+    {
+        var options = new PlaidOptions
+        {
+            Enabled = true,
+            Environment = environment,
+            ClientId = "client",
+            ClientSecret = "secret"
+        };
+
+        Assert.True(options.IsUsable);
+        Assert.Equal(new Uri(endpoint), options.ApiBaseAddress);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("development")]
+    [InlineData("unexpected")]
+    public void PlaidOptions_RejectsUnknownEnvironment(string environment)
+    {
+        var options = new PlaidOptions
+        {
+            Enabled = true,
+            Environment = environment,
+            ClientId = "client",
+            ClientSecret = "secret"
+        };
+
+        Assert.False(options.IsUsable);
+        Assert.Null(options.ApiBaseAddress);
+    }
+
     [Fact]
     public async Task Exchange_StoresOnlyProtectedAccessToken_AndDoesNotCreateTransactions()
     {

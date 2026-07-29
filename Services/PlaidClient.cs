@@ -87,7 +87,7 @@ public sealed class PlaidClient : IPlaidClient
     private void EnsureConfigured()
     {
         if (!_options.IsUsable)
-            throw new InvalidOperationException("Plaid Sandbox is not configured. Configure Plaid:Enabled, ClientId, and ClientSecret on the server.");
+            throw new InvalidOperationException("Plaid is not configured. Configure Plaid:Enabled, Environment, ClientId, and ClientSecret on the server.");
     }
 
     private async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken)
