@@ -65,4 +65,21 @@ public sealed class PlaidMigrationTests
         Assert.Contains("NOT EXISTS (SELECT 1 FROM sys.indexes", sql, StringComparison.Ordinal);
         Assert.Contains("IF COL_LENGTH('dbo.cfTransactionRules', 'ApprovalState') IS NULL", sql, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void CurrentModel_MatchesLatestMigrationSnapshot()
+    {
+        var services = new ServiceCollection()
+            .AddEntityFrameworkSqlServer()
+            .AddDbContext<ClintonFranklandDbContext>(options =>
+                options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=PlaidMigrationDiscovery;Trusted_Connection=True"))
+            .BuildServiceProvider();
+
+        using var scope = services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ClintonFranklandDbContext>();
+        var migrations = database.GetService<IMigrationsAssembly>();
+
+        Assert.Contains("20260729122859_SynchronizePlaidModelSnapshot", migrations.Migrations.Keys);
+        Assert.False(database.Database.HasPendingModelChanges());
+    }
 }
