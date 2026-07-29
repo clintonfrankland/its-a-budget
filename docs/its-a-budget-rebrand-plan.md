@@ -92,7 +92,7 @@ historical migration identifiers.
 - [x] Rebrand the root README and user guide.
 - [x] Replace or archive stale SproutPenny branding notes.
 - [x] Document brand assets and their intended uses.
-- [ ] Document required production configuration and OAuth callback behavior.
+- [x] Document required production configuration and OAuth callback behavior.
 - [x] Update Mission Control's project display name if its API safely supports
   the change.
 - [ ] Leave the Gitea repository slug unchanged unless Clinton explicitly wants
@@ -101,15 +101,15 @@ historical migration identifiers.
 
 ## Chunk 6: Verification and Deployment
 
-- [ ] Run focused branding, routing, metadata, and Plaid tests.
-- [ ] Run the full Release test suite.
-- [ ] Build the production image.
-- [ ] Commit and push the complete canonical source change.
-- [ ] Deploy/recreate production from the canonical checkout.
-- [ ] Verify clean startup, database diagnostics, public pages, authenticated
+- [x] Run focused branding, routing, metadata, and Plaid tests.
+- [x] Run the full Release test suite.
+- [x] Build the production image.
+- [x] Commit and push the complete canonical source change.
+- [x] Deploy/recreate production from the canonical checkout.
+- [x] Verify clean startup, database diagnostics, public pages, authenticated
   routes, assets, and HTTP status.
-- [ ] Verify that no secrets or private information appear in public output.
-- [ ] Update this plan with commit, test, and deployment evidence.
+- [x] Verify that no secrets or private information appear in public output.
+- [x] Update this plan with commit, test, and deployment evidence.
 
 ## Chunk 7: External Launch Configuration
 
@@ -138,6 +138,11 @@ details before the public launch can be fully complete.
   existing local configuration.
 - [ ] Complete Plaid dashboard and institution-registration steps that require
   the account owner.
+- [ ] Update the database-configured SMTP sender name and publish the final
+  support mailbox after the address is chosen.
+- [ ] Update Authentik application/provider display branding. The browser
+  control proxy was unavailable during this run, and no local Authentik
+  administration credential is configured.
 
 ## Progress Log
 
@@ -164,3 +169,18 @@ details before the public launch can be fully complete.
   removed the obsolete SproutPenny idea file and served assets, bumped version
   from 5.31.1/190 to 5.32.0/191, updated the production `SiteName`
   configuration, and renamed the Mission Control project to **It's a Budget**.
+- **2026-07-29, Chunk 6 complete:** Committed and pushed canonical `main` at
+  `adbccc1`. Focused branding/Plaid tests passed 23/23 and the full Release suite
+  passed 293/293. Rebuilt and recreated production from
+  `/home/clinton/src/budget-app`; startup and database diagnostics are clean.
+  The public homepage, all six trust routes, manifest, robots file, sitemap,
+  favicon, and social image return HTTP 200 over
+  `https://budget.clintandtara.com`, and the live application reports version
+  5.32.0.
+- **2026-07-29, Chunk 7 audited:** The site is published at the existing HTTPS
+  hostname. Final-domain confirmation, branded support mailbox, legal operator
+  identity, Plaid dashboard profile/redirect/institution registration, SMTP
+  sender display name, and Authentik display branding require Clinton's choice
+  or account-owner access. Browser automation was unavailable because the node
+  browser proxy is disabled, and no local administrative Authentik credential
+  is configured.
