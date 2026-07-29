@@ -35,7 +35,7 @@ public class BrandingContractTests
         Assert.Contains($"@page \"{route}\"", page, StringComparison.Ordinal);
         Assert.Contains("<PageTitle>", page, StringComparison.Ordinal);
         Assert.Contains("<meta name=\"description\"", page, StringComparison.Ordinal);
-        Assert.Contains("<link rel=\"canonical\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("budget.clintandtara.com", page, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

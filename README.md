@@ -2,11 +2,13 @@
 
 A personal budget and checkbook management application. Keeps a running transaction ledger, tracks recurring bills and income, forecasts your balance over time, and sends bill-due email reminders.
 
-The public product name is **It's a Budget**. Signed-out visitors can use the
-marketing homepage and the public `/about`, `/contact`, `/privacy`, `/terms`,
-`/security`, and `/data-deletion` trust pages. Brand usage and assets are
-documented in [the brand guide](docs/brand-guide.md), and the staged launch work
-is tracked in [the rebrand plan](docs/its-a-budget-rebrand-plan.md).
+The public product name is **It's a Budget**. The private application includes
+staged marketing content and `/about`, `/contact`, `/privacy`, `/terms`,
+`/security`, and `/data-deletion` trust pages that can be adapted for the future
+public brand site. The private host blocks crawler indexing and does not publish
+canonical or sitemap signals. Brand usage and assets are documented in
+[the brand guide](docs/brand-guide.md), and the staged launch work is tracked in
+[the rebrand plan](docs/its-a-budget-rebrand-plan.md).
 
 Transaction rules let each signed-in user define ordered, account-aware rules that automatically suggest category, payee, and notes during Checkbook create/edit. Users review or override every suggestion before saving and can preview exact field differences before transactionally applying rules to existing transactions. The same rule system can propose explainable Plaid-derived rules from at least three cleared, user-confirmed reconciliations with 80% agreement; it shows examples and confidence, and only saves after explicit approval. Stable Plaid merchant entity IDs are preferred, with normalized merchant descriptions as a fallback. Learned rules are inbox suggestions only—automatic clearing remains unavailable. See [Transaction rules](docs/pages/transaction-rules.md).
 

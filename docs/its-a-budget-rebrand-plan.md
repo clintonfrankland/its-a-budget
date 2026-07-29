@@ -25,8 +25,8 @@ historical migration identifiers.
 ## Source of Truth
 
 - Canonical repository: `/home/clinton/src/budget-app`
-- Canonical remote: Mission Control project **Budget App**
-- Production application: `https://budget.clintandtara.com`
+- Canonical remote: Mission Control project **It's a Budget**
+- Private application: `https://budget.clintandtara.com`
 - Master logo received 2026-07-29:
   `FullLogo_Transparent_NoBuffer_1---ae7c5ebf-33b9-4de6-934f-4f7e894b2e38.png`
 - Public display name: **It's a Budget**
@@ -42,7 +42,9 @@ historical migration identifiers.
 - [x] Create this tracked implementation plan.
 - [x] Inspect routing, authentication boundaries, metadata, email behavior,
   styling, versioning, and deployment configuration.
-- [x] Decide the safest public-site architecture based on the existing app.
+- [ ] Create the public-site architecture on the final public domain. The
+  existing application hostname is private and must not be used as the public
+  site's canonical URL.
 
 ## Chunk 2: Brand Foundation and Assets
 
@@ -71,7 +73,7 @@ historical migration identifiers.
 
 ## Chunk 4: Public Website and Trust Pages
 
-- [x] Make the public homepage useful to signed-out visitors without exposing
+- [x] Create reusable signed-out homepage copy without exposing
   private application data.
 - [x] Add a clear product overview, benefits, workflow explanation, and calls to
   action.
@@ -81,9 +83,10 @@ historical migration identifiers.
 - [x] Add Terms of Service.
 - [x] Add a Security and Data Use page.
 - [x] Add account/data-deletion instructions.
-- [x] Add consistent footer links to all public trust pages.
-- [x] Add canonical, Open Graph, and social metadata with safe defaults.
-- [x] Add a public robots file and sitemap where appropriate.
+- [x] Add consistent footer links to all staged trust pages.
+- [ ] Add canonical, Open Graph URL, and sitemap metadata after the final public
+  domain is selected.
+- [x] Block crawler indexing on the private application hostname.
 - [x] Avoid invented corporate, mailing-address, support-email, or legal claims;
   clearly mark externally supplied details as pending when necessary.
 
@@ -106,7 +109,7 @@ historical migration identifiers.
 - [x] Build the production image.
 - [x] Commit and push the complete canonical source change.
 - [x] Deploy/recreate production from the canonical checkout.
-- [x] Verify clean startup, database diagnostics, public pages, authenticated
+- [x] Verify clean startup, database diagnostics, staged trust pages, authenticated
   routes, assets, and HTTP status.
 - [x] Verify that no secrets or private information appear in public output.
 - [x] Update this plan with commit, test, and deployment evidence.
@@ -129,8 +132,9 @@ These items are not blockers for beginning the code and asset work. They may
 require Clinton's choice, account access, approval, or externally verified
 details before the public launch can be fully complete.
 
-- [ ] Choose and acquire the final domain, or confirm that
-  `budget.clintandtara.com` will remain the permanent public hostname.
+- [ ] Choose and acquire the final public domain.
+- [x] Confirm that `budget.clintandtara.com` is an internal/private application
+  hostname and will not be published as the public website.
 - [ ] Confirm the public support email address.
 - [ ] Confirm the public operator/legal name to use in Privacy Policy and Terms.
 - [ ] Confirm whether a public mailing address should be listed or omitted.
@@ -150,20 +154,19 @@ details before the public launch can be fully complete.
   worktree, production project record, current public hostname, and supplied
   1280×1046 transparent master logo. Initial user-facing reference inventory is
   complete. Detailed architecture and deployment inspection is next.
-- **2026-07-29, Chunk 1 complete:** The existing root route already has separate
-  signed-out marketing and signed-in dashboard experiences, so the safest
-  launch architecture is to expand that public surface and add public trust
-  routes inside the existing application. This avoids a second deployment and
-  preserves the current authentication and production topology. OIDC group and
-  cookie identifiers remain internal compatibility contracts. Email sender
-  identity remains database-configured and will be reported separately if it
-  cannot be updated safely.
+- **2026-07-29, Chunk 1 revised:** The existing root route has separate
+  signed-out marketing and signed-in dashboard experiences, but Clinton
+  clarified that `budget.clintandtara.com` is internal/private and is not
+  intended for publication. The marketing and trust content remains useful
+  staging material, but the public website requires a separate final domain and
+  deployment. OIDC group and cookie identifiers remain internal compatibility
+  contracts.
 - **2026-07-29, Chunks 2–4 implementation complete:** Archived the original
   artwork and produced stacked, compact, favicon/app, horizontal, Plaid-square,
   and social assets. Added the brand guide, updated the application identity and
-  Plaid client name, expanded the signed-out homepage, and added public About,
+  Plaid client name, expanded the signed-out homepage, and added staged About,
   Contact, Privacy, Terms, Security, and Data Deletion routes with footer links,
-  metadata, manifest, robots file, and sitemap. Focused branding and Plaid tests
+  metadata, manifest, and crawler controls. Focused branding and Plaid tests
   pass 23/23.
 - **2026-07-29, Chunk 5 in progress:** Rebranded source and canonical docs,
   removed the obsolete SproutPenny idea file and served assets, bumped version
@@ -173,14 +176,19 @@ details before the public launch can be fully complete.
   `adbccc1`. Focused branding/Plaid tests passed 23/23 and the full Release suite
   passed 293/293. Rebuilt and recreated production from
   `/home/clinton/src/budget-app`; startup and database diagnostics are clean.
-  The public homepage, all six trust routes, manifest, robots file, sitemap,
-  favicon, and social image return HTTP 200 over
-  `https://budget.clintandtara.com`, and the live application reports version
-  5.32.0.
-- **2026-07-29, Chunk 7 audited:** The site is published at the existing HTTPS
-  hostname. Final-domain confirmation, branded support mailbox, legal operator
+  The private homepage, all six staged trust routes, manifest, robots file,
+  favicon, and social image return HTTP 200 over the internal application
+  hostname, and the live application reports version 5.32.0.
+- **2026-07-29, Chunk 7 audited:** The application is deployed at its private
+  HTTPS hostname, but the public brand site is not yet published. Final-domain
+  selection, branded support mailbox, legal operator
   identity, Plaid dashboard profile/redirect/institution registration, SMTP
   sender display name, and Authentik display branding require Clinton's choice
   or account-owner access. Browser automation was unavailable because the node
   browser proxy is disabled, and no local administrative Authentik credential
   is configured.
+- **2026-07-29, architecture correction:** Removed the internal hostname from
+  canonical/Open Graph URL metadata, removed its sitemap, and changed
+  `robots.txt` to `Disallow: /`. The internal marketing/legal pages are staged
+  copy only and must not be described as the public website. Version advanced
+  to 5.32.1/192 and the full Release suite passed 293/293.
