@@ -83,7 +83,7 @@ else
                         </RadzenDataGridColumn>
                     }
 
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left" Visible="@IsAtLeast(ScreenSize.Medium)">
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Left" Visible="@IsAtLeast(ScreenSize.Large)">
                         <Template Context="item">
                             @if (item.IsBill)
                             {
@@ -97,12 +97,12 @@ else
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" SortOrder="SortOrder.Ascending" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BehaviorName" Title="Kind" Width="100px" Visible="@IsAtLeast(ScreenSize.Medium)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Medium)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="105px" FormatString="{0:MM/dd/yyyy}" Visible="@IsAtLeast(ScreenSize.Large)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="EndDateName" Title="End Date" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraLarge)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="Current" Width="135px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="Current" Width="135px" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)">
                         <Template Context="item">
                             @if (item.IsSpendingAllowance)
                             {

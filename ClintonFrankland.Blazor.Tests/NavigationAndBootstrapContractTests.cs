@@ -34,6 +34,17 @@ public class NavigationAndBootstrapContractTests
     }
 
     [Fact]
+    public void BudgetItemsGrid_PreservesNameOnPhonesAndUsesForecastBreakpoints()
+    {
+        var markup = Read("Components/Pages/BudgetItems.razor");
+
+        Assert.Contains("Property=\"BudgetName\" Title=\"Budget Name\"", markup);
+        Assert.Contains("Property=\"Category\" Title=\"Category\" Visible=\"@IsAtLeast(ScreenSize.Large)\"", markup);
+        Assert.Contains("Title=\"Current\" Width=\"135px\" TextAlign=\"TextAlign.Right\" Visible=\"@IsAtLeast(ScreenSize.Medium)\"", markup);
+        Assert.DoesNotContain("Property=\"BudgetName\" Title=\"Budget Name\" Visible=", markup);
+    }
+
+    [Fact]
     public async Task MobileNavigation_IsVersionedAndCannotBreakTheCircuitWhenTheScriptIsStale()
     {
         var layout = Read("Components/Layout/MainLayout.razor.cs");
