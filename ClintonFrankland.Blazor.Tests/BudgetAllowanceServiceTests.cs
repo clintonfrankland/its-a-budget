@@ -30,7 +30,7 @@ public class BudgetAllowanceServiceTests
     }
 
     [Fact]
-    public async Task Forecast_ReservesOnlyAllowanceNotAlreadySpentOrSeparatelyScheduled()
+    public async Task Forecast_ReducesAllowanceOnlyByPostedTransactions()
     {
         await using var db = CreateDbContext();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -59,11 +59,11 @@ public class BudgetAllowanceServiceTests
         var scheduled = Assert.Single(forecast, i => i.BudgetId == 2);
         var allowance = Assert.Single(forecast, i => i.IsSpendingAllowance);
         Assert.Equal(-25m, scheduled.Amount);
-        Assert.Equal(-85m, allowance.Amount);
+        Assert.Equal(-110m, allowance.Amount);
         Assert.Equal(150m, allowance.PlannedAmount);
         Assert.Equal(40m, allowance.SpentAmount);
-        Assert.Equal(85m, allowance.RemainingAmount);
-        Assert.Equal(850m, allowance.Balance);
+        Assert.Equal(110m, allowance.RemainingAmount);
+        Assert.Equal(825m, allowance.Balance);
     }
 
     [Fact]

@@ -445,23 +445,6 @@ public class BudgetScheduleService
             .Select(t => new { t.CategoryId, t.TransactionDate, t.Amount, t.SharedBudgetId, t.UserId })
             .ToListAsync();
 
-        var scheduled = new List<(int CategoryId, DateOnly Date, decimal Amount, int? SharedBudgetId, int? UserId)>();
-        foreach (var budget in budgets.Where(b => !b.IsSpendingAllowance && b.BudgetTypeId != 0))
-        {
-            var due = budget.NextDueDate ?? startDate;
-            due = RollForwardToProjectionStart(due, budget.FrequencyId ?? 0, startDate);
-            while (IsWithinProjection(due, endDate, includeEndDate) && (!HasEndDate(budget) || due <= budget.EndDate))
-            {
-                scheduled.Add((budget.CategoryId, DateOnly.FromDateTime(due), CurrencyPolicy.Round(budget.Amount ?? 0m), budget.SharedBudgetId, budget.UserId));
-                if ((budget.FrequencyId ?? 0) == 0)
-                    break;
-                var next = CalculateNextDueDate(due, budget.FrequencyId!.Value);
-                if (next <= due)
-                    break;
-                due = next;
-            }
-        }
-
         var result = new Dictionary<string, AllowanceForecastValue>();
         foreach (var budget in allowances)
         {
@@ -475,12 +458,8 @@ public class BudgetScheduleService
                     .Where(t => t.CategoryId == budget.CategoryId && t.TransactionDate >= periodStart && t.TransactionDate < periodEnd &&
                         SameBudgetScope(budget, t.SharedBudgetId, t.UserId))
                     .Sum(t => -t.Amount));
-                var scheduledAmount = CurrencyPolicy.Round(scheduled
-                    .Where(s => s.CategoryId == budget.CategoryId && s.Date >= start && s.Date >= periodStart && s.Date < periodEnd &&
-                        SameBudgetScope(budget, s.SharedBudgetId, s.UserId))
-                    .Sum(s => s.Amount));
                 var planned = CurrencyPolicy.Round(budget.Amount ?? 0m);
-                var remaining = CurrencyPolicy.Round(Math.Max(0m, planned - spent - scheduledAmount));
+                var remaining = CurrencyPolicy.Round(Math.Max(0m, planned - spent));
                 result[AllowanceKey(budget.BudgetId, periodEnd.ToDateTime(TimeOnly.MinValue))] =
                     new AllowanceForecastValue(planned, spent, remaining);
 
