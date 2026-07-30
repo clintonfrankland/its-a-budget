@@ -21,6 +21,15 @@ public class BrandingContractTests
         Assert.DoesNotContain("SproutPenny", home, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void FooterRendersConfiguredVersionAsAnExplicitRazorExpression()
+    {
+        var layout = File.ReadAllText(Path.Combine(ProjectRoot, "Components", "Layout", "MainLayout.razor"));
+
+        Assert.Contains("v@(SiteInfoService.SiteInfo.Version)", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("v@SiteInfoService.SiteInfo.Version", layout, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("About.razor", "/about")]
     [InlineData("Privacy.razor", "/privacy")]
