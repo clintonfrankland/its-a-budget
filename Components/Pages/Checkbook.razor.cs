@@ -50,7 +50,6 @@ public partial class Checkbook
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
-    private string successMessage = string.Empty;
     private decimal balance = 0m;
     private decimal clearedBalance = 0m;
     private bool showBillsDue = false;
@@ -711,9 +710,12 @@ public partial class Checkbook
 
             if (IsQuickAddRoute)
             {
-                successMessage = "Transaction added.";
                 errorMessage = string.Empty;
                 ResetAddTransactionForm();
+                await DialogService.Alert(
+                    "Transaction added.",
+                    "Transaction Added",
+                    new AlertOptions { OkButtonText = "Okay" });
             }
             else
             {

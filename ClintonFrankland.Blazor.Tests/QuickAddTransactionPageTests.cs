@@ -23,8 +23,10 @@ public class QuickAddTransactionPageTests
 
         Assert.Contains("currentView == ViewMode.Edit", markup, StringComparison.Ordinal);
         Assert.Contains("ShowAddTransaction();", code, StringComparison.Ordinal);
-        Assert.Contains("successMessage = \"Transaction added.\"", code, StringComparison.Ordinal);
         Assert.Contains("ResetAddTransactionForm();", code, StringComparison.Ordinal);
+        Assert.Contains("await DialogService.Alert(", code, StringComparison.Ordinal);
+        Assert.Contains("\"Transaction added.\"", code, StringComparison.Ordinal);
+        Assert.Contains("OkButtonText = \"Okay\"", code, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(string relativePath) =>
