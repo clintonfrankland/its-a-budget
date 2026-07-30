@@ -27,6 +27,11 @@ historical migration identifiers.
 - Canonical repository: `/home/clinton/src/budget-app`
 - Canonical remote: Mission Control project **It's a Budget**
 - Private application: `https://budget.clintandtara.com`
+- Public website domain: `https://itsabudget.com`
+- Public support and administrative email: `admin@itsabudget.com`
+- Public operator: Clinton Frankland
+- Public positioning: pre-launch open-source software project
+- Hosted service: not offered or planned for this launch
 - Master logo received 2026-07-29:
   `FullLogo_Transparent_NoBuffer_1---ae7c5ebf-33b9-4de6-934f-4f7e894b2e38.png`
 - Public display name: **It's a Budget**
@@ -42,7 +47,7 @@ historical migration identifiers.
 - [x] Create this tracked implementation plan.
 - [x] Inspect routing, authentication boundaries, metadata, email behavior,
   styling, versioning, and deployment configuration.
-- [ ] Create the public-site architecture on the final public domain. The
+- [x] Create the public-site architecture on `https://itsabudget.com`. The
   existing application hostname is private and must not be used as the public
   site's canonical URL.
 
@@ -89,6 +94,11 @@ historical migration identifiers.
 - [x] Block crawler indexing on the private application hostname.
 - [x] Avoid invented corporate, mailing-address, support-email, or legal claims;
   clearly mark externally supplied details as pending when necessary.
+- [x] Build the separate public site as a pre-launch open-source project, without
+  implying that downloads, hosting, accounts, subscriptions, or Plaid access are
+  publicly available.
+- [x] Create a sanitized product preview using fictional/demo financial data
+  only.
 
 ## Chunk 5: Documentation and Administration
 
@@ -116,8 +126,8 @@ historical migration identifiers.
 
 ## Chunk 7: External Launch Configuration
 
-- [ ] Configure the final public domain, DNS, HTTPS, and redirect strategy.
-- [ ] Create or configure the branded support email.
+- [ ] Configure `itsabudget.com`, DNS, HTTPS, and redirect strategy.
+- [x] Select the public support email: `admin@itsabudget.com`.
 - [ ] Update Authentik application/provider display branding.
 - [ ] Update Authentik callback/logout URLs if the hostname changes.
 - [ ] Update nginx, monitoring, and production URLs if the hostname changes.
@@ -132,12 +142,16 @@ These items are not blockers for beginning the code and asset work. They may
 require Clinton's choice, account access, approval, or externally verified
 details before the public launch can be fully complete.
 
-- [ ] Choose and acquire the final public domain.
+- [x] Choose the final public domain: `itsabudget.com`.
 - [x] Confirm that `budget.clintandtara.com` is an internal/private application
   hostname and will not be published as the public website.
-- [ ] Confirm the public support email address.
-- [ ] Confirm the public operator/legal name to use in Privacy Policy and Terms.
-- [ ] Confirm whether a public mailing address should be listed or omitted.
+- [x] Confirm the public support email address:
+  `admin@itsabudget.com`.
+- [x] Confirm the public operator/legal name: Clinton Frankland.
+- [x] Confirm that no public mailing address will be listed.
+- [x] Confirm that the project is open-source-only and pre-launch, with no hosted
+  service currently offered.
+- [x] Approve sanitized screenshots made only with fictional/demo financial data.
 - [ ] Approve any external-account changes that cannot be made safely through
   existing local configuration.
 - [ ] Complete Plaid dashboard and institution-registration steps that require
