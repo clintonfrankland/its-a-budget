@@ -1,8 +1,9 @@
 @page "/checkbook"
+@page "/quick-add"
 @using System.Data
 @rendermode InteractiveServer
 
-<PageTitle>Checkbook | It's a Budget</PageTitle>
+<PageTitle>@(IsQuickAddRoute ? "Quick Add Transaction" : "Checkbook") | It's a Budget</PageTitle>
 
 @if (!AuthService.IsAuthenticated)
 {
@@ -262,6 +263,10 @@ else
         <div class="container" style="max-width: 500px;">
             <RadzenCard class="mt-3">
                 <h4 class="mb-3">@(editTransactionId == -1 ? "Add" : "Edit") Transaction</h4>
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success" role="status">@successMessage</div>
+                }
                 @if (!string.IsNullOrEmpty(ruleReviewMessage))
                 {
                     <div class="alert alert-info" role="status">@ruleReviewMessage</div>

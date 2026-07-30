@@ -50,6 +50,7 @@ public partial class Checkbook
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
     private decimal balance = 0m;
     private decimal clearedBalance = 0m;
     private bool showBillsDue = false;
@@ -96,6 +97,11 @@ public partial class Checkbook
 
     // Flag to restore grid state after returning from edit
     private bool shouldRestoreGridState = false;
+    private bool IsQuickAddRoute =>
+        string.Equals(
+            Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
+            "quick-add",
+            StringComparison.OrdinalIgnoreCase);
 
     // Screen size tracking for responsive column visibility
     private ScreenSize currentScreenSize = ScreenSize.Large;
@@ -134,12 +140,27 @@ public partial class Checkbook
             await AuthService.InitializeAsync();
             if (!AuthService.IsAuthenticated)
             {
-                Navigation.NavigateTo($"/login?Return={Uri.EscapeDataString("/checkbook")}");
+                var returnUrl = IsQuickAddRoute ? "/quick-add" : "/checkbook";
+                var loginUrl = IsQuickAddRoute
+                    ? $"/auth/authentik/login?returnUrl={Uri.EscapeDataString(returnUrl)}"
+                    : $"/login?Return={Uri.EscapeDataString(returnUrl)}";
+                Navigation.NavigateTo(loginUrl, forceLoad: IsQuickAddRoute);
                 return;
             }
 
             transactionSearchText = InitialSearch ?? string.Empty;
             await LoadDataAsync();
+            if (IsQuickAddRoute)
+            {
+                if (canCreateFinancialData)
+                {
+                    ShowAddTransaction();
+                }
+                else
+                {
+                    errorMessage = "You do not have permission to add transactions.";
+                }
+            }
             StateHasChanged();
         }
 
@@ -408,6 +429,11 @@ public partial class Checkbook
             return;
 
         SaveGridState();
+        ResetAddTransactionForm();
+    }
+
+    private void ResetAddTransactionForm()
+    {
         editTransactionId = -1;
         editBudgetId = -1;  // Not from a budget item
         editDate = DateTime.Today;
@@ -578,6 +604,12 @@ public partial class Checkbook
     {
         editBudgetId = -1;  // Clear the budget tracking
         canManageEditFinancialData = false;
+        if (IsQuickAddRoute)
+        {
+            Navigation.NavigateTo("/checkbook");
+            return;
+        }
+
         currentView = ViewMode.List;
         shouldRestoreGridState = true;
     }
@@ -677,9 +709,18 @@ public partial class Checkbook
                 editBudgetId = -1;  // Reset
             }
 
-            currentView = ViewMode.List;
-            await LoadDataAsync();
-            shouldRestoreGridState = true;
+            if (IsQuickAddRoute)
+            {
+                successMessage = "Transaction added.";
+                errorMessage = string.Empty;
+                ResetAddTransactionForm();
+            }
+            else
+            {
+                currentView = ViewMode.List;
+                await LoadDataAsync();
+                shouldRestoreGridState = true;
+            }
         }
         catch (Exception ex)
         {
