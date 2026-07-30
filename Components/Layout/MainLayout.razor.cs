@@ -96,6 +96,12 @@ public partial class MainLayout : IDisposable
         }
     }
 
+    private async Task NavigateToCheckbook()
+    {
+        await CollapseNavbar();
+        Navigation.NavigateTo("/checkbook", forceLoad: true);
+    }
+
     private async Task HandleBudgetSwitcherChange(ChangeEventArgs args)
     {
         if (int.TryParse(args.Value?.ToString(), out var sharedBudgetId))

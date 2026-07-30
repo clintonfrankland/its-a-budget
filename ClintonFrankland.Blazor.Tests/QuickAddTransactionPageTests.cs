@@ -33,11 +33,18 @@ public class QuickAddTransactionPageTests
     public void Checkbook_RouteTransitionImmediatelyLeavesQuickAddForm()
     {
         var code = ReadRepoFile("Components/Pages/Checkbook.razor.cs");
+        var layout = ReadRepoFile("Components/Layout/MainLayout.razor");
+        var layoutCode = ReadRepoFile("Components/Layout/MainLayout.razor.cs");
 
-        Assert.Contains("protected override void OnParametersSet()", code, StringComparison.Ordinal);
-        Assert.Contains("previousQuickAddRoute.Value != isQuickAddRoute", code, StringComparison.Ordinal);
+        Assert.Contains("Navigation.LocationChanged += OnLocationChanged;", code, StringComparison.Ordinal);
+        Assert.Contains("private void OnLocationChanged(", code, StringComparison.Ordinal);
         Assert.Contains("else if (!isQuickAddRoute)", code, StringComparison.Ordinal);
         Assert.Contains("currentView = ViewMode.List;", code, StringComparison.Ordinal);
+        Assert.Contains("StateHasChanged();", code, StringComparison.Ordinal);
+        Assert.Contains("Navigation.LocationChanged -= OnLocationChanged;", code, StringComparison.Ordinal);
+        Assert.Contains("@onclick=\"NavigateToCheckbook\"", layout, StringComparison.Ordinal);
+        Assert.Contains("@onclick:preventDefault=\"true\"", layout, StringComparison.Ordinal);
+        Assert.Contains("Navigation.NavigateTo(\"/checkbook\", forceLoad: true);", layoutCode, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(string relativePath) =>

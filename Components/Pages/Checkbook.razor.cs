@@ -2,13 +2,14 @@ using ClintonFrankland.Models;
 using ClintonFrankland.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.JSInterop;
 using Radzen;
 using Radzen.Blazor;
 
 namespace ClintonFrankland.Components.Pages;
 
-public partial class Checkbook
+public partial class Checkbook : IDisposable
 {
     [Inject]
     private AuthService AuthService { get; set; } = default!;
@@ -96,7 +97,7 @@ public partial class Checkbook
 
     // Flag to restore grid state after returning from edit
     private bool shouldRestoreGridState = false;
-    private bool? previousQuickAddRoute;
+    private bool previousQuickAddRoute;
     private bool IsQuickAddRoute =>
         string.Equals(
             Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
@@ -133,11 +134,20 @@ public partial class Checkbook
     private bool ruleSuggestionReviewed;
     private string ruleReviewMessage = string.Empty;
 
-    protected override void OnParametersSet()
+    protected override void OnInitialized()
     {
-        var isQuickAddRoute = IsQuickAddRoute;
-        if (previousQuickAddRoute.HasValue && previousQuickAddRoute.Value != isQuickAddRoute)
+        previousQuickAddRoute = IsQuickAddRoute;
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(() =>
         {
+            var isQuickAddRoute = IsQuickAddRoute;
+            if (previousQuickAddRoute == isQuickAddRoute)
+                return;
+
             errorMessage = string.Empty;
             ruleReviewMessage = string.Empty;
 
@@ -152,9 +162,15 @@ public partial class Checkbook
                 currentView = ViewMode.List;
                 shouldRestoreGridState = true;
             }
-        }
 
-        previousQuickAddRoute = isQuickAddRoute;
+            previousQuickAddRoute = isQuickAddRoute;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
