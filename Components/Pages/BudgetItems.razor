@@ -98,9 +98,9 @@ else
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" SortOrder="SortOrder.Ascending" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BehaviorName" Title="Kind" Width="100px" Visible="@IsAtLeast(ScreenSize.Medium)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="105px" FormatString="{0:MM/dd/yyyy}" Visible="@IsAtLeast(ScreenSize.Large)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="EndDateName" Title="End Date" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraLarge)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="105px" FormatString="{0:MM/dd/yyyy}" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="EndDateName" Title="End Date" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="Current" Width="135px" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)">
                         <Template Context="item">
@@ -115,12 +115,12 @@ else
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Monthly" Title="Monthly" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)">
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Monthly" Title="Monthly" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)">
                         <FooterTemplate>
                             <strong>@filteredBudgetItems.Sum(i => i.Monthly).ToString("C")</strong>
                         </FooterTemplate>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="3-mo Trend" Width="100px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center" Visible="@IsAtLeast(ScreenSize.ExtraLarge)">
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="3-mo Trend" Width="100px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)">
                         <HeaderTemplate>
                             <span title="3 complete months of actual spend. Bars are oldest→newest; dashed line is monthly budget.">3-mo Trend</span>
                         </HeaderTemplate>
