@@ -29,6 +29,17 @@ public class QuickAddTransactionPageTests
         Assert.Contains("OkButtonText = \"Okay\"", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Checkbook_RouteTransitionImmediatelyLeavesQuickAddForm()
+    {
+        var code = ReadRepoFile("Components/Pages/Checkbook.razor.cs");
+
+        Assert.Contains("protected override void OnParametersSet()", code, StringComparison.Ordinal);
+        Assert.Contains("previousQuickAddRoute.Value != isQuickAddRoute", code, StringComparison.Ordinal);
+        Assert.Contains("else if (!isQuickAddRoute)", code, StringComparison.Ordinal);
+        Assert.Contains("currentView = ViewMode.List;", code, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(string relativePath) =>
         File.ReadAllText(Path.Combine(
             AppContext.BaseDirectory,

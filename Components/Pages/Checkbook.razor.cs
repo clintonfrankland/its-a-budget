@@ -96,6 +96,7 @@ public partial class Checkbook
 
     // Flag to restore grid state after returning from edit
     private bool shouldRestoreGridState = false;
+    private bool? previousQuickAddRoute;
     private bool IsQuickAddRoute =>
         string.Equals(
             Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
@@ -131,6 +132,30 @@ public partial class Checkbook
     private int? editAccountId;
     private bool ruleSuggestionReviewed;
     private string ruleReviewMessage = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        var isQuickAddRoute = IsQuickAddRoute;
+        if (previousQuickAddRoute.HasValue && previousQuickAddRoute.Value != isQuickAddRoute)
+        {
+            errorMessage = string.Empty;
+            ruleReviewMessage = string.Empty;
+
+            if (isQuickAddRoute && AuthService.IsAuthenticated && canCreateFinancialData)
+            {
+                ResetAddTransactionForm();
+            }
+            else if (!isQuickAddRoute)
+            {
+                editBudgetId = -1;
+                canManageEditFinancialData = false;
+                currentView = ViewMode.List;
+                shouldRestoreGridState = true;
+            }
+        }
+
+        previousQuickAddRoute = isQuickAddRoute;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
