@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ClintonFrankland.Models.Entities;
 
 [Table("cfBudgetMembers")]
-public class BudgetMember
+public class BudgetMember : IModificationTracked
 {
     [Key]
     [Column("BudgetMemberId")]
@@ -38,6 +38,9 @@ public class BudgetMember
 
     [Column("RemovedByUserId")]
     public int? RemovedByUserId { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     [ForeignKey("SharedBudgetId")]
     public virtual SharedBudget? SharedBudget { get; set; }

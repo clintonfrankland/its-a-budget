@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ClintonFrankland.Models.Entities;
 
 [Table("cfTransactionRules")]
-public class TransactionRule
+public class TransactionRule : IModificationTracked
 {
     [Key] public int TransactionRuleId { get; set; }
     public int UserId { get; set; }

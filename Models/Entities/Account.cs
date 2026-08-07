@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a financial account (checking, credit card, etc.)
 /// </summary>
 [Table("cfAccounts")]
-public class Account
+public class Account : IModificationTracked
 {
     [Key]
     [Column("AccountId")]
@@ -69,7 +69,10 @@ public class Account
     public decimal? AvailableCredit { get; set; }
 
     [Column("LastUpdated")]
-    public DateTime? LastUpdated { get; set; }
+    public DateTime LastUpdated { get; set; }
+
+    [NotMapped]
+    public DateTime UpdatedAtUtc { get => LastUpdated; set => LastUpdated = value; }
 
     [Column("IsDeleted")]
     public bool? IsDeleted { get; set; }

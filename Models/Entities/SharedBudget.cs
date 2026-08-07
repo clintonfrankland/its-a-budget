@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Shared household container for one or more Budget users.
 /// </summary>
 [Table("cfSharedBudgets")]
-public class SharedBudget
+public class SharedBudget : IModificationTracked
 {
     [Key]
     [Column("SharedBudgetId")]

@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a transaction category
 /// </summary>
 [Table("cfCategories")]
-public class Category
+public class Category : IModificationTracked
 {
     [Key]
     [Column("CategoryId")]
@@ -23,6 +23,9 @@ public class Category
 
     [Column("SharedBudgetId")]
     public int? SharedBudgetId { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Navigation properties
     [ForeignKey("UserId")]

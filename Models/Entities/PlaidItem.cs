@@ -5,7 +5,7 @@ namespace ClintonFrankland.Models.Entities;
 
 /// <summary>Encrypted server-side credentials for one Plaid Item owned by a Budget user.</summary>
 [Table("cfPlaidItems")]
-public class PlaidItem
+public class PlaidItem : IModificationTracked
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

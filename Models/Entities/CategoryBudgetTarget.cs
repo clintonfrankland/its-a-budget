@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a user's planned spending amount for one category in one month.
 /// </summary>
 [Table("cfCategoryBudgetTargets")]
-public class CategoryBudgetTarget
+public class CategoryBudgetTarget : IModificationTracked
 {
     [Key]
     [Column("CategoryBudgetTargetId")]

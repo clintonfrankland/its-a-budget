@@ -5,7 +5,7 @@ namespace ClintonFrankland.Models.Entities;
 
 /// <summary>Explicit, case-sensitive association between a Plaid account and a Budget account.</summary>
 [Table("cfPlaidAccountMappings")]
-public class PlaidAccountMapping
+public class PlaidAccountMapping : IModificationTracked
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

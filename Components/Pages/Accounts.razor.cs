@@ -99,7 +99,7 @@ public partial class Accounts
                 AccountId = a.AccountId,
                 AccountName = a.AccountName,
                 AccountType = a.AccountType?.AccountTypeName ?? string.Empty,
-                LastUpdated = a.LastUpdated?.ToString("yyyy-MM-dd") ?? string.Empty,
+                LastUpdated = a.LastUpdated.ToString("yyyy-MM-dd"),
                 AccountNumber = a.AccountNumber ?? string.Empty,
                 InterestRate = a.InterestRate ?? 0m,
                 MinimumPayment = a.MinimumPayment ?? 0m,

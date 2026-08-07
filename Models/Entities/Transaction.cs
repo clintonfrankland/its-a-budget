@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a financial transaction (debit or credit)
 /// </summary>
 [Table("cfTransactions")]
-public class Transaction
+public class Transaction : IModificationTracked
 {
     [Key]
     [Column("TransactionId")]
@@ -51,6 +51,9 @@ public class Transaction
     [Column("AttachmentPath")]
     [MaxLength(255)]
     public string? AttachmentPath { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Navigation properties
     [ForeignKey("AccountId")]

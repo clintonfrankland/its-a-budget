@@ -11,7 +11,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Those should be supplied via environment variables / server configuration.
 /// </summary>
 [Table("cfSmtpSettings")]
-public class SmtpSetting
+public class SmtpSetting : IModificationTracked
 {
     [Key]
     [Column("Id")]

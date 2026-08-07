@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Server-wide settings for automated bill-due email notifications.
 /// </summary>
 [Table("cfBillDueNotificationSettings")]
-public class BillDueNotificationSetting
+public class BillDueNotificationSetting : IModificationTracked
 {
     [Key]
     [Column("Id")]

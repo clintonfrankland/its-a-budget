@@ -5,7 +5,7 @@ namespace ClintonFrankland.Models.Entities;
 
 /// <summary>Raw Plaid transaction evidence. It is deliberately not a checkbook ledger entry.</summary>
 [Table("cfPlaidTransactionStaging")]
-public class PlaidTransactionStaging
+public class PlaidTransactionStaging : IModificationTracked
 {
     [Key, DatabaseGenerated(DatabaseGeneratedOption.Identity)] public int PlaidTransactionStagingId { get; set; }
     public int UserId { get; set; }
@@ -30,6 +30,7 @@ public class PlaidTransactionStaging
     [Timestamp] public byte[]? RowVersion { get; set; }
     public DateTime FirstSeenAtUtc { get; set; }
     public DateTime LastSeenAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 }
 
 public static class PlaidReconciliationReviewState
@@ -41,7 +42,7 @@ public static class PlaidReconciliationReviewState
 }
 
 [Table("cfPlaidSyncRuns")]
-public class PlaidSyncRun
+public class PlaidSyncRun : IModificationTracked
 {
     [Key, DatabaseGenerated(DatabaseGeneratedOption.Identity)] public int PlaidSyncRunId { get; set; }
     public int PlaidItemId { get; set; }
@@ -54,10 +55,11 @@ public class PlaidSyncRun
     [StringLength(512)] public string? ErrorCode { get; set; }
     public DateTime StartedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 }
 
 [Table("cfPlaidWebhookDeliveries")]
-public class PlaidWebhookDelivery
+public class PlaidWebhookDelivery : IModificationTracked
 {
     [Key, DatabaseGenerated(DatabaseGeneratedOption.Identity)] public int PlaidWebhookDeliveryId { get; set; }
     [Required, StringLength(128)] public string DeliveryKey { get; set; } = string.Empty;
@@ -71,4 +73,5 @@ public class PlaidWebhookDelivery
     public DateTime? ProcessingStartedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
     [StringLength(512)] public string? ErrorCode { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 }

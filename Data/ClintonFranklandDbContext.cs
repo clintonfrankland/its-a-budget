@@ -8,6 +8,8 @@ namespace ClintonFrankland.Data;
 /// </summary>
 public class ClintonFranklandDbContext : DbContext
 {
+    protected virtual DateTime UtcNow => DateTime.UtcNow;
+
     public ClintonFranklandDbContext(DbContextOptions<ClintonFranklandDbContext> options)
         : base(options)
     {
@@ -37,6 +39,39 @@ public class ClintonFranklandDbContext : DbContext
     public DbSet<PlaidTransactionStaging> PlaidTransactionStaging => Set<PlaidTransactionStaging>();
     public DbSet<PlaidSyncRun> PlaidSyncRuns => Set<PlaidSyncRun>();
     public DbSet<PlaidWebhookDelivery> PlaidWebhookDeliveries => Set<PlaidWebhookDelivery>();
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampMutableRecords();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        StampMutableRecords();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void StampMutableRecords()
+    {
+        ChangeTracker.DetectChanges();
+        var entries = ChangeTracker.Entries<IModificationTracked>()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified)
+            .ToArray();
+        if (entries.Length == 0) return;
+
+        var now = DateTime.SpecifyKind(UtcNow, DateTimeKind.Utc);
+        foreach (var entry in entries)
+        {
+            var timestampProperty = entry.Metadata.FindProperty("UpdatedAtUtc")
+                ?? entry.Metadata.FindProperty("LastUpdated");
+            var explicitlyStamped = entry.State == EntityState.Added
+                ? entry.Entity.UpdatedAtUtc != default
+                : timestampProperty is not null && entry.Property(timestampProperty.Name).IsModified;
+            if (!explicitlyStamped)
+                entry.Entity.UpdatedAtUtc = now;
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a payee (person or company receiving/sending money)
 /// </summary>
 [Table("cfPayees")]
-public class Payee
+public class Payee : IModificationTracked
 {
     [Key]
     [Column("PayeeId")]
@@ -26,6 +26,9 @@ public class Payee
     [Required]
     [Column("IsDeleted")]
     public bool IsDeleted { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Navigation properties
     [ForeignKey("UserId")]

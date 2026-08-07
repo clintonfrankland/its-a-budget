@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents an application user
 /// </summary>
 [Table("cfUsers")]
-public class User
+public class User : IModificationTracked
 {
     [Key]
     [Column("UserId")]
@@ -93,6 +93,9 @@ public class User
 
     [Column("ActiveSharedBudgetId")]
     public int? ActiveSharedBudgetId { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Notification Preferences
     [Column("ReceiveBillDueNotices")]

@@ -7,7 +7,7 @@ namespace ClintonFrankland.Models.Entities;
 /// Represents a budget item (recurring income or expense)
 /// </summary>
 [Table("cfBudgets")]
-public class Budget
+public class Budget : IModificationTracked
 {
     [Key]
     [Column("BudgetId")]
@@ -63,6 +63,9 @@ public class Budget
 
     [Column("PayeeId")]
     public int? PayeeId { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     // Navigation properties
     [ForeignKey("CategoryId")]

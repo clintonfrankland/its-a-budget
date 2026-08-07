@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ClintonFrankland.Models.Entities;
 
 [Table("cfBudgetInvites")]
-public class BudgetInvite
+public class BudgetInvite : IModificationTracked
 {
     [Key]
     [Column("BudgetInviteId")]
@@ -56,6 +56,9 @@ public class BudgetInvite
 
     [Column("RevokedByUserId")]
     public int? RevokedByUserId { get; set; }
+
+    [Column("UpdatedAtUtc")]
+    public DateTime UpdatedAtUtc { get; set; }
 
     [ForeignKey("SharedBudgetId")]
     public virtual SharedBudget? SharedBudget { get; set; }
