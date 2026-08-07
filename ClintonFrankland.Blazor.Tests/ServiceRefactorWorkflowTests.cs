@@ -61,6 +61,65 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
+    public async Task BudgetScheduleForecast_TreatsFutureDatedUnclearedTransactionsAsCommittedToday()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        db.Accounts.Add(new Account
+        {
+            AccountId = 1,
+            AccountName = "Checking",
+            AccountTypeId = 1,
+            BeginningBalance = 1000m,
+            IsDefault = true,
+            UserId = 42
+        });
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Bills", UserId = 42 });
+        db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Committed payment", UserId = 42, IsDeleted = false });
+        db.Frequencies.Add(new Frequency { FrequencyId = 0, FrequencyName = "One-time", Sort = 0 });
+        db.Transactions.AddRange(
+            new Transaction
+            {
+                TransactionId = 1,
+                UserId = 42,
+                AccountId = 1,
+                CategoryId = 1,
+                PayeeId = 1,
+                TransactionDate = new DateOnly(2026, 8, 1),
+                Amount = -100m,
+                Cleared = true
+            },
+            new Transaction
+            {
+                TransactionId = 2,
+                UserId = 42,
+                AccountId = 1,
+                CategoryId = 1,
+                PayeeId = 1,
+                TransactionDate = new DateOnly(2026, 8, 11),
+                Amount = -329.53m,
+                Cleared = false
+            });
+        db.Budgets.Add(Budget(1, 42, "Next bill", 1, 1, new DateTime(2026, 8, 8), 10m));
+        await db.SaveChangesAsync();
+
+        var schedule = new BudgetScheduleService(db);
+        var forecast = await schedule.GetForecastAsync(
+            42,
+            new DateTime(2026, 8, 7),
+            new DateTime(2026, 8, 9),
+            includeEndDate: true);
+        var lowest = await schedule.GetLowestProjectedBalanceAsync(
+            42,
+            new DateTime(2026, 8, 7),
+            new DateTime(2026, 8, 9));
+
+        var item = Assert.Single(forecast);
+        Assert.Equal(560.47m, item.Balance);
+        Assert.Equal((560.47m, new DateTime(2026, 8, 8)), lowest);
+    }
+
+    [Fact]
     public async Task BudgetDataService_SaveBudget_RoundsAndValidatesAmountsAndDates()
     {
         await using var db = CreateDbContext();

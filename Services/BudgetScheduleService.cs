@@ -27,7 +27,10 @@ public class BudgetScheduleService
         DateTime endDate,
         bool includeEndDate = false)
     {
-        var startingBalance = await GetCurrentBalanceAsync(userId, DateOnly.FromDateTime(startDate));
+        // The projection starts with the cleared ledger balance and treats every
+        // uncleared transaction as already committed today, regardless of the
+        // transaction date entered in Checkbook.
+        var startingBalance = await GetProjectionOpeningBalanceAsync(userId);
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
         var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
 
@@ -72,7 +75,7 @@ public class BudgetScheduleService
         DateTime startDate,
         DateTime endDate)
     {
-        var currentBalance = await GetCurrentBalanceAsync(userId);
+        var currentBalance = await GetProjectionOpeningBalanceAsync(userId);
         var budgets = await GetUserBudgetsWithLookupsAsync(userId);
         var writableSharedBudgetIds = await _sharedBudgets.GetFinancialManagerSharedBudgetIdsAsync(userId);
         var allowances = await BuildAllowanceForecastAsync(userId, budgets, startDate, endDate, includeEndDate: true);
@@ -292,7 +295,7 @@ public class BudgetScheduleService
         };
     }
 
-    private async Task<decimal> GetCurrentBalanceAsync(int userId, DateOnly? asOf = null)
+    private async Task<decimal> GetProjectionOpeningBalanceAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var account = await _db.Accounts
@@ -308,11 +311,16 @@ public class BudgetScheduleService
             .Where(t => t.SharedBudgetId.HasValue
                 ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
                 : t.UserId == userId);
-        if (asOf.HasValue)
-            transactions = transactions.Where(t => t.TransactionDate <= asOf.Value);
-        var transactionSum = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-        return CurrencyPolicy.Round((account?.BeginningBalance ?? 0m) + transactionSum);
+        var clearedBalance = (account?.BeginningBalance ?? 0m)
+            + (await transactions
+                .Where(t => t.Cleared)
+                .SumAsync(t => (decimal?)t.Amount) ?? 0m);
+        var committedUncleared = await transactions
+            .Where(t => !t.Cleared)
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+
+        return CurrencyPolicy.Round(clearedBalance + committedUncleared);
     }
 
     private async Task<List<Budget>> GetUserBudgetsWithLookupsAsync(int userId)

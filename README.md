@@ -314,7 +314,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | **Category** | A user-owned classification tag applied to transactions and budget items. |
 | **Payee** | A user-owned named entity representing who a payment is made to or received from. Active payees can be selected in bulk and merged into one kept payee while transactions and budget items are reassigned. |
 | **Frequency** | A lookup value (Weekly, Bi-weekly, Monthly, etc.) controlling how often a budget item recurs. |
-| **Safe to spend** | The lowest projected balance between today and the next paydate — used as a guardrail for discretionary spending. |
+| **Safe to spend** | The lowest projected balance over the next six months after cleared ledger activity and all uncleared Checkbook transactions are treated as committed today. |
 | **Cleared** | A flag on a transaction indicating it has settled in the bank. The cleared balance is the sum of cleared transactions only. |
 | **Plaid reconciliation recommendation** | A read-only comparison of posted Plaid evidence and exclusively owned ledger transactions. It requires sign-correct amount and bounded-date evidence, then uses normalized payee, check/reference, pending-to-posted, or an existing `plaid:{transactionId}` notes marker as explainable supporting evidence. Pending, removed, shared, transfer/cash/refund/split-like, duplicate, and non-unique cases cannot produce a clear recommendation. Unmatched posted evidence can be manually added as one sign-correct cleared entry only after required Budget payee/category review. |
 
