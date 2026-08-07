@@ -71,7 +71,6 @@ public class TransactionRulesDataService
         rule.PayeeName = Trim(draft.PayeeName);
         rule.Notes = Trim(draft.Notes);
         rule.IsEnabled = draft.IsEnabled;
-        rule.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
@@ -175,7 +174,6 @@ public class TransactionRulesDataService
         existing.Confidence = proposal.Confidence;
         existing.EvidenceSummary = proposal.EvidenceSummary;
         existing.IsEnabled = true;
-        existing.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
@@ -206,7 +204,6 @@ public class TransactionRulesDataService
         }
         existing.ApprovalState = TransactionRuleApprovalState.Rejected;
         existing.IsEnabled = false;
-        existing.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 

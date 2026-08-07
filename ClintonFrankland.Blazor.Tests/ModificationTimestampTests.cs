@@ -1,8 +1,11 @@
 using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
+using ClintonFrankland.Models.ViewModels;
+using ClintonFrankland.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Data.Sqlite;
 using System.Reflection;
 
@@ -71,22 +74,6 @@ public class ModificationTimestampTests
     }
 
     [Fact]
-    public void Migration_ModelsLegacyAndAlreadyPresentColumnUpgradesIdempotently()
-    {
-        var mutableColumns = new[] { "cfUsers", "cfTransactions", "cfPlaidWebhookDeliveries",
-            "cfPlaidTransactionStaging", "cfPlaidSyncRuns", "cfPayees", "cfCategories",
-            "cfBudgets", "cfBudgetMembers", "cfBudgetInvites" };
-
-        var legacy = new HashSet<string>();
-        ApplyGuardedUpgrade(legacy, mutableColumns);
-        Assert.Equal(mutableColumns.Order(), legacy.Order());
-
-        var alreadyPresent = mutableColumns.ToHashSet();
-        ApplyGuardedUpgrade(alreadyPresent, mutableColumns);
-        Assert.Equal(mutableColumns.Order(), alreadyPresent.Order());
-    }
-
-    [Fact]
     public async Task TransactionEditAndClear_AdvanceOnlyTargetedRecord()
     {
         var databaseName = Guid.NewGuid().ToString();
@@ -117,31 +104,91 @@ public class ModificationTimestampTests
     }
 
     [Fact]
-    public async Task EveryMutableFamily_StampsCreatesAndMutationsAtomically()
+    public async Task ApplicationServices_StampAccountBudgetCategoryPayeeRuleAndImportPaths()
     {
         var databaseName = Guid.NewGuid().ToString();
         var created = Utc(14);
         var changed = Utc(15);
         await using (var db = new FixedClockContext(Options(databaseName), created))
         {
-            AddRepresentativeMutableRecords(db);
+            db.Users.Add(User(1, "user"));
+            db.AccountTypes.Add(new AccountType { AccountTypeId = 1, AccountTypeName = "Checking" });
+            var account = Account(1);
+            account.UserId = 1;
+            account.IsDefault = true;
+            db.Accounts.Add(account);
             await db.SaveChangesAsync();
-            Assert.All(db.ChangeTracker.Entries<IModificationTracked>(), e => Assert.Equal(created, e.Entity.UpdatedAtUtc));
         }
         await using (var db = new FixedClockContext(Options(databaseName), changed))
         {
-            await LoadEveryMutableSet(db);
-            foreach (var entry in db.ChangeTracker.Entries<IModificationTracked>())
-            {
-                var businessProperty = entry.Properties.First(p => !p.Metadata.IsPrimaryKey()
-                    && p.Metadata.Name is not "UpdatedAtUtc" and not "LastUpdated");
-                businessProperty.IsModified = true;
-            }
-            await db.SaveChangesAsync();
+            await new AccountsDataService(db).SaveAccountAsync(1, 1, "Renamed", "1", 1, 0, 0, 0, 1, 0, 0, "", changed);
+            await new BudgetItemsDataService(db).SaveBudgetAsync(1, -1, "Rent", 1, 1,
+                new DateTime(2026, 9, 1), new DateTime(1970, 1, 1), 100, "Housing", "Landlord", false, true, false);
+            var payee = await db.Payees.SingleAsync();
+            await new PayeesDataService(db).UpdatePayeeAsync(1, payee.PayeeId, "Property Manager");
+            await new TransactionRulesDataService(db).SaveAsync(1,
+                new TransactionRuleDraft(null, "rent", null, null, null, "Housing", "Property Manager", null, true));
+            await new CheckbookDataService(db).ImportTransactionsAsync(1,
+                [new ImportedTransaction(new DateOnly(2026, 8, 7), "Imported", "Imported Category", -10m, true)]);
         }
         await using var verify = new FixedClockContext(Options(databaseName), Utc(16));
-        await LoadEveryMutableSet(verify);
-        Assert.All(verify.ChangeTracker.Entries<IModificationTracked>(), e => Assert.Equal(changed, e.Entity.UpdatedAtUtc));
+        Assert.Equal(changed, (await verify.Accounts.SingleAsync()).LastUpdated);
+        Assert.All(await verify.Budgets.ToArrayAsync(), row => Assert.Equal(changed, row.UpdatedAtUtc));
+        Assert.All(await verify.Categories.ToArrayAsync(), row => Assert.Equal(changed, row.UpdatedAtUtc));
+        Assert.All(await verify.Payees.ToArrayAsync(), row => Assert.Equal(changed, row.UpdatedAtUtc));
+        Assert.All(await verify.TransactionRules.ToArrayAsync(), row => Assert.Equal(changed, row.UpdatedAtUtc));
+        Assert.All(await verify.Transactions.ToArrayAsync(), row => Assert.Equal(changed, row.UpdatedAtUtc));
+    }
+
+    [Fact]
+    public async Task BudgetAdvanceAndSkip_StampThroughScheduleService_WhileRejectedOccurrenceIsNoOp()
+    {
+        var name = Guid.NewGuid().ToString();
+        await using (var db = new FixedClockContext(Options(name), Utc(14)))
+        {
+            db.Users.Add(User(1, "owner"));
+            db.Budgets.AddRange(
+                new Budget { BudgetId = 1, UserId = 1, BudgetTypeId = 1, CategoryId = 1, FrequencyId = 1, NextDueDate = new DateTime(2026, 8, 1) },
+                new Budget { BudgetId = 2, UserId = 1, BudgetTypeId = 1, CategoryId = 1, FrequencyId = 1, NextDueDate = new DateTime(2026, 8, 1) });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = new FixedClockContext(Options(name), Utc(15)))
+        {
+            var service = new BudgetScheduleService(db);
+            await service.MarkBudgetPaidAsync(1, 1);
+            Assert.False(await service.SkipOccurrenceAsync(1, 2, new DateTime(2026, 7, 1)));
+        }
+        await using var verify = new FixedClockContext(Options(name), Utc(16));
+        var rows = await verify.Budgets.OrderBy(x => x.BudgetId).ToArrayAsync();
+        Assert.Equal(Utc(15), rows[0].UpdatedAtUtc);
+        Assert.Equal(Utc(14), rows[1].UpdatedAtUtc);
+    }
+
+    [Fact]
+    public async Task Sharing_AuthorizedMutationStampsMemberAndBudget_UnauthorizedMutationDoesNot()
+    {
+        var name = Guid.NewGuid().ToString();
+        await using (var db = new FixedClockContext(Options(name), Utc(14)))
+        {
+            db.Users.AddRange(User(1, "owner"), User(2, "member"), User(3, "outsider"));
+            db.SharedBudgets.Add(new SharedBudget { SharedBudgetId = 1, Name = "Home", OwnerUserId = 1 });
+            db.BudgetMembers.AddRange(
+                new BudgetMember { BudgetMemberId = 1, SharedBudgetId = 1, UserId = 1, Role = BudgetMemberRole.Owner },
+                new BudgetMember { BudgetMemberId = 2, SharedBudgetId = 1, UserId = 2, Role = BudgetMemberRole.Viewer });
+            await db.SaveChangesAsync();
+        }
+        DateTime budgetStamp;
+        await using (var db = new FixedClockContext(Options(name), Utc(15)))
+        {
+            Assert.True(await new SharedBudgetDataService(db).ChangeMemberRoleAsync(1, 2, BudgetMemberRole.Editor));
+            budgetStamp = (await db.SharedBudgets.SingleAsync()).UpdatedAtUtc;
+        }
+        await using (var db = new FixedClockContext(Options(name), Utc(16)))
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                new SharedBudgetDataService(db).ChangeMemberRoleAsync(3, 2, BudgetMemberRole.Viewer));
+        await using var verify = new FixedClockContext(Options(name), Utc(17));
+        Assert.Equal(Utc(15), (await verify.BudgetMembers.SingleAsync(x => x.BudgetMemberId == 2)).UpdatedAtUtc);
+        Assert.Equal(budgetStamp, (await verify.SharedBudgets.SingleAsync()).UpdatedAtUtc);
     }
 
     [Fact]
@@ -195,46 +242,16 @@ public class ModificationTimestampTests
         Assert.All(persisted, x => Assert.Equal(initial, x.UpdatedAtUtc));
     }
 
-    private static void ApplyGuardedUpgrade(HashSet<string> schema, IEnumerable<string> tables)
-    {
-        foreach (var table in tables) schema.Add(table);
-        Assert.All(tables, table => Assert.Contains(table, schema)); // backfill/enforcement can now resolve every column
-    }
-
     private static DateTime Utc(int hour) => new(2026, 8, 7, hour, 0, 0, DateTimeKind.Utc);
 
     private static Transaction Transaction(int id) => new() { TransactionId = id, TransactionDate = new DateOnly(2026, 8, 7), Amount = 1, PayeeId = 1, CategoryId = 1, AccountId = 1 };
     private static Account Account(int id) => new() { AccountId = id, AccountName = $"Account {id}", AccountTypeId = 1 };
 
-    private static void AddRepresentativeMutableRecords(ClintonFranklandDbContext db)
-    {
-        db.AddRange(User(1, "user"), Account(1), new Budget { BudgetId = 1, BudgetTypeId = 1, CategoryId = 1 },
-            new Category { CategoryId = 1, CategoryName = "category" }, new Payee { PayeeId = 1, PayeeName = "payee", UserId = 1 },
-            Transaction(1), new TransactionRule { TransactionRuleId = 1, UserId = 1, ContainsText = "rule" },
-            new SharedBudget { SharedBudgetId = 1, Name = "shared", OwnerUserId = 1, UpdatedAtUtc = default },
-            new BudgetMember { BudgetMemberId = 1, SharedBudgetId = 1, UserId = 1 },
-            new BudgetInvite { BudgetInviteId = 1, SharedBudgetId = 1, InvitedByUserId = 1, InviteTokenHash = "token", ExpiresAtUtc = Utc(23) },
-            new CategoryBudgetTarget { CategoryBudgetTargetId = 1, UserId = 1, CategoryId = 1, BudgetMonth = new DateOnly(2026, 8, 1), UpdatedAtUtc = default },
-            new SmtpSetting { UpdatedAtUtc = default }, new BillDueNotificationSetting { UpdatedAtUtc = default },
-            new PlaidItem { PlaidItemId = 1, UserId = 1, ItemId = "item", EncryptedAccessToken = "cipher" },
-            new PlaidAccountMapping { PlaidAccountMappingId = 1, PlaidItemId = 1, PlaidAccountId = "pa", BudgetAccountId = 1 },
-            new PlaidTransactionStaging { PlaidTransactionStagingId = 1, UserId = 1, PlaidItemId = 1, BudgetAccountId = 1, PlaidTransactionId = "pt" },
-            new PlaidSyncRun { PlaidSyncRunId = 1, PlaidItemId = 1 },
-            new PlaidWebhookDelivery { PlaidWebhookDeliveryId = 1, DeliveryKey = "delivery" });
-    }
-
-    private static async Task LoadEveryMutableSet(ClintonFranklandDbContext db)
-    {
-        await db.Users.LoadAsync(); await db.Accounts.LoadAsync(); await db.Budgets.LoadAsync();
-        await db.Categories.LoadAsync(); await db.Payees.LoadAsync(); await db.Transactions.LoadAsync();
-        await db.TransactionRules.LoadAsync(); await db.SharedBudgets.LoadAsync(); await db.BudgetMembers.LoadAsync();
-        await db.BudgetInvites.LoadAsync(); await db.CategoryBudgetTargets.LoadAsync(); await db.SmtpSettings.LoadAsync();
-        await db.BillDueNotificationSettings.LoadAsync(); await db.PlaidItems.LoadAsync(); await db.PlaidAccountMappings.LoadAsync();
-        await db.PlaidTransactionStaging.LoadAsync(); await db.PlaidSyncRuns.LoadAsync(); await db.PlaidWebhookDeliveries.LoadAsync();
-    }
-
     private static DbContextOptions<ClintonFranklandDbContext> Options(string name) =>
-        new DbContextOptionsBuilder<ClintonFranklandDbContext>().UseInMemoryDatabase(name).Options;
+        new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseInMemoryDatabase(name)
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
 
     private static User User(int id, string name) => new()
     {
