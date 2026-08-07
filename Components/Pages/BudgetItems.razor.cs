@@ -40,6 +40,9 @@ public partial class BudgetItems
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
     [Inject]
+    private BalanceSummaryService BalanceSummary { get; set; } = default!;
+
+    [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "edit")]
@@ -57,6 +60,7 @@ public partial class BudgetItems
     private Dictionary<string, decimal[]> _sparklineData = new();
     private List<FrequencyOption> frequencyOptions = new();
     private bool canCreateFinancialData;
+    private BalanceSummaryViewModel? balanceSummary;
     private int previewDays = 30;
     private string previewStatusMessage = string.Empty;
     private readonly HashSet<string> handlingOccurrenceKeys = [];
@@ -142,6 +146,7 @@ public partial class BudgetItems
             var budgetsData = await BudgetItemsData.GetBudgetsForUserAsync(userId);
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
+            balanceSummary = await BalanceSummary.GetAsync(userId, DateTime.Today);
             _sparklineData = await CheckbookData.GetMonthlyCategoryTotalsAsync(userId, 3);
             var allowanceProgress = await BudgetAllowance.GetCurrentProgressAsync(userId, budgetsData);
 
@@ -162,7 +167,7 @@ public partial class BudgetItems
                         : b.EndDate.Value.ToString("MM/dd/yyyy"),
                     FrequencyName = b.Frequency?.FrequencyName ?? string.Empty,
                     Amount = b.Amount ?? 0m,
-                    Monthly = CalculateMonthlyAmount(b.Amount ?? 0m, b.FrequencyId ?? 0, b.BudgetTypeId),
+                    Monthly = BalanceSummaryService.CalculateMonthlyAmount(b),
                     IsBill = b.IsBill ?? false,
                     IsAuto = b.IsAutomatic ?? false,
                     IsLate = b.IsLate ?? false,
@@ -266,32 +271,6 @@ public partial class BudgetItems
     }
 
     private bool IsHandling(BudgetItemViewModel item) => handlingOccurrenceKeys.Contains(item.OccurrenceKey);
-
-    private static decimal CalculateMonthlyAmount(decimal amount, int frequencyId, int budgetTypeId)
-    {
-        // BudgetTypeId: 0 = Income (positive), 1 = Expense (negative)
-        var multiplier = budgetTypeId == 0 ? 1m : -1m;
-
-        var monthly = frequencyId switch
-        {
-            1 => amount * 52m / 12m,      // Weekly
-            2 => amount * 26m / 12m,      // Bi-weekly
-            4 => amount,                   // Monthly
-            5 => amount / 2m,              // Bi-monthly
-            6 => amount / 3m,              // Quarterly
-            7 => amount * 52m / 5m / 12m,  // 5 weeks
-            8 => amount * 2m,              // Semi-monthly
-            9 => amount / 12m,             // Yearly
-            10 => amount * 73m / 12m,      // Every 5 days (365/5 = 73)
-            11 => amount * 52m / 6m / 12m, // 6 weeks
-            12 => amount * 52m / 3m / 12m, // 3 weeks
-            13 => amount * 52m / 4m / 12m, // 4 weeks
-            14 => amount / 6m,             // Semi-annually
-            _ => 0m                        // One-time or unknown
-        };
-
-        return CurrencyPolicy.Round(monthly * multiplier);
-    }
 
     private async Task LoadCategoriesAndPayeesAsync()
     {

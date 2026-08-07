@@ -263,10 +263,14 @@ public class BudgetItemActionsTests : BunitContext
         Services.AddSingleton<CurrentUserContext>();
         Services.AddSingleton(shared);
         Services.AddSingleton(new BudgetDataService(db, shared));
-        Services.AddSingleton(new BudgetItemsDataService(db, shared));
-        Services.AddSingleton(new BudgetScheduleService(db, shared));
+        var budgetItems = new BudgetItemsDataService(db, shared);
+        var budgetSchedule = new BudgetScheduleService(db, shared);
+        var checkbook = new CheckbookDataService(db, shared);
+        Services.AddSingleton(budgetItems);
+        Services.AddSingleton(budgetSchedule);
         Services.AddSingleton(new BudgetAllowanceService(db, shared));
-        Services.AddSingleton(new CheckbookDataService(db, shared));
+        Services.AddSingleton(checkbook);
+        Services.AddSingleton(new BalanceSummaryService(checkbook, budgetSchedule, budgetItems));
         Services.AddSingleton<BudgetItemsExportService>();
         Services.AddSingleton<DialogService>();
     }

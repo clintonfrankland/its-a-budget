@@ -1,0 +1,20 @@
+<div class="alert alert-success d-flex flex-wrap align-items-baseline gap-3" role="status" aria-label="Budget balance summary">
+    <span>Balance: <strong>@Balance.ToString("C")</strong></span>
+    <span>Cleared: <strong>@ClearedBalance.ToString("C")</strong></span>
+    <span>
+        Safe to Spend:
+        <strong class="@(SafeToSpend < 0 ? "text-danger" : null)">@SafeToSpend.ToString("C")</strong>
+        <span class="text-muted">(@SafeToSpendDate.ToString("MMM d"))</span>
+    </span>
+    <span title="Recurring Budget Items normalized to a monthly amount; income is positive and expenses are negative.">
+        Monthly Plan: <strong class="@(MonthlyPlan < 0 ? "text-danger" : null)">@MonthlyPlan.ToString("C")</strong>
+    </span>
+</div>
+
+@code {
+    [Parameter] public decimal Balance { get; set; }
+    [Parameter] public decimal ClearedBalance { get; set; }
+    [Parameter] public decimal SafeToSpend { get; set; }
+    [Parameter] public DateTime SafeToSpendDate { get; set; }
+    [Parameter] public decimal MonthlyPlan { get; set; }
+}

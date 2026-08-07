@@ -40,12 +40,13 @@ public class OccurrenceAwareSkipPageTests
     {
         var markup = ReadRepoFile("Components/Pages/Checkbook.razor");
         var code = ReadRepoFile("Components/Pages/Checkbook.razor.cs");
+        var balanceBar = ReadRepoFile("Components/BalanceBar.razor");
 
-        Assert.Contains("Safe to Spend:", markup);
-        Assert.Contains("@safeToSpend.ToString(\"C\")", markup);
-        Assert.Contains("@safeToSpendDate.ToString(\"MMM d\")", markup);
-        Assert.Contains("BudgetSchedule.GetLowestProjectedBalanceAsync", code);
-        Assert.Contains("DateTime.Today.AddMonths(6)", code);
+        Assert.Contains("<BalanceBar", markup);
+        Assert.Contains("Safe to Spend:", balanceBar);
+        Assert.Contains("@SafeToSpend.ToString(\"C\")", balanceBar);
+        Assert.Contains("@SafeToSpendDate.ToString(\"MMM d\")", balanceBar);
+        Assert.Contains("BalanceSummary.GetAsync", code);
     }
 
     private static string ReadRepoFile(string relativePath) => File.ReadAllText(Path.Combine(RepoRoot, relativePath));

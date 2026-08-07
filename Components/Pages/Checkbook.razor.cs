@@ -39,6 +39,9 @@ public partial class Checkbook : IDisposable
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
     [Inject]
+    private BalanceSummaryService BalanceSummary { get; set; } = default!;
+
+    [Inject]
     private TransactionCsvService TransactionCsv { get; set; } = default!;
 
     [Inject]
@@ -55,6 +58,7 @@ public partial class Checkbook : IDisposable
     private decimal clearedBalance = 0m;
     private decimal safeToSpend = 0m;
     private DateTime safeToSpendDate = DateTime.Today;
+    private decimal monthlyPlan = 0m;
     private bool showBillsDue = false;
     private int billsDueCount = 0;
     private bool showBudgetCollapse = false;
@@ -239,6 +243,12 @@ public partial class Checkbook : IDisposable
             var userId = CurrentUser.UserId;
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
+            var summary = await BalanceSummary.GetAsync(userId, DateTime.Today);
+            balance = summary.Balance;
+            clearedBalance = summary.ClearedBalance;
+            safeToSpend = summary.SafeToSpend;
+            safeToSpendDate = summary.SafeToSpendDate;
+            monthlyPlan = summary.MonthlyPlan;
             var activeBudget = await SharedBudgetData.GetActiveSharedBudgetSummaryAsync(userId);
             var defaultAccount = await CheckbookData.GetAccountForUserAsync(userId);
             transactionDestination = activeBudget is null || defaultAccount is null
@@ -248,15 +258,6 @@ public partial class Checkbook : IDisposable
 
             var transactionsData = await CheckbookData.GetTransactionsForUserAsync(userId);
 
-            // Calculate totals for balance display
-            var totalAmount = transactionsData.Sum(t => t.Amount);
-            var clearedAmount = transactionsData.Where(t => t.Cleared).Sum(t => t.Amount);
-            balance = startingBalance + totalAmount;
-            clearedBalance = startingBalance + clearedAmount;
-            (safeToSpend, safeToSpendDate) = await BudgetSchedule.GetLowestProjectedBalanceAsync(
-                userId,
-                DateTime.Today,
-                DateTime.Today.AddMonths(6));
             // Calculate running balance
             var runningBalance = startingBalance;
             transactions = transactionsData.Select(t =>

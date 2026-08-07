@@ -17,6 +17,12 @@ else
 
     @if (currentView == ViewMode.List)
     {
+        @if (balanceSummary is not null)
+        {
+            <BalanceBar Balance="balanceSummary.Balance" ClearedBalance="balanceSummary.ClearedBalance"
+                        SafeToSpend="balanceSummary.SafeToSpend" SafeToSpendDate="balanceSummary.SafeToSpendDate"
+                        MonthlyPlan="balanceSummary.MonthlyPlan" />
+        }
         @* Media queries for responsive column visibility - using Bootstrap breakpoints *@
         <RadzenMediaQuery Query="(max-width: 575.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraSmall, matches))" />
         <RadzenMediaQuery Query="(min-width: 576px) and (max-width: 767.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.Small, matches))" />

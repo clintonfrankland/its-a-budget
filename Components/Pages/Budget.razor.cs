@@ -29,6 +29,9 @@ public partial class Budget
     [Inject]
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
+    [Inject]
+    private BalanceSummaryService BalanceSummary { get; set; } = default!;
+
     [SupplyParameterFromQuery(Name = "editNext")]
     private int? InitialEditNextBudgetId { get; set; }
 
@@ -40,6 +43,7 @@ public partial class Budget
     private List<ChartDataPoint> chartData = new();
     private List<FrequencyOption> frequencyOptions = new();
     private bool canCreateFinancialData;
+    private BalanceSummaryViewModel? balanceSummary;
 
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetGrid;
@@ -108,6 +112,7 @@ public partial class Budget
             budgetItems = forecastItems;
             chartData = GenerateChartData(forecastItems);
             canCreateFinancialData = (await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId)).Count > 0;
+            balanceSummary = await BalanceSummary.GetAsync(userId, DateTime.Today);
 
             await LoadCategoriesAndPayeesAsync();
         }

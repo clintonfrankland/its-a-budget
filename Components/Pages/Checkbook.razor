@@ -26,12 +26,8 @@ else
         <RadzenMediaQuery Query="(min-width: 1200px) and (max-width: 1399.98px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraLarge, matches))" />
         <RadzenMediaQuery Query="(min-width: 1400px)" Change="@(matches => OnScreenSizeChange(ScreenSize.ExtraExtraLarge, matches))" />
 
-        <div class="alert alert-success">
-            Balance: <strong>@balance.ToString("C")</strong>&nbsp;&nbsp;
-            Cleared: @clearedBalance.ToString("C")&nbsp;&nbsp;
-            Safe to Spend: <strong class="@(safeToSpend < 0 ? "text-danger" : null)">@safeToSpend.ToString("C")</strong>
-            <span class="text-muted">(@safeToSpendDate.ToString("MMM d"))</span>
-        </div>
+        <BalanceBar Balance="balance" ClearedBalance="clearedBalance" SafeToSpend="safeToSpend"
+                    SafeToSpendDate="safeToSpendDate" MonthlyPlan="monthlyPlan" />
 
         @if (showBillsDue)
         {
