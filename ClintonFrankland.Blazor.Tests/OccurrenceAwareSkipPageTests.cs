@@ -35,6 +35,19 @@ public class OccurrenceAwareSkipPageTests
         Assert.Equal(2, Count(markup, editAction));
     }
 
+    [Fact]
+    public void Checkbook_BalanceBarShowsCanonicalSafeToSpendValueAndDate()
+    {
+        var markup = ReadRepoFile("Components/Pages/Checkbook.razor");
+        var code = ReadRepoFile("Components/Pages/Checkbook.razor.cs");
+
+        Assert.Contains("Safe to Spend:", markup);
+        Assert.Contains("@safeToSpend.ToString(\"C\")", markup);
+        Assert.Contains("@safeToSpendDate.ToString(\"MMM d\")", markup);
+        Assert.Contains("BudgetSchedule.GetLowestProjectedBalanceAsync", code);
+        Assert.Contains("DateTime.Today.AddMonths(6)", code);
+    }
+
     private static string ReadRepoFile(string relativePath) => File.ReadAllText(Path.Combine(RepoRoot, relativePath));
 
     private static int Count(string source, string value) =>

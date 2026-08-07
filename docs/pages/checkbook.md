@@ -16,6 +16,7 @@ It’s fast, practical, and meant to match how you actually think about money da
 
 - **Balance**: your current running balance
 - **Cleared**: your cleared balance (helpful when reconciling)
+- **Safe to Spend**: the lowest projected balance over the next six months after uncleared Checkbook transactions are treated as committed today
 
 If you have bills that are due today or past due, you may see a warning that tells you how many are due and nudges you to open the Budgets panel.
 

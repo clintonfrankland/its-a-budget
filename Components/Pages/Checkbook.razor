@@ -28,7 +28,9 @@ else
 
         <div class="alert alert-success">
             Balance: <strong>@balance.ToString("C")</strong>&nbsp;&nbsp;
-            Cleared: @clearedBalance.ToString("C")
+            Cleared: @clearedBalance.ToString("C")&nbsp;&nbsp;
+            Safe to Spend: <strong class="@(safeToSpend < 0 ? "text-danger" : null)">@safeToSpend.ToString("C")</strong>
+            <span class="text-muted">(@safeToSpendDate.ToString("MMM d"))</span>
         </div>
 
         @if (showBillsDue)

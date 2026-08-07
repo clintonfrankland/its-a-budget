@@ -53,6 +53,8 @@ public partial class Checkbook : IDisposable
     private string errorMessage = string.Empty;
     private decimal balance = 0m;
     private decimal clearedBalance = 0m;
+    private decimal safeToSpend = 0m;
+    private DateTime safeToSpendDate = DateTime.Today;
     private bool showBillsDue = false;
     private int billsDueCount = 0;
     private bool showBudgetCollapse = false;
@@ -245,6 +247,10 @@ public partial class Checkbook : IDisposable
             var clearedAmount = transactionsData.Where(t => t.Cleared).Sum(t => t.Amount);
             balance = startingBalance + totalAmount;
             clearedBalance = startingBalance + clearedAmount;
+            (safeToSpend, safeToSpendDate) = await BudgetSchedule.GetLowestProjectedBalanceAsync(
+                userId,
+                DateTime.Today,
+                DateTime.Today.AddMonths(6));
             // Calculate running balance
             var runningBalance = startingBalance;
             transactions = transactionsData.Select(t =>
