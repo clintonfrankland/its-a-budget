@@ -29,6 +29,8 @@ public sealed class AccountsPageTests
         {
             Assert.Empty(db.Transactions);
             Assert.Contains("Accounts", page.Markup);
+            Assert.Contains("Household", page.Markup);
+            Assert.Contains("Default", page.Markup);
             Assert.DoesNotContain("alert-danger", page.Markup);
 
             var account = Assert.Single(GetLoadedAccounts(page.Instance));

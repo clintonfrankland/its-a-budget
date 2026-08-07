@@ -91,6 +91,9 @@ public class User
     [Column("LastExternalLoginUtc")]
     public DateTime? LastExternalLoginUtc { get; set; }
 
+    [Column("ActiveSharedBudgetId")]
+    public int? ActiveSharedBudgetId { get; set; }
+
     // Notification Preferences
     [Column("ReceiveBillDueNotices")]
     public bool ReceiveBillDueNotices { get; set; } = false;

@@ -12,4 +12,5 @@ public class AccountViewModel
     public decimal Balance { get; set; }
     public decimal? Ratio { get; set; }
     public bool CanManageFinancialData { get; set; }
+    public bool IsDefault { get; set; }
 }

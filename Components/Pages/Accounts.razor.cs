@@ -32,6 +32,7 @@ public partial class Accounts
     private string errorMessage = string.Empty;
     private List<AccountViewModel> accounts = new();
     private bool canCreateFinancialData;
+    private string activeBudgetName = string.Empty;
     
     // Grid reference and search
     private RadzenDataGrid<AccountViewModel>? accountsGrid;
@@ -91,6 +92,7 @@ public partial class Accounts
             var accountsData = await AccountsData.GetAccountsForUserAsync(userId);
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
+            activeBudgetName = (await SharedBudgetData.GetActiveSharedBudgetSummaryAsync(userId))?.Name ?? string.Empty;
 
             accounts = accountsData.Select(a => new AccountViewModel
             {
@@ -103,7 +105,8 @@ public partial class Accounts
                 MinimumPayment = a.MinimumPayment ?? 0m,
                 Balance = a.Balance,
                 Ratio = a.Balance == 0 ? null : Math.Round((a.MinimumPayment ?? 0) / a.Balance * 100, 2),
-                CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, a.SharedBudgetId, a.UserId)
+                CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, a.SharedBudgetId, a.UserId),
+                IsDefault = a.IsDefault
             }).ToList();
         }
         catch (Exception ex)
@@ -132,6 +135,12 @@ public partial class Accounts
     }
 
     private void ShowPlaidConnections() => Navigation.NavigateTo("/accounts/plaid");
+
+    private async Task MakeDefaultAccountAsync(int accountId)
+    {
+        if (await AccountsData.SetDefaultAccountAsync(CurrentUser.UserId, accountId, DateTime.UtcNow))
+            await LoadDataAsync();
+    }
 
     private async Task ShowEditAccountAsync(int accountId)
     {

@@ -38,6 +38,48 @@ public class AccountsDataService
             .ToListAsync();
     }
 
+    public async Task<bool> SetDefaultAccountAsync(int userId, int accountId, DateTime lastUpdated)
+    {
+        var account = await _db.Accounts.FirstOrDefaultAsync(a =>
+            a.AccountId == accountId && !(a.IsDeleted ?? false));
+        if (account is null ||
+            !await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+        {
+            return false;
+        }
+
+        var scope = _db.Accounts.Where(a => !(a.IsDeleted ?? false) &&
+            (account.SharedBudgetId.HasValue
+                ? a.SharedBudgetId == account.SharedBudgetId
+                : !a.SharedBudgetId.HasValue && a.UserId == account.UserId));
+        if (_db.Database.IsRelational())
+        {
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            await scope.Where(a => a.IsDefault && a.AccountId != accountId)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(a => a.IsDefault, false)
+                    .SetProperty(a => a.LastUpdated, lastUpdated));
+            account.IsDefault = true;
+            account.LastUpdated = lastUpdated;
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return true;
+        }
+
+        var previousDefaults = await scope
+            .Where(a => a.IsDefault && a.AccountId != accountId)
+            .ToListAsync();
+        foreach (var previousDefault in previousDefaults)
+        {
+            previousDefault.IsDefault = false;
+            previousDefault.LastUpdated = lastUpdated;
+        }
+        account.IsDefault = true;
+        account.LastUpdated = lastUpdated;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<Account?> GetAccountByIdAsync(int userId, int accountId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
@@ -117,7 +159,14 @@ public class AccountsDataService
         account.InterestRate = CurrencyPolicy.Round(account.InterestRate);
 
         if (isNew)
+        {
+            account.IsDefault = !await _db.Accounts.AnyAsync(a =>
+                !(a.IsDeleted ?? false) &&
+                (account.SharedBudgetId.HasValue
+                    ? a.SharedBudgetId == account.SharedBudgetId
+                    : !a.SharedBudgetId.HasValue && a.UserId == account.UserId));
             _db.Accounts.Add(account);
+        }
 
         await _db.SaveChangesAsync();
     }

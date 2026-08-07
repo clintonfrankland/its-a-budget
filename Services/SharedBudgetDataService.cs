@@ -32,10 +32,11 @@ public class SharedBudgetDataService
         _db = db;
     }
 
-    public Task<List<int>> GetReadableSharedBudgetIdsAsync(int userId) =>
-        GetActiveMemberships(userId)
-            .Select(m => m.SharedBudgetId)
-            .ToListAsync();
+    public async Task<List<int>> GetReadableSharedBudgetIdsAsync(int userId)
+    {
+        var activeSharedBudgetId = await GetActiveSharedBudgetIdAsync(userId);
+        return activeSharedBudgetId.HasValue ? [activeSharedBudgetId.Value] : [];
+    }
 
     public async Task<List<SharedBudgetMembershipSummary>> GetReadableSharedBudgetSummariesAsync(int userId)
     {
@@ -66,11 +67,77 @@ public class SharedBudgetDataService
             .ToList();
     }
 
-    public Task<List<int>> GetFinancialManagerSharedBudgetIdsAsync(int userId) =>
-        GetActiveMemberships(userId)
-            .Where(m => FinancialManagerRoles.Contains(m.Role))
+    public async Task<List<int>> GetFinancialManagerSharedBudgetIdsAsync(int userId)
+    {
+        var activeSharedBudgetId = await GetActiveSharedBudgetIdAsync(userId);
+        if (!activeSharedBudgetId.HasValue)
+            return [];
+
+        return await GetActiveMemberships(userId)
+            .Where(m =>
+                m.SharedBudgetId == activeSharedBudgetId.Value &&
+                FinancialManagerRoles.Contains(m.Role))
             .Select(m => m.SharedBudgetId)
             .ToListAsync();
+    }
+
+    public async Task<int?> GetActiveSharedBudgetIdAsync(int userId)
+    {
+        if (userId <= 0)
+            return null;
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && !u.IsDeleted);
+        if (user is null)
+            return await GetActiveMemberships(userId)
+                .OrderBy(m => m.SharedBudgetId)
+                .Select(m => (int?)m.SharedBudgetId)
+                .FirstOrDefaultAsync();
+
+        var selectedIsReadable = user.ActiveSharedBudgetId.HasValue &&
+            await GetActiveMemberships(userId)
+                .AnyAsync(m => m.SharedBudgetId == user.ActiveSharedBudgetId.Value);
+        if (selectedIsReadable)
+            return user.ActiveSharedBudgetId;
+
+        var fallback = await GetActiveMemberships(userId)
+            .OrderBy(m => m.SharedBudgetId)
+            .Select(m => (int?)m.SharedBudgetId)
+            .FirstOrDefaultAsync();
+        if (fallback.HasValue && user.ActiveSharedBudgetId != fallback)
+        {
+            user.ActiveSharedBudgetId = fallback;
+            await _db.SaveChangesAsync();
+        }
+
+        return fallback;
+    }
+
+    public async Task<bool> SetActiveSharedBudgetAsync(int userId, int sharedBudgetId)
+    {
+        if (!await GetActiveMemberships(userId).AnyAsync(m => m.SharedBudgetId == sharedBudgetId))
+            return false;
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && !u.IsDeleted);
+        if (user is null)
+            return false;
+
+        if (user.ActiveSharedBudgetId == sharedBudgetId)
+            return true;
+
+        user.ActiveSharedBudgetId = sharedBudgetId;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<SharedBudgetMembershipSummary?> GetActiveSharedBudgetSummaryAsync(int userId)
+    {
+        var activeId = await GetActiveSharedBudgetIdAsync(userId);
+        if (!activeId.HasValue)
+            return null;
+
+        return (await GetReadableSharedBudgetSummariesAsync(userId))
+            .FirstOrDefault(b => b.SharedBudgetId == activeId.Value);
+    }
 
     public Task<BudgetMemberRole?> GetMemberRoleAsync(int userId, int sharedBudgetId) =>
         GetActiveMemberships(userId)
@@ -217,15 +284,7 @@ public class SharedBudgetDataService
         if (userId <= 0)
             return null;
 
-        var existing = await _db.BudgetMembers
-            .AsNoTracking()
-            .Where(m =>
-                m.UserId == userId &&
-                m.Status == BudgetMemberStatus.Active &&
-                m.Role == BudgetMemberRole.Owner)
-            .OrderBy(m => m.SharedBudgetId)
-            .Select(m => (int?)m.SharedBudgetId)
-            .FirstOrDefaultAsync();
+        var existing = await GetActiveSharedBudgetIdAsync(userId);
 
         if (existing.HasValue)
             return existing.Value;
@@ -254,6 +313,8 @@ public class SharedBudgetDataService
             CreatedAtUtc = now
         });
 
+        await _db.SaveChangesAsync();
+        user.ActiveSharedBudgetId = sharedBudget.SharedBudgetId;
         await _db.SaveChangesAsync();
         return sharedBudget.SharedBudgetId;
     }

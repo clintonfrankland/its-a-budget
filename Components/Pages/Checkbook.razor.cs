@@ -60,6 +60,7 @@ public partial class Checkbook : IDisposable
     private bool showBudgetCollapse = false;
     private int budgetDays = 3;
     private bool canCreateFinancialData;
+    private string transactionDestination = string.Empty;
     private TransactionCsvDocument? importDocument;
     private TransactionCsvMapping importMapping = new(null, null, null, null);
     private IReadOnlyList<TransactionCsvPreviewRow> importPreview = [];
@@ -238,6 +239,11 @@ public partial class Checkbook : IDisposable
             var userId = CurrentUser.UserId;
             var writableSharedBudgetIds = await SharedBudgetData.GetFinancialManagerSharedBudgetIdsAsync(userId);
             canCreateFinancialData = writableSharedBudgetIds.Count > 0;
+            var activeBudget = await SharedBudgetData.GetActiveSharedBudgetSummaryAsync(userId);
+            var defaultAccount = await CheckbookData.GetAccountForUserAsync(userId);
+            transactionDestination = activeBudget is null || defaultAccount is null
+                ? string.Empty
+                : $"Adding to {activeBudget.Name} · {defaultAccount.AccountName}";
             var startingBalance = await CheckbookData.GetBeginningBalanceAsync(userId);
 
             var transactionsData = await CheckbookData.GetTransactionsForUserAsync(userId);

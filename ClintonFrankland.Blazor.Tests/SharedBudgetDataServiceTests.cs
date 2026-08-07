@@ -8,6 +8,62 @@ namespace ClintonFrankland.Blazor.Tests;
 public class SharedBudgetDataServiceTests
 {
     [Fact]
+    public async Task ActiveBudgetSelection_RoutesNewTransactionsToThatBudgetsDefaultAccount()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        var now = DateTime.UtcNow;
+        db.Users.AddRange(User(1, "clinton", "Clinton"), User(2, "tara", "Tara"));
+        db.SharedBudgets.AddRange(
+            new SharedBudget { SharedBudgetId = 1, Name = "Household", OwnerUserId = 1, CreatedAtUtc = now, UpdatedAtUtc = now },
+            new SharedBudget { SharedBudgetId = 4, Name = "Tara", OwnerUserId = 2, CreatedAtUtc = now, UpdatedAtUtc = now });
+        db.BudgetMembers.AddRange(
+            new BudgetMember { SharedBudgetId = 1, UserId = 1, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active, CreatedAtUtc = now },
+            new BudgetMember { SharedBudgetId = 1, UserId = 2, Role = BudgetMemberRole.Editor, Status = BudgetMemberStatus.Active, CreatedAtUtc = now },
+            new BudgetMember { SharedBudgetId = 4, UserId = 2, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active, CreatedAtUtc = now });
+        db.Accounts.AddRange(
+            new Account { AccountId = 10, AccountName = "Shared Checking", AccountTypeId = 1, UserId = 1, SharedBudgetId = 1, IsDefault = true },
+            new Account { AccountId = 40, AccountName = "Tara Checking", AccountTypeId = 1, UserId = 2, SharedBudgetId = 4, IsDefault = true });
+        await db.SaveChangesAsync();
+
+        var sharing = new SharedBudgetDataService(db);
+        Assert.True(await sharing.SetActiveSharedBudgetAsync(2, 1));
+        await new CheckbookDataService(db, sharing).SaveTransactionAsync(
+            2, -1, new DateOnly(2026, 8, 7), "Market", "Groceries", -12m, false, null, null);
+
+        var transaction = Assert.Single(await db.Transactions.ToListAsync());
+        Assert.Equal(1, transaction.SharedBudgetId);
+        Assert.Equal(10, transaction.AccountId);
+        Assert.Equal(1, (await db.Users.FindAsync(2))!.ActiveSharedBudgetId);
+    }
+
+    [Fact]
+    public async Task SettingDefaultAccount_OnlyChangesAccountsInsideTheActiveBudget()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        var now = DateTime.UtcNow;
+        db.Users.Add(User(1, "owner", "Owner"));
+        db.SharedBudgets.AddRange(
+            new SharedBudget { SharedBudgetId = 1, Name = "One", OwnerUserId = 1, CreatedAtUtc = now, UpdatedAtUtc = now },
+            new SharedBudget { SharedBudgetId = 2, Name = "Two", OwnerUserId = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
+        db.BudgetMembers.AddRange(
+            new BudgetMember { SharedBudgetId = 1, UserId = 1, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active, CreatedAtUtc = now },
+            new BudgetMember { SharedBudgetId = 2, UserId = 1, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active, CreatedAtUtc = now });
+        db.Accounts.AddRange(
+            new Account { AccountId = 1, AccountName = "Old", AccountTypeId = 1, UserId = 1, SharedBudgetId = 1, IsDefault = true },
+            new Account { AccountId = 2, AccountName = "New", AccountTypeId = 1, UserId = 1, SharedBudgetId = 1, IsDefault = false },
+            new Account { AccountId = 3, AccountName = "Other Budget", AccountTypeId = 1, UserId = 1, SharedBudgetId = 2, IsDefault = true });
+        await db.SaveChangesAsync();
+
+        Assert.True(await new AccountsDataService(db).SetDefaultAccountAsync(1, 2, now.AddMinutes(1)));
+
+        Assert.False((await db.Accounts.FindAsync(1))!.IsDefault);
+        Assert.True((await db.Accounts.FindAsync(2))!.IsDefault);
+        Assert.True((await db.Accounts.FindAsync(3))!.IsDefault);
+    }
+
+    [Fact]
     public async Task GetDefaultSharedBudgetIdAsync_CreatesOneOwnerMembershipPerUser()
     {
         await using var db = CreateDbContext();

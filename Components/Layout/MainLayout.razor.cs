@@ -48,7 +48,7 @@ public partial class MainLayout : IDisposable
                 await using var scope = ScopeFactory.CreateAsyncScope();
                 var sharedBudgetsService = scope.ServiceProvider.GetRequiredService<SharedBudgetDataService>();
                 _budgetSwitcherOptions = await sharedBudgetsService.GetReadableSharedBudgetSummariesAsync(CurrentUserContext.UserId);
-                _selectedSwitcherBudgetId = _budgetSwitcherOptions.FirstOrDefault()?.SharedBudgetId ?? 0;
+                _selectedSwitcherBudgetId = await sharedBudgetsService.GetActiveSharedBudgetIdAsync(CurrentUserContext.UserId) ?? 0;
             }
             StateHasChanged();
         }
@@ -104,11 +104,18 @@ public partial class MainLayout : IDisposable
 
     private async Task HandleBudgetSwitcherChange(ChangeEventArgs args)
     {
-        if (int.TryParse(args.Value?.ToString(), out var sharedBudgetId))
-            _selectedSwitcherBudgetId = sharedBudgetId;
+        if (!int.TryParse(args.Value?.ToString(), out var sharedBudgetId))
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var sharedBudgetsService = scope.ServiceProvider.GetRequiredService<SharedBudgetDataService>();
+        if (!await sharedBudgetsService.SetActiveSharedBudgetAsync(CurrentUserContext.UserId, sharedBudgetId))
+            return;
+
+        _selectedSwitcherBudgetId = sharedBudgetId;
 
         await CollapseNavbar();
-        Navigation.NavigateTo("sharing");
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     }
 
     public void Dispose()

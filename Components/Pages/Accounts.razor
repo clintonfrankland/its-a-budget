@@ -29,6 +29,10 @@ else
             <div class="row align-items-center">
                 <div class="col-auto">
                     <h1>Accounts</h1>
+                    @if (!string.IsNullOrWhiteSpace(activeBudgetName))
+                    {
+                        <div class="text-muted">@activeBudgetName</div>
+                    }
                 </div>
                 <div class="col @(AuthService.CurrentUser.ListButtonsRight ? "text-end" : "text-start")">
                     @if (canCreateFinancialData)
@@ -63,10 +67,15 @@ else
                 <Columns>
                     @if (!AuthService.CurrentUser.ListButtonsRight && filteredAccounts.Any(a => a.CanManageFinancialData))
                     {
-                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
                                 @if (item.CanManageFinancialData)
                                 {
+                                    @if (!item.IsDefault)
+                                    {
+                                        <RadzenButton Icon="star" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                      Click="() => MakeDefaultAccountAsync(item.AccountId)" title="Make default" aria-label="Make default account" class="me-1" />
+                                    }
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                   Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
                                 }
@@ -74,7 +83,15 @@ else
                         </RadzenDataGridColumn>
                     }
 
-                    <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountName" Title="Account Name" SortOrder="SortOrder.Ascending" />
+                    <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountName" Title="Account Name" SortOrder="SortOrder.Ascending">
+                        <Template Context="item">
+                            @item.AccountName
+                            @if (item.IsDefault)
+                            {
+                                <span class="badge text-bg-primary ms-2">Default</span>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountType" Title="Type" Width="120px" Visible="@IsAtLeast(ScreenSize.Medium)" />
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="LastUpdated" Title="Last Upd" Width="100px" Visible="@IsAtLeast(ScreenSize.Large)" />
                     <RadzenDataGridColumn TItem="AccountViewModel" Property="AccountNumber" Title="Acct#" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraLarge)" />
@@ -89,10 +106,15 @@ else
 
                     @if (AuthService.CurrentUser.ListButtonsRight && filteredAccounts.Any(a => a.CanManageFinancialData))
                     {
-                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="50px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="AccountViewModel" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                             <Template Context="item">
                                 @if (item.CanManageFinancialData)
                                 {
+                                    @if (!item.IsDefault)
+                                    {
+                                        <RadzenButton Icon="star" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                      Click="() => MakeDefaultAccountAsync(item.AccountId)" title="Make default" aria-label="Make default account" class="me-1" />
+                                    }
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                                   Click="() => ShowEditAccountAsync(item.AccountId)" title="Edit" />
                                 }

@@ -265,6 +265,10 @@ else
         <div class="container" style="max-width: 500px;">
             <RadzenCard class="mt-3">
                 <h4 class="mb-3">@(editTransactionId == -1 ? "Add" : "Edit") Transaction</h4>
+                @if (editTransactionId == -1 && !string.IsNullOrWhiteSpace(transactionDestination))
+                {
+                    <div class="text-muted mb-3">@transactionDestination</div>
+                }
                 @if (!string.IsNullOrEmpty(ruleReviewMessage))
                 {
                     <div class="alert alert-info" role="status">@ruleReviewMessage</div>
