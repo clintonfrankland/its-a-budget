@@ -26,7 +26,7 @@ public partial class Accounts
     [Inject]
     private SharedBudgetDataService SharedBudgetData { get; set; } = default!;
 
-    private enum ViewMode { List, Edit }
+    private enum ViewMode { List, Edit, AdjustOpeningBalance }
     private ViewMode currentView = ViewMode.List;
 
     private string errorMessage = string.Empty;
@@ -58,6 +58,9 @@ public partial class Accounts
     private string editAccountNumber = string.Empty;
     private int editAccountType = 1;
     private decimal editBalance = 0m;
+    private decimal currentOpeningBalance = 0m;
+    private decimal proposedOpeningBalance = 0m;
+    private AccountsDataService.BalanceAdjustmentPreview? balanceAdjustmentPreview;
     private decimal editCreditLimit = 0m;
     private decimal editAvailableCredit = 0m;
     private int editDueDate = 1;
@@ -149,6 +152,7 @@ public partial class Accounts
                 editAccountNumber = account.AccountNumber ?? string.Empty;
                 editAccountType = account.AccountTypeId;
                 editBalance = account.Balance;
+                currentOpeningBalance = account.BeginningBalance;
                 editCreditLimit = account.CreditLimit ?? 0m;
                 editAvailableCredit = account.AvailableCredit ?? 0m;
                 editDueDate = account.DueDate ?? 1;
@@ -168,6 +172,51 @@ public partial class Accounts
     {
         currentView = ViewMode.List;
     }
+
+    private async Task ShowAdjustOpeningBalanceAsync()
+    {
+        proposedOpeningBalance = currentOpeningBalance;
+        balanceAdjustmentPreview = await AccountsData.GetBalanceAdjustmentPreviewAsync(
+            CurrentUser.UserId, editAccountId, proposedOpeningBalance);
+        currentView = ViewMode.AdjustOpeningBalance;
+    }
+
+    private async Task PreviewOpeningBalanceAsync()
+    {
+        if (!CurrencyPolicy.FitsSqlDecimal(proposedOpeningBalance))
+        {
+            errorMessage = CurrencyPolicy.AmountTooLargeMessage;
+            balanceAdjustmentPreview = null;
+            return;
+        }
+
+        errorMessage = string.Empty;
+        balanceAdjustmentPreview = await AccountsData.GetBalanceAdjustmentPreviewAsync(
+            CurrentUser.UserId, editAccountId, proposedOpeningBalance);
+    }
+
+    private async Task SaveOpeningBalanceAdjustmentAsync()
+    {
+        await PreviewOpeningBalanceAsync();
+        if (balanceAdjustmentPreview is null)
+            return;
+
+        var confirmed = await DialogService.Confirm(
+            $"This changes the account's current balance from {balanceAdjustmentPreview.CurrentBalance:C2} " +
+            $"to {balanceAdjustmentPreview.ProposedBalance:C2} and its cleared balance from " +
+            $"{balanceAdjustmentPreview.CurrentClearedBalance:C2} to {balanceAdjustmentPreview.ProposedClearedBalance:C2}. Continue?",
+            "Confirm Opening Balance Adjustment",
+            new ConfirmOptions { OkButtonText = "Adjust Balance", CancelButtonText = "Cancel" });
+        if (confirmed != true)
+            return;
+
+        await AccountsData.AdjustOpeningBalanceAsync(
+            CurrentUser.UserId, editAccountId, proposedOpeningBalance, DateTime.UtcNow);
+        currentView = ViewMode.List;
+        await LoadDataAsync();
+    }
+
+    private void CancelOpeningBalanceAdjustment() => currentView = ViewMode.Edit;
 
     private async Task SaveAccountAsync()
     {
@@ -206,7 +255,13 @@ public partial class Accounts
 
     private bool TryValidateAccountAmounts(out string message)
     {
-        var values = new[] { editBalance, editCreditLimit, editAvailableCredit, editMinimumPayment, editInterestRate };
+        var values = new[] { editCreditLimit, editAvailableCredit, editMinimumPayment, editInterestRate };
+        if (editAccountId == -1 &&
+            !CurrencyPolicy.TryValidateNonNegativeSqlAmount(editBalance, out message))
+        {
+            return false;
+        }
+
         foreach (var value in values)
         {
             if (!CurrencyPolicy.TryValidateNonNegativeSqlAmount(value, out message))

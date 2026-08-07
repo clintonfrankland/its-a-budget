@@ -237,7 +237,7 @@ public class ServiceRefactorWorkflowTests
         Assert.Equal("Checking", (await db.Accounts.FindAsync(created.AccountId))!.AccountName);
 
         var amountException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SaveAccountAsync(42, created.AccountId, "Checking", "123", 1, -1m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow));
+            service.SaveAccountAsync(42, -1, "Invalid", "123", 1, -1m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow));
         Assert.Equal(CurrencyPolicy.NonNegativeAmountMessage, amountException.Message);
 
         await service.DeleteAccountAsync(99, created.AccountId);
@@ -248,7 +248,7 @@ public class ServiceRefactorWorkflowTests
     }
 
     [Fact]
-    public async Task AccountBalanceEdits_RebaseDefaultLedgerWithoutAddingOtherAccountBalances()
+    public async Task AccountDetailEdits_PreserveLedgerBalances_AndExplicitAdjustmentRebasesThem()
     {
         await using var db = CreateDbContext();
         SeedAccountTypes(db);
@@ -262,16 +262,56 @@ public class ServiceRefactorWorkflowTests
             new Transaction { TransactionId = 2, UserId = 42, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 7, 2), Amount = -10m, Cleared = false });
         await db.SaveChangesAsync();
 
-        await new AccountsDataService(db).SaveAccountAsync(42, 1, "Checking", "", 1, 250m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
+        var accounts = new AccountsDataService(db);
+        await accounts.SaveAccountAsync(42, 1, "Renamed Checking", "", 1, 0m, 0m, 0m, 1, 0m, 0m, "", DateTime.UtcNow);
 
         var checking = await db.Accounts.FindAsync(1);
         Assert.NotNull(checking);
+        Assert.Equal("Renamed Checking", checking.AccountName);
+        Assert.Equal(100m, checking.BeginningBalance);
+        Assert.Equal(75m, checking.Balance);
+        Assert.Equal(100m, checking.ClearedBalance);
+
+        var preview = await accounts.GetBalanceAdjustmentPreviewAsync(42, 1, 285m);
+        Assert.NotNull(preview);
+        Assert.Equal(250m, preview.ProposedBalance);
+        Assert.Equal(260m, preview.ProposedClearedBalance);
+        Assert.True(await accounts.AdjustOpeningBalanceAsync(42, 1, 285m, DateTime.UtcNow));
+
         Assert.Equal(285m, checking.BeginningBalance);
+        Assert.Equal(250m, checking.Balance);
         Assert.Equal(260m, checking.ClearedBalance);
         var checkbook = new CheckbookDataService(db);
         Assert.Equal(250m, await checkbook.GetCurrentBalanceAsync(42));
         Assert.Equal(260m, await checkbook.GetClearedBalanceAsync(42));
         Assert.Equal(250m, (await new ReportsDataService(db).GetCashflowAsync(42, 30, new DateOnly(2026, 7, 2))).StartingBalance);
+
+        Assert.True(await accounts.AdjustOpeningBalanceAsync(42, 1, -50m, DateTime.UtcNow));
+        Assert.Equal(-50m, checking.BeginningBalance);
+        Assert.Equal(-85m, checking.Balance);
+    }
+
+    [Fact]
+    public async Task OpeningBalanceAdjustment_UsesCanonicalAccountLedgerScope()
+    {
+        await using var db = CreateDbContext();
+        SeedAccountTypes(db);
+        db.Accounts.Add(new Account { AccountId = 1, AccountName = "Shared", AccountTypeId = 1, BeginningBalance = 100m, Balance = 90m, ClearedBalance = 90m, UserId = 42, SharedBudgetId = 10 });
+        db.Categories.Add(new Category { CategoryId = 1, CategoryName = "Food", UserId = 42, SharedBudgetId = 10 });
+        db.Payees.Add(new Payee { PayeeId = 1, PayeeName = "Market", UserId = 42 });
+        db.SharedBudgets.Add(new SharedBudget { SharedBudgetId = 10, Name = "House", OwnerUserId = 42 });
+        db.BudgetMembers.Add(new BudgetMember { SharedBudgetId = 10, UserId = 42, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active });
+        db.Transactions.AddRange(
+            new Transaction { TransactionId = 1, UserId = 42, SharedBudgetId = 10, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2026, 8, 1), Amount = -10m, Cleared = true },
+            new Transaction { TransactionId = 2, UserId = 99, SharedBudgetId = null, AccountId = 1, CategoryId = 1, PayeeId = 1, TransactionDate = new DateOnly(2020, 1, 1), Amount = 365m, Cleared = true });
+        await db.SaveChangesAsync();
+
+        var service = new AccountsDataService(db);
+        var preview = await service.GetBalanceAdjustmentPreviewAsync(42, 1, 200m);
+
+        Assert.NotNull(preview);
+        Assert.Equal(190m, preview.ProposedBalance);
+        Assert.Equal(190m, preview.ProposedClearedBalance);
     }
 
     [Fact]

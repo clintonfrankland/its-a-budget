@@ -6,6 +6,14 @@ namespace ClintonFrankland.Services;
 
 public class AccountsDataService
 {
+    public sealed record BalanceAdjustmentPreview(
+        decimal CurrentOpeningBalance,
+        decimal ProposedOpeningBalance,
+        decimal CurrentBalance,
+        decimal ProposedBalance,
+        decimal CurrentClearedBalance,
+        decimal ProposedClearedBalance);
+
     private readonly ClintonFranklandDbContext _db;
     private readonly SharedBudgetDataService _sharedBudgets;
 
@@ -58,12 +66,14 @@ public class AccountsDataService
         string webUrl,
         DateTime lastUpdated)
     {
-        var roundedBalance = CurrencyPolicy.RoundNonNegativeSqlAmount(balance);
+        var isNew = accountId == -1;
+        var roundedOpeningBalance = isNew
+            ? CurrencyPolicy.RoundNonNegativeSqlAmount(balance)
+            : 0m;
         var roundedCreditLimit = CurrencyPolicy.RoundNonNegativeSqlAmount(creditLimit);
         var roundedAvailableCredit = CurrencyPolicy.RoundNonNegativeSqlAmount(availableCredit);
         var roundedMinimumPayment = CurrencyPolicy.RoundNonNegativeSqlAmount(minimumPayment);
         var roundedInterestRate = CurrencyPolicy.RoundNonNegativeSqlAmount(interestRate);
-        var isNew = accountId == -1;
         var account = isNew
             ? new Account
             {
@@ -81,23 +91,15 @@ public class AccountsDataService
         if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
             return;
 
-        var postedAmount = isNew
-            ? 0m
-            : await _db.Transactions
-                .Where(t => t.AccountId == account.AccountId)
-                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
-        var clearedPostedAmount = isNew
-            ? 0m
-            : await _db.Transactions
-                .Where(t => t.AccountId == account.AccountId && t.Cleared)
-                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
-
         account.AccountName = accountName;
         account.AccountNumber = accountNumber;
         account.AccountTypeId = accountTypeId;
-        account.Balance = roundedBalance;
-        account.BeginningBalance = CurrencyPolicy.Round(roundedBalance - postedAmount);
-        account.ClearedBalance = CurrencyPolicy.Round(account.BeginningBalance + clearedPostedAmount);
+        if (isNew)
+        {
+            account.Balance = roundedOpeningBalance;
+            account.BeginningBalance = roundedOpeningBalance;
+            account.ClearedBalance = roundedOpeningBalance;
+        }
         account.CreditLimit = roundedCreditLimit;
         account.AvailableCredit = roundedAvailableCredit;
         account.DueDate = dueDate;
@@ -119,6 +121,69 @@ public class AccountsDataService
 
         await _db.SaveChangesAsync();
     }
+
+    public async Task<BalanceAdjustmentPreview?> GetBalanceAdjustmentPreviewAsync(
+        int userId,
+        int accountId,
+        decimal proposedOpeningBalance)
+    {
+        var roundedOpeningBalance = CurrencyPolicy.RoundSignedSqlAmount(proposedOpeningBalance);
+        var account = await GetManageableAccountAsync(userId, accountId);
+        if (account is null)
+            return null;
+
+        var transactions = GetLedgerTransactions(account);
+        var postedAmount = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
+        var clearedPostedAmount = await transactions
+            .Where(t => t.Cleared)
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+
+        return new BalanceAdjustmentPreview(
+            CurrencyPolicy.Round(account.BeginningBalance),
+            roundedOpeningBalance,
+            CurrencyPolicy.Round(account.BeginningBalance + postedAmount),
+            CurrencyPolicy.Round(roundedOpeningBalance + postedAmount),
+            CurrencyPolicy.Round(account.BeginningBalance + clearedPostedAmount),
+            CurrencyPolicy.Round(roundedOpeningBalance + clearedPostedAmount));
+    }
+
+    public async Task<bool> AdjustOpeningBalanceAsync(
+        int userId,
+        int accountId,
+        decimal proposedOpeningBalance,
+        DateTime lastUpdated)
+    {
+        var preview = await GetBalanceAdjustmentPreviewAsync(userId, accountId, proposedOpeningBalance);
+        if (preview is null)
+            return false;
+
+        var account = await _db.Accounts.FirstAsync(a => a.AccountId == accountId);
+        account.BeginningBalance = preview.ProposedOpeningBalance;
+        account.Balance = preview.ProposedBalance;
+        account.ClearedBalance = preview.ProposedClearedBalance;
+        account.LastUpdated = lastUpdated;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    private async Task<Account?> GetManageableAccountAsync(int userId, int accountId)
+    {
+        var account = await _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.AccountId == accountId);
+        if (account is null ||
+            !await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+        {
+            return null;
+        }
+
+        return account;
+    }
+
+    private IQueryable<Transaction> GetLedgerTransactions(Account account) =>
+        _db.Transactions.AsNoTracking().Where(t =>
+            t.AccountId == account.AccountId &&
+            (account.SharedBudgetId.HasValue
+                ? t.SharedBudgetId == account.SharedBudgetId
+                : !t.SharedBudgetId.HasValue && t.UserId == account.UserId));
 
     public async Task DeleteAccountAsync(int userId, int accountId)
     {

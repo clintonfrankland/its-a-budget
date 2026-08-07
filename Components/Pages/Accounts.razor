@@ -140,15 +140,30 @@ else
                     </RadzenColumn>
                 </RadzenRow>
 
+                @if (editAccountId == -1)
+                {
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
-                        <RadzenLabel Text="Balance:" Component="editBalanceNumeric" />
+                        <RadzenLabel Text="Opening Balance:" Component="editBalanceNumeric" />
                     </RadzenColumn>
                     <RadzenColumn Size="8">
                         <RadzenNumeric @bind-Value="editBalance" TValue="decimal" Name="editBalanceNumeric"
                                        Format="c2" Step="0.01" Style="width: 130px;" />
                     </RadzenColumn>
                 </RadzenRow>
+                }
+                else
+                {
+                    <RadzenRow Gap="0.5rem" class="mb-2">
+                        <RadzenColumn Size="4" class="text-end pt-2">Opening Balance:</RadzenColumn>
+                        <RadzenColumn Size="8">
+                            <strong>@currentOpeningBalance.ToString("C2")</strong>
+                            <RadzenButton Text="Adjust" Icon="tune" Size="ButtonSize.Small"
+                                          ButtonStyle="ButtonStyle.Light" class="ms-2"
+                                          Click="ShowAdjustOpeningBalanceAsync" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
 
                 <RadzenRow Gap="0.5rem" class="mb-2">
                     <RadzenColumn Size="4" class="text-end pt-2">
@@ -229,6 +244,41 @@ else
                         <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelEdit" />
                     </RadzenColumn>
                 </RadzenRow>
+            </RadzenCard>
+        </div>
+    }
+    else if (currentView == ViewMode.AdjustOpeningBalance)
+    {
+        <div class="container" style="max-width: 550px;">
+            <RadzenCard class="mt-3">
+                <h4 class="mb-3">Adjust Opening Balance</h4>
+                <div class="alert alert-warning">
+                    Changing the opening balance changes the account's current balance, cleared balance,
+                    forecast, and Safe to Spend. No transactions will be changed.
+                </div>
+                <RadzenRow Gap="0.5rem" class="mb-3">
+                    <RadzenColumn Size="5" class="text-end pt-2">
+                        <RadzenLabel Text="New Opening Balance:" Component="proposedOpeningBalanceNumeric" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="7">
+                        <RadzenNumeric @bind-Value="proposedOpeningBalance" TValue="decimal"
+                                       Name="proposedOpeningBalanceNumeric" Format="c2" Step="0.01"
+                                       Style="width: 150px;" Change="@(_ => PreviewOpeningBalanceAsync())" />
+                    </RadzenColumn>
+                </RadzenRow>
+                @if (balanceAdjustmentPreview is not null)
+                {
+                    <div class="border rounded p-3 mb-3">
+                        <div>Opening balance: <strong>@balanceAdjustmentPreview.CurrentOpeningBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedOpeningBalance.ToString("C2")</strong></div>
+                        <div>Current balance: <strong>@balanceAdjustmentPreview.CurrentBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedBalance.ToString("C2")</strong></div>
+                        <div>Cleared balance: <strong>@balanceAdjustmentPreview.CurrentClearedBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedClearedBalance.ToString("C2")</strong></div>
+                    </div>
+                }
+                <div class="text-center">
+                    <RadzenButton Text="Adjust Opening Balance" ButtonStyle="ButtonStyle.Danger"
+                                  Click="SaveOpeningBalanceAdjustmentAsync" class="me-2" />
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelOpeningBalanceAdjustment" />
+                </div>
             </RadzenCard>
         </div>
     }
