@@ -10,8 +10,10 @@ namespace ClintonFrankland.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // SQL Server compiles a batch before executing it. Keep schema creation,
+            // references to the new columns, and nullability enforcement in distinct
+            // commands so a legacy database can add the columns on its first upgrade.
             migrationBuilder.Sql("""
-                DECLARE @backfill datetime2 = CONVERT(datetime2, '2026-08-07T18:16:06Z', 127);
                 IF COL_LENGTH('cfUsers', 'UpdatedAtUtc') IS NULL ALTER TABLE cfUsers ADD UpdatedAtUtc datetime2 NULL;
                 IF COL_LENGTH('cfTransactions', 'UpdatedAtUtc') IS NULL ALTER TABLE cfTransactions ADD UpdatedAtUtc datetime2 NULL;
                 IF COL_LENGTH('cfPlaidWebhookDeliveries', 'UpdatedAtUtc') IS NULL ALTER TABLE cfPlaidWebhookDeliveries ADD UpdatedAtUtc datetime2 NULL;
@@ -22,7 +24,10 @@ namespace ClintonFrankland.Migrations
                 IF COL_LENGTH('cfBudgets', 'UpdatedAtUtc') IS NULL ALTER TABLE cfBudgets ADD UpdatedAtUtc datetime2 NULL;
                 IF COL_LENGTH('cfBudgetMembers', 'UpdatedAtUtc') IS NULL ALTER TABLE cfBudgetMembers ADD UpdatedAtUtc datetime2 NULL;
                 IF COL_LENGTH('cfBudgetInvites', 'UpdatedAtUtc') IS NULL ALTER TABLE cfBudgetInvites ADD UpdatedAtUtc datetime2 NULL;
+                """);
 
+            migrationBuilder.Sql("""
+                DECLARE @backfill datetime2 = CONVERT(datetime2, '2026-08-07T18:16:06Z', 127);
                 UPDATE cfUsers SET UpdatedAtUtc = @backfill WHERE UpdatedAtUtc IS NULL;
                 UPDATE cfTransactions SET UpdatedAtUtc = @backfill WHERE UpdatedAtUtc IS NULL;
                 UPDATE cfPlaidWebhookDeliveries SET UpdatedAtUtc = @backfill WHERE UpdatedAtUtc IS NULL;
@@ -34,7 +39,9 @@ namespace ClintonFrankland.Migrations
                 UPDATE cfBudgetMembers SET UpdatedAtUtc = @backfill WHERE UpdatedAtUtc IS NULL;
                 UPDATE cfBudgetInvites SET UpdatedAtUtc = @backfill WHERE UpdatedAtUtc IS NULL;
                 UPDATE cfAccounts SET LastUpdated = @backfill WHERE LastUpdated IS NULL;
+                """);
 
+            migrationBuilder.Sql("""
                 ALTER TABLE cfUsers ALTER COLUMN UpdatedAtUtc datetime2 NOT NULL;
                 ALTER TABLE cfTransactions ALTER COLUMN UpdatedAtUtc datetime2 NOT NULL;
                 ALTER TABLE cfPlaidWebhookDeliveries ALTER COLUMN UpdatedAtUtc datetime2 NOT NULL;
