@@ -211,9 +211,7 @@ public partial class Accounts
             return;
 
         var confirmed = await DialogService.Confirm(
-            $"This changes the account's current balance from {balanceAdjustmentPreview.CurrentBalance:C2} " +
-            $"to {balanceAdjustmentPreview.ProposedBalance:C2} and its cleared balance from " +
-            $"{balanceAdjustmentPreview.CurrentClearedBalance:C2} to {balanceAdjustmentPreview.ProposedClearedBalance:C2}. Continue?",
+            BuildOpeningBalanceAdjustmentConfirmationMessage(balanceAdjustmentPreview),
             "Confirm Opening Balance Adjustment",
             new ConfirmOptions { OkButtonText = "Adjust Balance", CancelButtonText = "Cancel" });
         if (confirmed != true)
@@ -226,6 +224,14 @@ public partial class Accounts
     }
 
     private void CancelOpeningBalanceAdjustment() => currentView = ViewMode.Edit;
+
+    private string FormatPresentedAccountBalance(decimal balance) =>
+        AccountBalancePresentationPolicy.Apply(editAccountType, balance).ToString("C2");
+
+    private string BuildOpeningBalanceAdjustmentConfirmationMessage(AccountsDataService.BalanceAdjustmentPreview preview) =>
+        $"This changes the account's current balance from {FormatPresentedAccountBalance(preview.CurrentBalance)} " +
+        $"to {FormatPresentedAccountBalance(preview.ProposedBalance)} and its cleared balance from " +
+        $"{FormatPresentedAccountBalance(preview.CurrentClearedBalance)} to {FormatPresentedAccountBalance(preview.ProposedClearedBalance)}. Continue?";
 
     private async Task SaveAccountAsync()
     {

@@ -179,7 +179,7 @@ else
                     <RadzenRow Gap="0.5rem" class="mb-2">
                         <RadzenColumn Size="4" class="text-end pt-2">Opening Balance:</RadzenColumn>
                         <RadzenColumn Size="8">
-                            <strong>@currentOpeningBalance.ToString("C2")</strong>
+                            <strong>@FormatPresentedAccountBalance(currentOpeningBalance)</strong>
                             <RadzenButton Text="Adjust" Icon="tune" Size="ButtonSize.Small"
                                           ButtonStyle="ButtonStyle.Light" class="ms-2"
                                           Click="ShowAdjustOpeningBalanceAsync" />
@@ -291,9 +291,9 @@ else
                 @if (balanceAdjustmentPreview is not null)
                 {
                     <div class="border rounded p-3 mb-3">
-                        <div>Opening balance: <strong>@balanceAdjustmentPreview.CurrentOpeningBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedOpeningBalance.ToString("C2")</strong></div>
-                        <div>Current balance: <strong>@balanceAdjustmentPreview.CurrentBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedBalance.ToString("C2")</strong></div>
-                        <div>Cleared balance: <strong>@balanceAdjustmentPreview.CurrentClearedBalance.ToString("C2")</strong> → <strong>@balanceAdjustmentPreview.ProposedClearedBalance.ToString("C2")</strong></div>
+                        <div>Opening balance: <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.CurrentOpeningBalance)</strong> → <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.ProposedOpeningBalance)</strong></div>
+                        <div>Current balance: <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.CurrentBalance)</strong> → <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.ProposedBalance)</strong></div>
+                        <div>Cleared balance: <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.CurrentClearedBalance)</strong> → <strong>@FormatPresentedAccountBalance(balanceAdjustmentPreview.ProposedClearedBalance)</strong></div>
                     </div>
                 }
                 <div class="text-center">

@@ -1,10 +1,12 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Bunit;
 using ClintonFrankland.Components.Pages;
 using ClintonFrankland.Data;
 using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -64,6 +66,48 @@ public sealed class AccountsPageTests
         {
             var loan = GetLoadedAccounts(page.Instance).Single(account => account.AccountName == "Car Loan");
             Assert.Equal(-5000m, loan.Balance);
+        });
+    }
+
+    [Fact]
+    public async Task DebtAccountEditAndAdjustmentViewsPresentStoredBalancesAsNegative()
+    {
+        using var context = CreateAccountsContext();
+        var db = context.Services.GetRequiredService<ClintonFranklandDbContext>();
+        db.AccountTypes.Add(new AccountType { AccountTypeId = 3, AccountTypeName = "Loan" });
+        db.Accounts.Add(new Account
+        {
+            AccountId = 2,
+            AccountName = "Car Loan",
+            AccountTypeId = 3,
+            BeginningBalance = 5000m,
+            Balance = 5100m,
+            ClearedBalance = 5050m,
+            UserId = 42,
+            SharedBudgetId = 1
+        });
+        db.SaveChanges();
+
+        var page = context.Render<Accounts>();
+        page.WaitForAssertion(() =>
+            Assert.Contains("Car Loan", page.Markup));
+
+        await InvokePrivateAsync(page, "ShowEditAccountAsync", 2);
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Edit Account", page.Markup);
+            Assert.Contains((-5000m).ToString("C2"), page.Markup);
+            Assert.DoesNotContain($"<strong>{5000m.ToString("C2")}</strong>", page.Markup);
+        });
+
+        await InvokePrivateAsync(page, "ShowAdjustOpeningBalanceAsync");
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Adjust Opening Balance", page.Markup);
+            Assert.Equal(6, Regex.Matches(page.Markup, Regex.Escape((-5000m).ToString("C2"))).Count);
+            Assert.DoesNotContain($"<strong>{5000m.ToString("C2")}</strong>", page.Markup);
         });
     }
 
@@ -149,6 +193,19 @@ public sealed class AccountsPageTests
         (IReadOnlyList<AccountViewModel>)typeof(Accounts)
             .GetField("accounts", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(page)!;
+
+    private static async Task InvokePrivateAsync<TComponent>(
+        IRenderedComponent<TComponent> component,
+        string methodName,
+        params object[] parameters)
+        where TComponent : IComponent
+    {
+        await component.InvokeAsync(() =>
+            (Task)typeof(TComponent)
+                .GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(component.Instance, parameters)!);
+        component.Render();
+    }
 
     private static void SetAuthenticatedUser(AuthService authService, User user)
     {
