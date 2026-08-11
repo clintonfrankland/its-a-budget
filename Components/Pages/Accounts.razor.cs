@@ -103,7 +103,7 @@ public partial class Accounts
                 AccountNumber = a.AccountNumber ?? string.Empty,
                 InterestRate = a.InterestRate ?? 0m,
                 MinimumPayment = a.MinimumPayment ?? 0m,
-                Balance = a.Balance,
+                Balance = AccountBalancePresentationPolicy.Apply(a.AccountTypeId, a.Balance),
                 Ratio = a.Balance == 0 ? null : Math.Round((a.MinimumPayment ?? 0) / a.Balance * 100, 2),
                 CanManageFinancialData = CanManageFinancialData(userId, writableSharedBudgetIds, a.SharedBudgetId, a.UserId),
                 IsDefault = a.IsDefault

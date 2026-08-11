@@ -306,7 +306,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 
 | Term | Definition |
 |---|---|
-| **Account** | A financial account (checking, credit card, etc.) with a tracked balance and cleared balance. |
+| **Account** | A financial account (checking, credit card, etc.) with a tracked balance and cleared balance. Credit Card, Loan, Taxes, and Phone balances are presented and aggregated as debt: positive stored amounts owed display as negative, while negative and zero values retain their sign. Asset accounts retain their stored sign. |
 | **Transaction** | A ledger entry recording income or expenditure against an account. |
 | **Budget item** | A recurring plan that is either a scheduled transaction or a spending allowance. Scheduled items drive dated cash flow and can trigger bill notices; allowances are consumed by actual category spending and reserve only the unspent amount in Forecast. |
 | **Budget forecast** | The projected running balance calculated from future budget items. |
@@ -383,6 +383,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `Services/EmailSenderService.cs` | SMTP dispatch via MailKit |
 | `Services/BillDueNotificationWorker.cs` | Hosted service — 15-min tick, sends bill-due emails per user timezone |
 | `Services/AccountsDataService.cs` | Account CRUD and balance queries |
+| `Services/AccountBalancePresentationPolicy.cs` | Shared debt-account sign rule for account and report balances |
 | `Services/PlaidClient.cs` | Server-only Plaid Sandbox REST client and DTOs; never returns access tokens to browser code |
 | `Services/PlaidConnectionService.cs` | Encrypted Item persistence, discovery, explicit account mapping, update, and disconnect authorization |
 | `Services/PlaidReconciliationService.cs` | Deterministic staged-Plaid-to-ledger matching plus authorization-scoped, source-fingerprint-checked explicit confirmation, approved-rule inbox suggestions, and atomic save-once Checkbook actions. |

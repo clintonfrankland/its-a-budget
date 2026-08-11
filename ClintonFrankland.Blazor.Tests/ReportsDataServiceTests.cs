@@ -175,6 +175,28 @@ public class ReportsDataServiceTests
     }
 
     [Fact]
+    public async Task Cashflow_AppliesDebtSignToStartingBalanceWithoutReversingTransactions()
+    {
+        await using var db = CreateDb();
+        db.Accounts.Add(new Account
+        {
+            AccountId = 1,
+            AccountName = "Loan",
+            AccountTypeId = 3,
+            UserId = 1,
+            BeginningBalance = 300m,
+            IsDefault = true
+        });
+        db.Transactions.Add(Tx(1, 1, 1, new(2026, 7, 10), -50m));
+        await db.SaveChangesAsync();
+
+        var report = await new ReportsDataService(db).GetCashflowAsync(1, 30, new(2026, 7, 11));
+
+        Assert.Equal(-250m, report.StartingBalance);
+        Assert.Equal(-250m, Assert.Single(report.Points).Balance);
+    }
+
+    [Fact]
     public async Task NetWorth_ReconstructsSevenMonthEndsAndExcludesOtherUser()
     {
         await using var db = CreateDb(); SeedBase(db);
@@ -188,6 +210,33 @@ public class ReportsDataServiceTests
         Assert.Equal(new DateOnly(2026, 1, 31), report.History[0].Date);
         Assert.Equal(950m, report.CurrentTotal);
         Assert.Equal(900m, report.History[0].Value);
+    }
+
+    [Fact]
+    public async Task NetWorth_AggregatesAssetAndSignedDebtBalancesWithoutChangingTransactionSigns()
+    {
+        await using var db = CreateDb();
+        SeedBase(db);
+        db.Accounts.AddRange(
+            new Account { AccountId = 2, AccountName = "Loan", AccountTypeId = 3, UserId = 1, BeginningBalance = 300m },
+            new Account { AccountId = 3, AccountName = "Negative Loan", AccountTypeId = 3, UserId = 1, BeginningBalance = -75m },
+            new Account { AccountId = 4, AccountName = "Paid Loan", AccountTypeId = 3, UserId = 1, BeginningBalance = 0m });
+        db.Transactions.AddRange(
+            Tx(1, 1, 1, new(2026, 7, 10), -25m, 1),
+            Tx(2, 1, 1, new(2026, 7, 10), -50m, 2));
+        await db.SaveChangesAsync();
+
+        var report = await new ReportsDataService(db).GetNetWorthAsync(1, new(2026, 7, 1), new(2026, 7, 11));
+
+        Assert.Equal(650m, report.CurrentTotal);
+        Assert.Equal(650m, report.History[^1].Value);
+
+        var loan = await db.Accounts.SingleAsync(account => account.AccountId == 2);
+        loan.AccountTypeId = 1;
+        await db.SaveChangesAsync();
+
+        var changedTypeReport = await new ReportsDataService(db).GetNetWorthAsync(1, new(2026, 7, 1), new(2026, 7, 11));
+        Assert.Equal(1150m, changedTypeReport.CurrentTotal);
     }
 
     [Fact]

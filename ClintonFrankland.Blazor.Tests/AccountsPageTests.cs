@@ -39,6 +39,34 @@ public sealed class AccountsPageTests
         });
     }
 
+    [Fact]
+    public void DebtAccountRendersPositiveStoredBalanceAsNegative()
+    {
+        using var context = CreateAccountsContext();
+        var db = context.Services.GetRequiredService<ClintonFranklandDbContext>();
+        db.AccountTypes.Add(new AccountType { AccountTypeId = 3, AccountTypeName = "Loan" });
+        db.Accounts.Add(new Account
+        {
+            AccountId = 2,
+            AccountName = "Car Loan",
+            AccountTypeId = 3,
+            BeginningBalance = 5000m,
+            Balance = 5000m,
+            ClearedBalance = 5000m,
+            UserId = 42,
+            SharedBudgetId = 1
+        });
+        db.SaveChanges();
+
+        var page = context.Render<Accounts>();
+
+        page.WaitForAssertion(() =>
+        {
+            var loan = GetLoadedAccounts(page.Instance).Single(account => account.AccountName == "Car Loan");
+            Assert.Equal(-5000m, loan.Balance);
+        });
+    }
+
     private static BunitContext CreateAccountsContext()
     {
         var context = new BunitContext();

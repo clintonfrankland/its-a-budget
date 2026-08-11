@@ -130,7 +130,11 @@ public class ReportsDataService
             .OrderByDescending(a => a.IsDefault)
             .ThenBy(a => a.AccountId)
             .FirstOrDefault();
-        var starting = CurrencyPolicy.Round((ledgerAccount?.BeginningBalance ?? 0m) + posted);
+        var starting = ledgerAccount is null
+            ? 0m
+            : AccountBalancePresentationPolicy.Apply(
+                ledgerAccount.AccountTypeId,
+                CurrencyPolicy.Round(ledgerAccount.BeginningBalance + posted));
         var forecast = await new BudgetScheduleService(_db, _sharedBudgets)
             .GetForecastAsync(
                 userId,
@@ -163,8 +167,12 @@ public class ReportsDataService
             .Where(t => accountIds.Contains(t.AccountId))
             .Select(t => new { t.AccountId, t.TransactionDate, t.Amount })
             .ToListAsync();
-        decimal At(DateOnly date) => CurrencyPolicy.Round(accounts.Sum(a => a.BeginningBalance +
-            transactions.Where(t => t.AccountId == a.AccountId && t.TransactionDate <= date).Sum(t => t.Amount)));
+        decimal At(DateOnly date) => CurrencyPolicy.Round(accounts.Sum(account =>
+            AccountBalancePresentationPolicy.Apply(
+                account.AccountTypeId,
+                CurrencyPolicy.Round(account.BeginningBalance + transactions
+                    .Where(transaction => transaction.AccountId == account.AccountId && transaction.TransactionDate <= date)
+                    .Sum(transaction => transaction.Amount)))));
 
         var month = FirstOfMonth(selectedMonth);
         var history = Enumerable.Range(0, 7).Select(i => month.AddMonths(i - 6))
