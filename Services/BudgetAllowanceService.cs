@@ -29,10 +29,8 @@ public sealed class BudgetAllowanceService
         var readable = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var categoryIds = allowances.Select(b => b.CategoryId).Distinct().ToList();
         var earliest = allowances.Min(b => GetCurrentPeriod(b, day).Start);
-        var transactions = await _db.Transactions
-            .AsNoTracking()
-            .Where(t => t.Amount < 0 && categoryIds.Contains(t.CategoryId) && t.TransactionDate >= earliest && t.TransactionDate <= day &&
-                (t.SharedBudgetId.HasValue ? readable.Contains(t.SharedBudgetId.Value) : t.UserId == userId))
+        var transactions = await _db.ReadableTransactions(userId, readable)
+            .Where(t => t.Amount < 0 && categoryIds.Contains(t.CategoryId) && t.TransactionDate >= earliest && t.TransactionDate <= day)
             .Select(t => new { t.CategoryId, t.TransactionDate, t.Amount, t.SharedBudgetId, t.UserId })
             .ToListAsync();
 

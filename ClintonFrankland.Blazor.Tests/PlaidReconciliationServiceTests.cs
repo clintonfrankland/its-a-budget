@@ -182,6 +182,27 @@ public sealed class PlaidReconciliationServiceTests
     }
 
     [Fact]
+    public async Task AccountLinkedLegacyRow_CannotBeRecommendedOrCleared()
+    {
+        await using var database = CreateDatabase();
+        AddOwnedAccount(database);
+        AddStaged(database, amount: 24m, name: "Store");
+        AddLedger(database, amount: -24m, payeeName: "Store");
+        database.Transactions.Local.Single().UserId = null;
+        await database.SaveChangesAsync();
+
+        var service = new PlaidReconciliationService(database);
+        var result = Assert.Single(await service.ReconcileAsync(1, CancellationToken.None));
+
+        Assert.Equal(PlaidReconciliationDisposition.NoMatch, result.Disposition);
+        Assert.Empty(result.Candidates);
+        var staged = await database.PlaidTransactionStaging.SingleAsync();
+        Assert.Equal(PlaidReconciliationActionResult.Unauthorized, await service.ConfirmAsync(1, 1, 1,
+            PlaidReconciliationService.CreateSourceFingerprint(staged), CancellationToken.None));
+        Assert.False((await database.Transactions.SingleAsync()).Cleared);
+    }
+
+    [Fact]
     public async Task Confirm_AtomicallyLinksAndClearsExistingLedgerTransaction()
     {
         await using var database = CreateDatabase();

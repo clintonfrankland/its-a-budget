@@ -30,11 +30,9 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
             .Select(account => account.AccountId)
             .ToListAsync(cancellationToken)).ToHashSet();
 
-        var ledgerTransactions = await database.Transactions.AsNoTracking()
+        var ledgerTransactions = await database.ReadableTransactions(userId, [])
             .Include(transaction => transaction.Payee)
-            .Where(transaction => transaction.UserId == userId
-                && transaction.SharedBudgetId == null
-                && ownedAccountIds.Contains(transaction.AccountId))
+            .Where(transaction => ownedAccountIds.Contains(transaction.AccountId))
             .OrderBy(transaction => transaction.TransactionId)
             .ToListAsync(cancellationToken);
 
@@ -104,8 +102,11 @@ public sealed class PlaidReconciliationService(ClintonFranklandDbContext databas
 
             var ownedAccount = await database.Accounts.AnyAsync(account => account.AccountId == stagedTransaction.BudgetAccountId
                 && account.UserId == userId && account.SharedBudgetId == null && account.IsDeleted != true, cancellationToken);
-            var ledgerTransaction = await database.Transactions.SingleOrDefaultAsync(ledger => ledger.TransactionId == transactionId
-                && ledger.UserId == userId && ledger.SharedBudgetId == null && ledger.AccountId == stagedTransaction.BudgetAccountId, cancellationToken);
+            var ledgerTransactionIsInScope = await database.ReadableTransactions(userId, []).AnyAsync(ledger => ledger.TransactionId == transactionId
+                && ledger.AccountId == stagedTransaction.BudgetAccountId, cancellationToken);
+            var ledgerTransaction = ledgerTransactionIsInScope
+                ? await database.Transactions.SingleOrDefaultAsync(ledger => ledger.TransactionId == transactionId, cancellationToken)
+                : null;
             if (!ownedAccount || ledgerTransaction is null) return PlaidReconciliationActionResult.Unauthorized;
             if (ledgerTransaction.Cleared || await database.PlaidTransactionStaging.AnyAsync(stage =>
                 stage.LinkedTransactionId == transactionId, cancellationToken)) return PlaidReconciliationActionResult.AlreadyReviewed;

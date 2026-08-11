@@ -247,11 +247,9 @@ public class ReportsDataServiceTests
         db.SharedBudgets.AddRange(
             new SharedBudget { SharedBudgetId = 10, Name = "Readable", OwnerUserId = 2 },
             new SharedBudget { SharedBudgetId = 20, Name = "Hidden", OwnerUserId = 2 });
-        db.BudgetMembers.Add(new BudgetMember
-        {
-            BudgetMemberId = 1, SharedBudgetId = 10, UserId = 1,
-            Role = BudgetMemberRole.Viewer, Status = BudgetMemberStatus.Active
-        });
+        db.BudgetMembers.AddRange(
+            new BudgetMember { BudgetMemberId = 1, SharedBudgetId = 10, UserId = 1, Role = BudgetMemberRole.Viewer, Status = BudgetMemberStatus.Active },
+            new BudgetMember { BudgetMemberId = 2, SharedBudgetId = 10, UserId = 2, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active });
         db.Categories.AddRange(
             new Category { CategoryId = 10, CategoryName = "Shared Food", UserId = 2, SharedBudgetId = 10 },
             new Category { CategoryId = 20, CategoryName = "Hidden Food", UserId = 2, SharedBudgetId = 20 });

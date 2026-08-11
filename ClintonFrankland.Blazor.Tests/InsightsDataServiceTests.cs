@@ -70,14 +70,9 @@ public class InsightsDataServiceTests
         await using var db = CreateDbContext();
         SeedLookups(db);
         db.SharedBudgets.Add(new SharedBudget { SharedBudgetId = 10, Name = "Readable", OwnerUserId = 99 });
-        db.BudgetMembers.Add(new BudgetMember
-        {
-            BudgetMemberId = 1,
-            SharedBudgetId = 10,
-            UserId = 42,
-            Role = BudgetMemberRole.Viewer,
-            Status = BudgetMemberStatus.Active
-        });
+        db.BudgetMembers.AddRange(
+            new BudgetMember { BudgetMemberId = 1, SharedBudgetId = 10, UserId = 42, Role = BudgetMemberRole.Viewer, Status = BudgetMemberStatus.Active },
+            new BudgetMember { BudgetMemberId = 2, SharedBudgetId = 10, UserId = 99, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active });
         db.Accounts.Add(new Account { AccountId = 10, AccountName = "Shared", AccountTypeId = 1, UserId = 99, SharedBudgetId = 10 });
         db.Transactions.Add(new Transaction
         {

@@ -1,5 +1,7 @@
+using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClintonFrankland.Blazor.Tests;
 
@@ -32,8 +34,37 @@ public sealed class LedgerScopeTests
     {
         var account = new Account { AccountId = 5, SharedBudgetId = 12 };
 
-        Assert.True(LedgerScope.BelongsToAccount(new Transaction { AccountId = 5, SharedBudgetId = 12 }, account));
+        Assert.True(LedgerScope.BelongsToAccount(new Transaction { AccountId = 5, SharedBudgetId = 12, UserId = 42 }, account));
         Assert.False(LedgerScope.BelongsToAccount(new Transaction { AccountId = 5, SharedBudgetId = null }, account));
         Assert.False(LedgerScope.BelongsToAccount(new Transaction { AccountId = 5, SharedBudgetId = 13 }, account));
+    }
+
+    [Fact]
+    public void BelongsToAccount_QuarantinesRemovedSharedBudgetMemberAttribution()
+    {
+        var account = new Account { AccountId = 5, SharedBudgetId = 12 };
+        var transaction = new Transaction { AccountId = 5, SharedBudgetId = 12, UserId = 99 };
+
+        Assert.False(LedgerScope.BelongsToAccount(transaction, account, new HashSet<int> { 42 }));
+        Assert.True(LedgerScope.BelongsToAccount(transaction, account, new HashSet<int> { 42, 99 }));
+    }
+
+    [Fact]
+    public async Task ReadableTransactions_QuarantinesRowsAttributedToRemovedSharedBudgetMembers()
+    {
+        await using var db = new ClintonFranklandDbContext(new DbContextOptionsBuilder<ClintonFranklandDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Accounts.Add(new Account { AccountId = 5, UserId = 42, SharedBudgetId = 12 });
+        db.BudgetMembers.AddRange(
+            new BudgetMember { BudgetMemberId = 1, SharedBudgetId = 12, UserId = 42, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Active },
+            new BudgetMember { BudgetMemberId = 2, SharedBudgetId = 12, UserId = 99, Role = BudgetMemberRole.Owner, Status = BudgetMemberStatus.Removed });
+        db.Transactions.AddRange(
+            new Transaction { TransactionId = 1, AccountId = 5, UserId = 42, SharedBudgetId = 12, Amount = -10m },
+            new Transaction { TransactionId = 2, AccountId = 5, UserId = 99, SharedBudgetId = 12, Amount = -365m });
+        await db.SaveChangesAsync();
+
+        var transactions = await db.ReadableTransactions(42, [12]).ToListAsync();
+
+        Assert.Collection(transactions, transaction => Assert.Equal(1, transaction.TransactionId));
     }
 }

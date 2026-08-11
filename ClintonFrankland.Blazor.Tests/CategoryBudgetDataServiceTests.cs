@@ -87,6 +87,23 @@ public class CategoryBudgetDataServiceTests
     }
 
     [Fact]
+    public async Task GetMonthRowsAsync_QuarantinesAccountLinkedLegacyRows()
+    {
+        await using var db = CreateDbContext();
+        SeedBaseData(db);
+        db.CategoryBudgetTargets.Add(Target(1, 42, 1, 100m));
+        db.Transactions.AddRange(
+            Transaction(1, 42, 1, new DateOnly(2026, 6, 3), -20m),
+            new Transaction { TransactionId = 2, AccountId = 1, CategoryId = 1, TransactionDate = new DateOnly(2026, 6, 3), Amount = -365m },
+            new Transaction { TransactionId = 3, UserId = 99, AccountId = 1, CategoryId = 1, TransactionDate = new DateOnly(2026, 6, 3), Amount = -290m });
+        await db.SaveChangesAsync();
+
+        var row = Assert.Single(await CreateService(db).GetMonthRowsAsync(42, new DateOnly(2026, 6, 1)));
+
+        Assert.Equal(20m, row.ActualAmount);
+    }
+
+    [Fact]
     public async Task SaveTargetAsync_CreatesUpdatesAndDeletesUserScopedTargets()
     {
         await using var db = CreateDbContext();

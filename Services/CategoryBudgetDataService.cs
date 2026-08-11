@@ -74,18 +74,9 @@ public class CategoryBudgetDataService
                 t.BudgetMonth == monthStart)
             .ToListAsync();
 
-        var spending = await _db.Transactions
-            .AsNoTracking()
-            .Include(t => t.Account)
+        var spending = await _db.ReadableTransactions(userId, sharedBudgetIds)
             .Include(t => t.Category)
             .Where(t =>
-                (t.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                    : t.UserId == userId) &&
-                t.Account != null &&
-                (t.Account.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.Account.SharedBudgetId.Value)
-                    : t.Account.UserId == userId) &&
                 t.Category != null &&
                 (t.Category.SharedBudgetId.HasValue
                     ? sharedBudgetIds.Contains(t.Category.SharedBudgetId.Value)

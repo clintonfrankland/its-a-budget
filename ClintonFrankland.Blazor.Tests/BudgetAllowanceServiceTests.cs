@@ -67,6 +67,24 @@ public class BudgetAllowanceServiceTests
     }
 
     [Fact]
+    public async Task CurrentProgress_QuarantinesLegacyRowsLinkedOnlyByAccountId()
+    {
+        await using var db = CreateDbContext();
+        var today = new DateOnly(2026, 8, 10);
+        Seed(db, today.AddDays(3));
+        db.Transactions.AddRange(
+            Transaction(1, today.AddDays(-1), -40m),
+            new Transaction { TransactionId = 2, AccountId = 1, CategoryId = 1, TransactionDate = today.AddDays(-1), Amount = -365m },
+            new Transaction { TransactionId = 3, AccountId = 1, CategoryId = 1, TransactionDate = today.AddDays(-1), Amount = -290m, UserId = 99 });
+        await db.SaveChangesAsync();
+
+        var budget = await db.Budgets.SingleAsync(b => b.IsSpendingAllowance);
+        var progress = (await new BudgetAllowanceService(db).GetCurrentProgressAsync(42, [budget], today))[budget.BudgetId];
+
+        Assert.Equal(40m, progress.SpentAmount);
+    }
+
+    [Fact]
     public async Task AllowanceCannotBeRecordedOrSkippedAsACheckbookTransaction()
     {
         await using var db = CreateDbContext();

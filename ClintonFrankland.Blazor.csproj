@@ -6,9 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <RootNamespace>ClintonFrankland</RootNamespace>
-    <VersionPrefix>5.35.1</VersionPrefix>
+    <VersionPrefix>5.35.2</VersionPrefix>
     <UserSecretsId>clintonfrankland-budget-app</UserSecretsId>
-    <BuildNumber>218</BuildNumber>
+    <BuildNumber>219</BuildNumber>
     <Version>$(VersionPrefix)</Version>
     <AssemblyVersion>$(VersionPrefix).$(BuildNumber)</AssemblyVersion>
     <FileVersion>$(VersionPrefix).$(BuildNumber)</FileVersion>

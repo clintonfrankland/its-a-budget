@@ -14,8 +14,9 @@ public static class LedgerScope
 {
     /// <summary>
     /// Returns readable transactions whose account link and ownership context agree.
-    /// Legacy rows with a null/mismatched SharedBudgetId, an owner that differs from
-    /// a personal account, or a deleted/missing account are intentionally excluded.
+    /// Legacy rows with a null/mismatched SharedBudgetId, a removed shared-budget
+    /// member attribution, an owner that differs from a personal account, or a
+    /// deleted/missing account are intentionally excluded.
     /// They remain in the database for a reviewed repair or migration; this query
     /// never rewrites historical balances.
     /// </summary>
@@ -28,7 +29,10 @@ public static class LedgerScope
             !(t.Account.IsDeleted ?? false) &&
             (t.Account.SharedBudgetId.HasValue
                 ? readableSharedBudgetIds.Contains(t.Account.SharedBudgetId.Value) &&
-                  t.SharedBudgetId == t.Account.SharedBudgetId
+                  t.SharedBudgetId == t.Account.SharedBudgetId &&
+                  t.UserId.HasValue &&
+                  db.BudgetMembers.Any(m => m.SharedBudgetId == t.Account.SharedBudgetId.Value &&
+                      m.UserId == t.UserId.Value && m.Status == BudgetMemberStatus.Active)
                 : !t.SharedBudgetId.HasValue &&
                   t.Account.UserId == userId &&
                   t.UserId == t.Account.UserId));
@@ -40,14 +44,18 @@ public static class LedgerScope
         db.Transactions.AsNoTracking().Where(t =>
             t.AccountId == account.AccountId &&
             (account.SharedBudgetId.HasValue
-                ? t.SharedBudgetId == account.SharedBudgetId
+                ? t.SharedBudgetId == account.SharedBudgetId &&
+                  t.UserId.HasValue &&
+                  db.BudgetMembers.Any(m => m.SharedBudgetId == account.SharedBudgetId.Value &&
+                      m.UserId == t.UserId.Value && m.Status == BudgetMemberStatus.Active)
                 : !t.SharedBudgetId.HasValue && t.UserId == account.UserId));
 
     /// <summary>In-memory counterpart used by repair previews and regression fixtures.</summary>
-    public static bool BelongsToAccount(Transaction transaction, Account account) =>
+    public static bool BelongsToAccount(Transaction transaction, Account account, IReadOnlySet<int>? activeSharedBudgetMemberIds = null) =>
         transaction.AccountId == account.AccountId &&
         !(account.IsDeleted ?? false) &&
         (account.SharedBudgetId.HasValue
-            ? transaction.SharedBudgetId == account.SharedBudgetId
+            ? transaction.SharedBudgetId == account.SharedBudgetId && transaction.UserId.HasValue &&
+              (activeSharedBudgetMemberIds is null || activeSharedBudgetMemberIds.Contains(transaction.UserId.Value))
             : !transaction.SharedBudgetId.HasValue && transaction.UserId == account.UserId);
 }
