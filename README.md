@@ -56,6 +56,21 @@ Plaid Sandbox connections are opt-in server-side integrations. A Plaid Item acce
 
 Membership supports `Owner`, `Admin`, `Editor`, and `Viewer` roles with active/removed status. Owner/Admin users can open **Sharing** to manage members, create email or username invites for Viewer, Editor, or Admin access, resend/revoke pending invites, update non-owner roles, and remove non-owner members. Members can leave budgets where they are not the current Owner; Owners transfer ownership to another active member before leaving. Invite records store only secure token hashes in `InviteTokenHash`; plaintext invite tokens are not persisted. Accept links require sign-in before they add membership, expire automatically, and can be revoked or resent by Owner/Admin users. Dashboard totals, Reports, bill-due notices, and Monday weekly upcoming-bills summaries are scoped to active readable memberships; Viewer members can receive read-only summaries, removed members receive nothing, and multi-budget email summaries identify each budget by name.
 
+## Ledger scope and balance authority
+
+Every balance, projection, reconciliation, and reporting path uses the canonical
+`LedgerScope` policy. It includes only transactions whose account link, ownership
+context, and readable shared-budget membership agree. Legacy AccountId-linked rows
+with missing or conflicting scope metadata—and shared-budget rows attributed to a
+removed member, including a former owner—are quarantined rather than implicitly
+rewritten or counted.
+
+Checkbook and balance projections treat `BeginningBalance` plus scoped ledger
+transactions as display authority. Stored `Balance` and `ClearedBalance` remain
+compatibility caches: an explicit opening-balance adjustment updates them, while a
+name-only account edit leaves them unchanged. The complete policy, its intentional
+legacy-row handling, and repair boundary are documented in [Ledger scope](docs/ledger-scope.md).
+
 ---
 
 ## Architecture
