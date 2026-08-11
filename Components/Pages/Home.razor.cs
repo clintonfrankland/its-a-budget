@@ -10,6 +10,7 @@ public partial class Home
     [Inject] private AuthService AuthService { get; set; } = default!;
     [Inject] private CurrentUserContext CurrentUser { get; set; } = default!;
     [Inject] private DashboardDataService DashboardData { get; set; } = default!;
+    [Inject] private OnboardingService OnboardingData { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IOptions<AuthentikOidcOptions> AuthentikOptions { get; set; } = default!;
 
@@ -20,6 +21,7 @@ public partial class Home
     private DashboardSnapshotViewModel? Snapshot { get; set; }
     private string? SnapshotError { get; set; }
     private bool _showAllCategories;
+    private bool ShowOnboardingOffer { get; set; }
     private bool IsAuthentikEnabled => AuthentikOptions.Value.IsUsable;
     private string AuthentikLoginUrl => AuthentikLoginLinks.BuildLoginUrl(AuthentikOptions.Value, "/");
 
@@ -31,6 +33,7 @@ public partial class Home
 
         if (AuthService.IsAuthenticated)
         {
+            ShowOnboardingOffer = await OnboardingData.ShouldOfferAsync(CurrentUser.UserId);
             await LoadSnapshotAsync();
         }
 

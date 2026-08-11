@@ -373,7 +373,9 @@ public partial class Settings
                 Salt = salt,
                 PasswordHash = PasswordUtility.HashPassword(tempPassword, salt),
                 FirstLogin = DateTime.UtcNow,
-                LastLogin = DateTime.UtcNow
+                LastLogin = DateTime.UtcNow,
+                OnboardingCompleted = false,
+                OnboardingStep = 0
             };
 
             DbContext.Users.Add(user);

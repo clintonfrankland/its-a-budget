@@ -214,6 +214,7 @@ builder.Services.AddScoped<BudgetItemsDataService>();
 builder.Services.AddScoped<BudgetItemsExportService>();
 builder.Services.AddScoped<PayeesDataService>();
 builder.Services.AddScoped<SharedBudgetDataService>();
+builder.Services.AddScoped<OnboardingService>();
 builder.Services.AddScoped<BalanceSummaryService>();
 builder.Services.AddScoped<BudgetInviteService>();
 builder.Services.AddScoped<BudgetScheduleService>();

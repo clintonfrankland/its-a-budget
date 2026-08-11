@@ -1,0 +1,133 @@
+@page "/onboarding"
+@rendermode InteractiveServer
+
+<PageTitle>Get started | It's a Budget</PageTitle>
+
+<main class="onboarding-shell" aria-labelledby="onboarding-title">
+    <div class="onboarding-progress" aria-label="Onboarding progress">
+        <div class="progress" role="progressbar" aria-valuenow="@ProgressPercent" aria-valuemin="0" aria-valuemax="100" aria-label="Setup progress">
+            <div class="progress-bar" style="width: @ProgressPercent%"></div>
+        </div>
+        <span>Step @(step + 1) of 6</span>
+    </div>
+
+    @if (loading)
+    {
+        <p aria-live="polite">Loading your setup...</p>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">@errorMessage</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(successMessage))
+                {
+                    <div class="alert alert-success" role="status">@successMessage</div>
+                }
+
+                @switch (step)
+                {
+                    case OnboardingService.WelcomeStep:
+                        <h1 id="onboarding-title">Let’s set up your budget</h1>
+                        <p class="lead">A few guided steps will create your household budget and everyday account. Optional details can be skipped and resumed later.</p>
+                        <button class="btn btn-primary" @onclick="() => MoveToAsync(OnboardingService.BudgetStep)">Start setup</button>
+                        break;
+                    case OnboardingService.BudgetStep:
+                        <h1 id="onboarding-title">Choose your budget</h1>
+                        <p>This is the household container for accounts, categories, and transactions.</p>
+                        @if (availableBudgets.Count > 0)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label" for="existing-budget">Use an existing budget</label>
+                                <select id="existing-budget" class="form-select" @bind="selectedBudgetId">
+                                    <option value="">Create or use my personal budget</option>
+                                    @foreach (var budget in availableBudgets)
+                                    {
+                                        <option value="@budget.SharedBudgetId">@budget.Name (@budget.Role)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label" for="budget-name">Budget name</label>
+                            <input id="budget-name" class="form-control" maxlength="128" @bind="budgetName" autocomplete="off" />
+                            <div class="form-text">Examples: My Budget, Frankland Household</div>
+                        </div>
+                        <button class="btn btn-primary" disabled="@saving" @onclick="SaveBudgetAsync">Save and continue</button>
+                        break;
+                    case OnboardingService.AccountStep:
+                        <h1 id="onboarding-title">Add your everyday account</h1>
+                        <p>Your opening balance is the real balance when you begin tracking. It establishes the starting point only. <strong>No ledger adjustment or transaction is created.</strong></p>
+                        @if (accounts.Count > 0)
+                        {
+                            <div class="alert alert-info">You already have @accounts.Count account(s). You can continue with the existing default or add another below.</div>
+                            <button class="btn btn-outline-primary me-2" @onclick="() => MoveToAsync(OnboardingService.CategoriesStep)">Use existing account</button>
+                        }
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label" for="account-name">Account name</label>
+                                <input id="account-name" class="form-control" maxlength="255" @bind="accountName" autocomplete="off" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="account-type">Account type</label>
+                                <select id="account-type" class="form-select" @bind="accountTypeId">
+                                    <option value="1">Checking</option><option value="2">Credit Card</option><option value="3">Loan</option><option value="4">Taxes</option><option value="5">Phone</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="opening-balance">Opening balance</label>
+                                <InputNumber id="opening-balance" class="form-control" @bind-Value="openingBalance" />
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-3" disabled="@saving" @onclick="SaveAccountAsync">Save as default and continue</button>
+                        break;
+                    case OnboardingService.CategoriesStep:
+                        <h1 id="onboarding-title">Add starting categories <span class="badge text-bg-secondary">Optional</span></h1>
+                        <p>Add a few spending categories now. Detailed amounts and recurring budget items can be configured later under Plan.</p>
+                        <label class="form-label" for="categories">Category names</label>
+                        <textarea id="categories" class="form-control" rows="5" @bind="categoryText" placeholder="Groceries&#10;Utilities&#10;Transportation"></textarea>
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            <button class="btn btn-primary" disabled="@saving" @onclick="SaveCategoriesAsync">Save and continue</button>
+                            <button class="btn btn-outline-secondary" @onclick="() => MoveToAsync(OnboardingService.SharingStep)">Skip for now</button>
+                        </div>
+                        break;
+                    case OnboardingService.SharingStep:
+                        <h1 id="onboarding-title">Invite a household member <span class="badge text-bg-secondary">Optional</span></h1>
+                        <p>Invite an existing username or email address as an Editor. You can manage roles later under Sharing.</p>
+                        <label class="form-label" for="invite-target">Username or email</label>
+                        <input id="invite-target" class="form-control" maxlength="256" @bind="inviteTarget" autocomplete="off" />
+                        @if (!string.IsNullOrWhiteSpace(inviteLink))
+                        {
+                            <div class="alert alert-info mt-3 text-break">Share this one-time acceptance link securely: <a href="@inviteLink">@inviteLink</a></div>
+                        }
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            <button class="btn btn-primary" disabled="@saving" @onclick="SaveInviteAsync">Create invite</button>
+                            <button class="btn btn-outline-secondary" @onclick="() => MoveToAsync(OnboardingService.ReviewStep)">Skip for now</button>
+                        </div>
+                        break;
+                    default:
+                        <h1 id="onboarding-title">You’re ready</h1>
+                        <p class="lead">Your completed choices are saved. You can revisit Accounts, Budget Items, and Sharing whenever you need them.</p>
+                        <ul>
+                            <li>Budget: <strong>@budgetName</strong></li>
+                            <li>Accounts configured: <strong>@accounts.Count</strong></li>
+                        </ul>
+                        <button class="btn btn-success" disabled="@saving" @onclick="CompleteAsync">Finish setup</button>
+                        break;
+                }
+
+                @if (step > OnboardingService.WelcomeStep && step < OnboardingService.ReviewStep)
+                {
+                    <hr />
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <button class="btn btn-link" @onclick="GoBackAsync">Back</button>
+                        <a href="/">Leave setup and resume later</a>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</main>

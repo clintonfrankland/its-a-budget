@@ -55,6 +55,7 @@
                             <i class="fa fa-user"></i>&nbsp;@AuthService.CurrentUser.DisplayName
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/onboarding" @onclick="CollapseNavbar">Setup guide</a></li>
                             <li><a class="dropdown-item" href="/profile" @onclick="CollapseNavbar">Profile &amp; Notifications</a></li>
                             @if (AuthService.CurrentUser.IsAdmin)
                             {

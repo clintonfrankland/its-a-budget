@@ -596,3 +596,23 @@ body {
 .budget-item-menu .rzi { font-size:1.125rem; }
 .budget-item-actions button:focus-visible, .budget-item-more:focus-visible { outline:2px solid var(--rz-primary,#0d6efd); outline-offset:2px; }
 .budget-item-menu button:hover:not(:disabled), .budget-item-menu button:focus-visible { background:var(--rz-base-200,#eee); }
+.onboarding-shell {
+    max-width: 760px;
+    margin: 2rem auto;
+    padding: 0 .75rem;
+}
+
+.onboarding-progress {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+
+.onboarding-progress .progress { min-height: .75rem; }
+
+@media (max-width: 575.98px) {
+    .onboarding-shell { margin-top: 1rem; padding: 0; }
+    .onboarding-shell .card { border-left: 0; border-right: 0; border-radius: 0; }
+}

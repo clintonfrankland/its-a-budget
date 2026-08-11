@@ -94,6 +94,14 @@ public class User : IModificationTracked
     [Column("ActiveSharedBudgetId")]
     public int? ActiveSharedBudgetId { get; set; }
 
+    [Required]
+    [Column("OnboardingCompleted")]
+    public bool OnboardingCompleted { get; set; } = true;
+
+    [Required]
+    [Column("OnboardingStep")]
+    public int OnboardingStep { get; set; }
+
     [Column("UpdatedAtUtc")]
     public DateTime UpdatedAtUtc { get; set; }
 

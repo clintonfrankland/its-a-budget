@@ -228,11 +228,13 @@ flowchart TD
 4. Optionally open Forecast to see the shape of the next few weeks
 
 **First-time setup:**
-1. Manage → Accounts → create your accounts and enter their current balances
-2. Plan → Budget Items → add scheduled bills/income and category spending allowances
-3. Checkbook → enter day-to-day transactions
-4. Settings (admin) → configure SMTP if you want bill-due email reminders
-5. Profile → opt in to notifications and set your timezone
+1. After the first successful sign-in, select **Start setup** from the onboarding offer on Home.
+2. Create or select a household budget, then add its default everyday account. The opening balance establishes the account's starting point and does not create a ledger transaction or adjustment.
+3. Optionally add initial categories and invite a household member. Optional steps can be skipped.
+4. Select **Leave setup and resume later** at any point; completed progress is persisted and the Home offer returns until setup is finished.
+5. Finish the guide, then use Plan → Budget Items for scheduled bills/income and detailed allowances, Profile for notification preferences, and Sharing for member roles.
+
+Existing users are marked complete when the onboarding schema is introduced and are not forced through setup. Administratively created users begin with onboarding incomplete. The guide remains available from the user menu after completion, but completed users return to Home rather than being prompted again.
 
 **Payee cleanup:**
 1. Open Payees to search, sort, and review active or deleted payees
