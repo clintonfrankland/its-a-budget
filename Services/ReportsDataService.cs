@@ -186,10 +186,7 @@ public class ReportsDataService
             ? readable.Contains(a.SharedBudgetId.Value) : a.UserId == userId));
 
     private IQueryable<Transaction> ReadableTransactions(int userId, IReadOnlyCollection<int> readable) =>
-        _db.Transactions.AsNoTracking().Where(t =>
-            (t.SharedBudgetId.HasValue ? readable.Contains(t.SharedBudgetId.Value) : t.UserId == userId) &&
-            t.Account != null && (t.Account.SharedBudgetId.HasValue
-                ? readable.Contains(t.Account.SharedBudgetId.Value) : t.Account.UserId == userId));
+        _db.ReadableTransactions(userId, readable);
 
     private static string CategoryName(Category? category, int userId, int? sharedBudgetId, IReadOnlyCollection<int> readable)
     {

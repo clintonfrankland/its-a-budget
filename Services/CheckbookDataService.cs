@@ -31,10 +31,7 @@ public class CheckbookDataService
     public async Task<List<Transaction>> GetTransactionsForUserAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Transactions.AsNoTracking().Include(t => t.Payee).Include(t => t.Category)
-            .Where(t => t.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId)
+        return await _db.ReadableTransactions(userId, sharedBudgetIds).Include(t => t.Payee).Include(t => t.Category)
             .OrderByDescending(t => t.Cleared).ThenBy(t => t.TransactionDate).ThenByDescending(t => t.Amount)
             .ToListAsync();
     }
@@ -55,11 +52,7 @@ public class CheckbookDataService
     public async Task<decimal> GetTransactionSumAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Transactions
-            .AsNoTracking()
-            .Where(t => t.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId)
+        return await _db.ReadableTransactions(userId, sharedBudgetIds)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
     }
 
@@ -72,11 +65,8 @@ public class CheckbookDataService
     public async Task<decimal> GetClearedBalanceAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        var clearedAmount = await _db.Transactions
-            .AsNoTracking()
-            .Where(t => t.Cleared && (t.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId))
+        var clearedAmount = await _db.ReadableTransactions(userId, sharedBudgetIds)
+            .Where(t => t.Cleared)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
         return CurrencyPolicy.Round(await GetBeginningBalanceAsync(userId) + clearedAmount);
@@ -106,13 +96,9 @@ public class CheckbookDataService
         var firstMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-months);
 
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        var transactions = await _db.Transactions
-            .AsNoTracking()
+        var transactions = await _db.ReadableTransactions(userId, sharedBudgetIds)
             .Include(t => t.Category)
             .Where(t =>
-                (t.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                    : t.UserId == userId) &&
                 t.TransactionDate >= firstMonth &&
                 t.TransactionDate < new DateOnly(today.Year, today.Month, 1))
             .ToListAsync();
@@ -138,13 +124,9 @@ public class CheckbookDataService
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        var transactions = await _db.Transactions
-            .AsNoTracking()
+        var transactions = await _db.ReadableTransactions(userId, sharedBudgetIds)
             .Include(t => t.Category)
             .Where(t =>
-                (t.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                    : t.UserId == userId) &&
                 t.TransactionDate >= startDate &&
                 t.TransactionDate <= endDate &&
                 t.Amount < 0)
@@ -160,15 +142,10 @@ public class CheckbookDataService
     public async Task<Transaction?> GetTransactionByIdAsync(int userId, int id)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Transactions
-            .AsNoTracking()
+        return await _db.ReadableTransactions(userId, sharedBudgetIds)
             .Include(t => t.Payee)
             .Include(t => t.Category)
-            .FirstOrDefaultAsync(t =>
-                t.TransactionId == id &&
-                (t.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                    : t.UserId == userId));
+            .FirstOrDefaultAsync(t => t.TransactionId == id);
     }
 
     public async Task SaveTransactionAsync(

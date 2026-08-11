@@ -306,11 +306,7 @@ public class BudgetScheduleService
             .OrderByDescending(a => a.IsDefault)
             .ThenBy(a => a.AccountId)
             .FirstOrDefaultAsync();
-        var transactions = _db.Transactions
-            .AsNoTracking()
-            .Where(t => t.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId);
+        var transactions = _db.ReadableTransactions(userId, sharedBudgetIds);
 
         var clearedBalance = (account?.BeginningBalance ?? 0m)
             + (await transactions
@@ -447,9 +443,8 @@ public class BudgetScheduleService
         var readable = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
         var start = DateOnly.FromDateTime(startDate);
         var earliest = allowances.Min(b => BudgetAllowanceService.GetCurrentPeriod(b, start).Start);
-        var actuals = await _db.Transactions.AsNoTracking()
-            .Where(t => t.Amount < 0 && t.TransactionDate >= earliest && t.TransactionDate <= start &&
-                (t.SharedBudgetId.HasValue ? readable.Contains(t.SharedBudgetId.Value) : t.UserId == userId))
+        var actuals = await _db.ReadableTransactions(userId, readable)
+            .Where(t => t.Amount < 0 && t.TransactionDate >= earliest && t.TransactionDate <= start)
             .Select(t => new { t.CategoryId, t.TransactionDate, t.Amount, t.SharedBudgetId, t.UserId })
             .ToListAsync();
 

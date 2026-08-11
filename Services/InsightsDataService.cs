@@ -82,20 +82,11 @@ public class InsightsDataService
     private async Task<List<Transaction>> GetExpenseTransactionsAsync(int userId, DateOnly startInclusive, DateOnly endExclusive)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Transactions
-            .AsNoTracking()
+        return await _db.ReadableTransactions(userId, sharedBudgetIds)
             .Include(t => t.Account)
             .Include(t => t.Category)
             .Include(t => t.Payee)
-            .Where(t =>
-                (t.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                    : t.UserId == userId) &&
-                t.Account != null &&
-                (t.Account.SharedBudgetId.HasValue
-                    ? sharedBudgetIds.Contains(t.Account.SharedBudgetId.Value)
-                    : t.Account.UserId == userId) &&
-                t.Amount < 0 &&
+            .Where(t => t.Amount < 0 &&
                 t.TransactionDate >= startInclusive &&
                 t.TransactionDate < endExclusive)
             .ToListAsync();

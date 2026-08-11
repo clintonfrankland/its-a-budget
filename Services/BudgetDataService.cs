@@ -31,11 +31,7 @@ public class BudgetDataService
     public async Task<decimal> GetTransactionSumAsync(int userId)
     {
         var sharedBudgetIds = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
-        return await _db.Transactions
-            .AsNoTracking()
-            .Where(t => t.SharedBudgetId.HasValue
-                ? sharedBudgetIds.Contains(t.SharedBudgetId.Value)
-                : t.UserId == userId)
+        return await _db.ReadableTransactions(userId, sharedBudgetIds)
             .SumAsync(t => (decimal?)t.Amount) ?? 0m;
     }
 

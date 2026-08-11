@@ -181,7 +181,7 @@ public class AccountsDataService
         if (account is null)
             return null;
 
-        var transactions = GetLedgerTransactions(account);
+        var transactions = _db.TransactionsForAccount(account);
         var postedAmount = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
         var clearedPostedAmount = await transactions
             .Where(t => t.Cleared)
@@ -226,13 +226,6 @@ public class AccountsDataService
 
         return account;
     }
-
-    private IQueryable<Transaction> GetLedgerTransactions(Account account) =>
-        _db.Transactions.AsNoTracking().Where(t =>
-            t.AccountId == account.AccountId &&
-            (account.SharedBudgetId.HasValue
-                ? t.SharedBudgetId == account.SharedBudgetId
-                : !t.SharedBudgetId.HasValue && t.UserId == account.UserId));
 
     public async Task DeleteAccountAsync(int userId, int accountId)
     {
