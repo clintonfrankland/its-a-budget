@@ -25,7 +25,8 @@ public class ReportsPageContractTests
         var code = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Reports.razor.cs"));
 
         Assert.Contains("spendError", markup);
-        Assert.Contains("spendPlan.Count == 0", markup);
+        Assert.Contains("monthlyReport is null || !monthlyReport.HasContent", markup);
+        Assert.DoesNotContain("spendPlan.Count == 0", markup);
         Assert.Contains("trendError", markup);
         Assert.Contains("trends.Count == 0", markup);
         Assert.Contains("cashflowError", markup);
@@ -35,6 +36,19 @@ public class ReportsPageContractTests
         Assert.Contains("payeeError", markup);
         Assert.Contains("topPayees.Count == 0", markup);
         Assert.Equal(5, code.Split("catch {", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void Spending_PresentsAPlannedOnlyMonthlyReportInsteadOfUsingTheLegacySpendPlanGuard()
+    {
+        var markup = File.ReadAllText(Path.Combine(RepoRoot, "Components/Pages/Reports.razor"));
+        var plannedOnly = new MonthlyReport(
+            new DateOnly(2026, 7, 1),
+            [new("Paycheck", 100m, 0m, MonthlyReportLineKind.Income)], [], [], [], 100m, 0m);
+
+        Assert.True(plannedOnly.HasContent);
+        Assert.Contains("monthlyReport is null || !monthlyReport.HasContent", markup);
+        Assert.DoesNotContain("spendPlan.Count == 0", markup);
     }
 
     [Fact]
@@ -76,5 +90,6 @@ public class ReportsPageContractTests
         Assert.Contains("Unfavorable", viewModels);
         Assert.Contains("Ahead of plan", viewModels);
         Assert.Contains("Behind plan", viewModels);
+        Assert.Contains("HasContent", viewModels);
     }
 }

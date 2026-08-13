@@ -23,6 +23,7 @@ public sealed record MonthlyReport(
     decimal PlannedNetCashFlow,
     decimal ActualNetCashFlow)
 {
+    public bool HasContent => Income.Count > 0 || Bills.Count > 0 || Allowances.Count > 0 || Transfers.Count > 0;
     public decimal NetCashFlowVariance => CurrencyPolicy.Round(ActualNetCashFlow - PlannedNetCashFlow);
     public string NetCashFlowIndicator => NetCashFlowVariance > 0m ? "Ahead of plan" : NetCashFlowVariance < 0m ? "Behind plan" : "On plan";
 }

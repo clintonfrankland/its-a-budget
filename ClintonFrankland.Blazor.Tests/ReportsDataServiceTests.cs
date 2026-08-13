@@ -309,7 +309,8 @@ public class ReportsDataServiceTests
             new Category { CategoryId = 4, CategoryName = "Insurance", UserId = 1 },
             new Category { CategoryId = 5, CategoryName = "Phone", UserId = 1 },
             new Category { CategoryId = 6, CategoryName = "Subscriptions", UserId = 1 },
-            new Category { CategoryId = 7, CategoryName = "Transfer", UserId = 1 });
+            new Category { CategoryId = 7, CategoryName = "Transfer", UserId = 1 },
+            new Category { CategoryId = 8, CategoryName = "Credit Card Payment", UserId = 1 });
         db.Budgets.AddRange(
             new Budget { BudgetId = 1, UserId = 1, CategoryId = 1, BudgetTypeId = 0, Amount = 100m, NextDueDate = new(2026, 8, 7), FrequencyId = 1 },
             new Budget { BudgetId = 2, UserId = 1, CategoryId = 1, BudgetTypeId = 0, Amount = 200m, NextDueDate = new(2026, 8, 14), FrequencyId = 2 },
@@ -320,16 +321,22 @@ public class ReportsDataServiceTests
             new Budget { BudgetId = 7, UserId = 1, CategoryId = 1, BudgetTypeId = 1, IsSpendingAllowance = true, Amount = 300m, NextDueDate = new(2026, 8, 1), FrequencyId = 4 });
         db.Transactions.AddRange(
             Tx(1, 1, 1, new(2026, 7, 3), 700m), Tx(2, 1, 3, new(2026, 7, 1), -1000m),
-            Tx(3, 1, 1, new(2026, 7, 8), -120m), Tx(4, 1, 7, new(2026, 7, 12), -500m));
+            Tx(3, 1, 1, new(2026, 7, 8), -120m), // underlying credit-card purchase remains spending
+            Tx(4, 1, 7, new(2026, 7, 12), -500m),
+            Tx(5, 1, 8, new(2026, 7, 15), -120m)); // card payment is excluded from spending variance
         await db.SaveChangesAsync();
 
         var report = await new ReportsDataService(db).GetMonthlyReportAsync(1, new(2026, 7, 12));
 
         Assert.Equal(1100m, report.Income.Single().Planned); // five weekly + three biweekly paydays
         Assert.Equal(1000m, report.Bills.Single(x => x.Name == "Mortgage").Planned);
+        Assert.Equal(100m, report.Bills.Single(x => x.Name == "Insurance").Planned);
+        Assert.Equal(50m, report.Bills.Single(x => x.Name == "Phone").Planned);
+        Assert.Equal(20m, report.Bills.Single(x => x.Name == "Subscriptions").Planned);
         Assert.Equal(300m, report.Allowances.Single(x => x.Name == "Food").Planned);
         Assert.Equal(120m, report.Allowances.Single(x => x.Name == "Food").Actual); // card purchases remain spending
-        Assert.Equal(500m, Assert.Single(report.Transfers).Actual);
+        Assert.Equal(500m, report.Transfers.Single(x => x.Name == "Transfer").Actual);
+        Assert.Equal(120m, report.Transfers.Single(x => x.Name == "Credit Card Payment").Actual);
         Assert.Equal(-370m, report.PlannedNetCashFlow);
         Assert.Equal(-420m, report.ActualNetCashFlow);
         Assert.Equal("Behind plan", report.NetCashFlowIndicator);

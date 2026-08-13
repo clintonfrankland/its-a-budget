@@ -49,7 +49,7 @@ else
             <div class="row g-3 report-section">
                 <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><div><h2 class="h5 mb-1">Monthly planned versus actual</h2><p class="text-muted mb-0">Reconstructed for @selectedMonth.ToString("MMMM yyyy") from scheduled occurrences and posted activity.</p></div><a href="/budgetitems">Edit budget items</a></div>
                     @if (!string.IsNullOrEmpty(spendError)) { <div class="alert alert-warning" role="alert">@spendError</div> }
-                    else if (spendPlan.Count == 0) { <div class="report-empty-state" role="status"><h3 class="h6">Nothing to close for @selectedMonth.ToString("MMMM yyyy")</h3><p class="text-muted mb-0">There are no spending allowances or expense transactions in this reporting month.</p></div> }
+                    else if (monthlyReport is null || !monthlyReport.HasContent) { <div class="report-empty-state" role="status"><h3 class="h6">Nothing to close for @selectedMonth.ToString("MMMM yyyy")</h3><p class="text-muted mb-0">There are no planned or posted transactions in this reporting month.</p></div> }
                     else if (monthlyReport is not null) {
                         <section class="variance-summary" aria-labelledby="varianceSummaryHeading">
                             <h3 id="varianceSummaryHeading" class="visually-hidden">Monthly net cash-flow summary</h3>
