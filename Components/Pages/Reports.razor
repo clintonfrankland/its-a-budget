@@ -47,25 +47,20 @@ else
         else if (activeView == "spending")
         {
             <div class="row g-3 report-section">
-                <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><div><h2 class="h5 mb-1">Month-close variance snapshot</h2><p class="text-muted mb-0">Reconstructed for @selectedMonth.ToString("MMMM yyyy") from allowances and expense activity.</p></div><a href="/budgetitems">Edit allowances</a></div>
+                <div class="col-12"><RadzenCard><div class="d-flex flex-wrap justify-content-between gap-2"><div><h2 class="h5 mb-1">Monthly planned versus actual</h2><p class="text-muted mb-0">Reconstructed for @selectedMonth.ToString("MMMM yyyy") from scheduled occurrences and posted activity.</p></div><a href="/budgetitems">Edit budget items</a></div>
                     @if (!string.IsNullOrEmpty(spendError)) { <div class="alert alert-warning" role="alert">@spendError</div> }
                     else if (spendPlan.Count == 0) { <div class="report-empty-state" role="status"><h3 class="h6">Nothing to close for @selectedMonth.ToString("MMMM yyyy")</h3><p class="text-muted mb-0">There are no spending allowances or expense transactions in this reporting month.</p></div> }
-                    else if (monthCloseVariance is not null) {
+                    else if (monthlyReport is not null) {
                         <section class="variance-summary" aria-labelledby="varianceSummaryHeading">
-                            <h3 id="varianceSummaryHeading" class="visually-hidden">Month-close summary</h3>
+                            <h3 id="varianceSummaryHeading" class="visually-hidden">Monthly net cash-flow summary</h3>
                             <div class="variance-totals">
-                                <div><span>Total budgeted</span><strong>@monthCloseVariance.TotalBudgeted.ToString("C")</strong></div>
-                                <div><span>Total actual</span><strong>@monthCloseVariance.TotalActual.ToString("C")</strong></div>
-                                <div><span>Total variance</span><strong>@monthCloseVariance.TotalVariance.ToString("C")</strong><small>Budgeted minus actual</small></div>
-                            </div>
-                            <div class="variance-highlights">
-                                @if (monthCloseVariance.NeedsAttention.Count > 0) { <div><h4 class="h6">Needs attention</h4><ul class="list-unstyled mb-0">@foreach (var row in monthCloseVariance.NeedsAttention) { <li><span>@row.CategoryName <small>@row.Status</small></span><strong>@row.Variance.ToString("C")</strong></li> }</ul></div> }
-                                @if (monthCloseVariance.LargestUnderBudget.Count > 0) { <div><h4 class="h6">Largest unspent amounts</h4><ul class="list-unstyled mb-0">@foreach (var row in monthCloseVariance.LargestUnderBudget) { <li><span>@row.CategoryName <small>@row.Status</small></span><strong>@row.Variance.ToString("C")</strong></li> }</ul></div> }
+                                <div><span>Planned net cash flow</span><strong>@monthlyReport.PlannedNetCashFlow.ToString("C")</strong></div>
+                                <div><span>Actual net cash flow</span><strong>@monthlyReport.ActualNetCashFlow.ToString("C")</strong></div>
+                                <div><span>@monthlyReport.NetCashFlowIndicator</span><strong>@monthlyReport.NetCashFlowVariance.ToString("C")</strong><small>Actual minus planned</small></div>
                             </div>
                         </section>
-                        <h3 class="h6 mt-4">Category detail</h3><div class="table-responsive variance-detail"><table class="table table-sm align-middle"><caption class="visually-hidden">Month-close budgeted, actual, signed variance, and status by category</caption><thead><tr><th>Category</th><th class="text-end">Budgeted</th><th class="text-end">Actual</th><th class="text-end">Variance</th><th>Status</th></tr></thead><tbody>
-                        @foreach (var row in spendPlan) { <tr><td>@row.CategoryName</td><td class="text-end">@row.Planned.ToString("C")</td><td class="text-end">@row.Actual.ToString("C")</td><td class="text-end">@row.Variance.ToString("C")</td><td>@row.Status</td></tr> }
-                    </tbody></table></div> }
+                        @foreach (var section in new[] { ("Planned income", monthlyReport.Income), ("Scheduled bills", monthlyReport.Bills), ("Spending allowances", monthlyReport.Allowances), ("Transfers and card payments (excluded from spending variance)", monthlyReport.Transfers) }) { <h3 class="h6 mt-4">@section.Item1</h3><div class="table-responsive variance-detail"><table class="table table-sm align-middle"><thead><tr><th>Category</th><th class="text-end">Planned</th><th class="text-end">Actual</th><th class="text-end">Variance</th><th>Indicator</th></tr></thead><tbody>@foreach (var row in section.Item2) { <tr><td>@row.Name</td><td class="text-end">@row.Planned.ToString("C")</td><td class="text-end">@row.Actual.ToString("C")</td><td class="text-end">@row.Variance.ToString("C")</td><td>@row.Indicator</td></tr> }</tbody></table></div> }
+                        <p class="text-muted small mb-0">Mortgage and loan budget items are bills. When principal and interest are not recorded separately, the full scheduled and posted payment is consistently reported as a debt-payment bill.</p> }
                 </RadzenCard></div>
                 <div class="col-12 col-lg-5"><RadzenCard class="h-100"><h2 class="h5">Top Payees</h2>
                     @if (!string.IsNullOrEmpty(payeeError)) { <div class="alert alert-warning" role="alert">@payeeError</div> }

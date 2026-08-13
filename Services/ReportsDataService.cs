@@ -1,4 +1,5 @@
 using ClintonFrankland.Data;
+using ClintonFrankland.Models;
 using ClintonFrankland.Models.Entities;
 using ClintonFrankland.Models.ViewModels;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,122 @@ public class ReportsDataService
 
     public async Task<MonthCloseVarianceSnapshot> GetMonthCloseVarianceAsync(int userId, DateOnly selectedMonth) =>
         MonthCloseVarianceSnapshot.Create(selectedMonth, await GetSpendVsPlanAsync(userId, selectedMonth));
+
+    public async Task<MonthlyReport> GetMonthlyReportAsync(int userId, DateOnly selectedMonth)
+    {
+        var start = FirstOfMonth(selectedMonth);
+        var end = start.AddMonths(1);
+        var readable = await _sharedBudgets.GetReadableSharedBudgetIdsAsync(userId);
+        var budgets = await _db.Budgets.AsNoTracking().Include(b => b.Category)
+            .Where(b => b.SharedBudgetId.HasValue ? readable.Contains(b.SharedBudgetId.Value) : b.UserId == userId)
+            .ToListAsync();
+        var transactions = await ReadableTransactions(userId, readable).Include(t => t.Category).Include(t => t.Payee).Include(t => t.Account)
+            .Where(t => t.TransactionDate >= start && t.TransactionDate < end).ToListAsync();
+
+        var incomeBudgets = budgets.Where(b => !b.IsSpendingAllowance && b.BudgetTypeId == 0).ToList();
+        var billBudgets = budgets.Where(b => !b.IsSpendingAllowance && b.BudgetTypeId != 0).ToList();
+        var allowanceBudgets = budgets.Where(b => b.IsSpendingAllowance).ToList();
+        var income = BuildPlannedLines(incomeBudgets, start, end, MonthlyReportLineKind.Income, userId, readable);
+        var bills = BuildPlannedLines(billBudgets, start, end, MonthlyReportLineKind.Bill, userId, readable);
+        var allowances = BuildPlannedLines(allowanceBudgets, start, end, MonthlyReportLineKind.Allowance, userId, readable);
+        var billScopes = billBudgets.Select(b => PlanScope(b.CategoryId, b.SharedBudgetId, b.UserId)).ToHashSet();
+        var allowanceScopes = allowanceBudgets.Select(b => PlanScope(b.CategoryId, b.SharedBudgetId, b.UserId)).ToHashSet();
+        var transfers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var transaction in transactions)
+        {
+            var name = CategoryName(transaction.Category, userId, transaction.SharedBudgetId, readable);
+            if (IsTransferOrCardPayment(transaction))
+            {
+                AddActual(transfers, name, Math.Abs(transaction.Amount));
+                continue;
+            }
+            if (transaction.Amount > 0m)
+                income = AddActual(income, name, transaction.Amount, MonthlyReportLineKind.Income);
+            else
+            {
+                var scope = PlanScope(transaction.CategoryId, transaction.SharedBudgetId, transaction.UserId);
+                var target = billScopes.Contains(scope) ? bills : allowances;
+                // Credit-card purchases remain spending: only an explicitly labelled card payment is a transfer.
+                target = AddActual(target, name, -transaction.Amount, target == bills ? MonthlyReportLineKind.Bill : MonthlyReportLineKind.Allowance);
+                if (target == bills) bills = target; else allowances = target;
+            }
+        }
+
+        var transferLines = transfers.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new MonthlyReportLine(x.Key, 0m, CurrencyPolicy.Round(x.Value), MonthlyReportLineKind.Transfer)).ToList();
+        var plannedNet = CurrencyPolicy.Round(income.Sum(x => x.Planned) - bills.Sum(x => x.Planned) - allowances.Sum(x => x.Planned));
+        var actualNet = CurrencyPolicy.Round(income.Sum(x => x.Actual) - bills.Sum(x => x.Actual) - allowances.Sum(x => x.Actual));
+        return new(start, income, bills, allowances, transferLines, plannedNet, actualNet);
+    }
+
+    private static List<MonthlyReportLine> BuildPlannedLines(IEnumerable<Budget> budgets, DateOnly start, DateOnly end, MonthlyReportLineKind kind, int userId, IReadOnlyCollection<int> readable)
+    {
+        return budgets.Select(b => new { Budget = b, Amount = OccurrencesInMonth(b, start, end) * (b.Amount ?? 0m) })
+            .Where(x => x.Amount != 0m).GroupBy(x => CategoryName(x.Budget.Category, userId, x.Budget.SharedBudgetId, readable), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new MonthlyReportLine(g.Key, CurrencyPolicy.Round(g.Sum(x => x.Amount)), 0m, kind))
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static List<MonthlyReportLine> AddActual(List<MonthlyReportLine> lines, string name, decimal amount, MonthlyReportLineKind kind)
+    {
+        var line = lines.FindIndex(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (line >= 0) lines[line] = lines[line] with { Actual = CurrencyPolicy.Round(lines[line].Actual + amount) };
+        else lines.Add(new MonthlyReportLine(name, 0m, CurrencyPolicy.Round(amount), kind));
+        return lines;
+    }
+
+    private static void AddActual(IDictionary<string, decimal> values, string name, decimal amount)
+    {
+        values.TryGetValue(name, out var existing);
+        values[name] = CurrencyPolicy.Round(existing + amount);
+    }
+
+    private static int OccurrencesInMonth(Budget budget, DateOnly start, DateOnly end)
+    {
+        if (!budget.NextDueDate.HasValue) return 0;
+        var occurrence = DateOnly.FromDateTime(budget.NextDueDate.Value);
+        var frequency = budget.FrequencyId ?? 0;
+        if (frequency == 0) return occurrence >= start && occurrence < end ? 1 : 0;
+        // Move from the persisted next date to the selected month; this preserves actual weekly/biweekly occurrence counts.
+        var guard = 0;
+        while (occurrence >= end && guard++ < 240) occurrence = PreviousOccurrence(occurrence, frequency);
+        while (guard++ < 480)
+        {
+            var previous = PreviousOccurrence(occurrence, frequency);
+            if (previous < start || previous >= occurrence) break;
+            occurrence = previous;
+        }
+        while (occurrence < start && guard++ < 480)
+        {
+            var next = DateOnly.FromDateTime(BudgetScheduleService.CalculateNextDueDate(occurrence.ToDateTime(TimeOnly.MinValue), frequency));
+            if (next <= occurrence) return 0;
+            occurrence = next;
+        }
+        var count = 0;
+        while (occurrence < end && guard++ < 720)
+        {
+            if ((!HasEndDate(budget) || occurrence <= DateOnly.FromDateTime(budget.EndDate!.Value)) && occurrence >= start) count++;
+            var next = DateOnly.FromDateTime(BudgetScheduleService.CalculateNextDueDate(occurrence.ToDateTime(TimeOnly.MinValue), frequency));
+            if (next <= occurrence) break;
+            occurrence = next;
+        }
+        return count;
+    }
+
+    private static DateOnly PreviousOccurrence(DateOnly date, int frequency) => frequency switch
+    {
+        1 => date.AddDays(-7), 2 => date.AddDays(-14), 4 => date.AddMonths(-1), 5 => date.AddMonths(-2), 6 => date.AddMonths(-3),
+        7 => date.AddDays(-35), 8 => date.Day <= 15 ? new DateOnly(date.Year, date.Month, 1).AddDays(-1) : new DateOnly(date.Year, date.Month, 15),
+        9 => date.AddYears(-1), 10 => date.AddDays(-5), 11 => date.AddDays(-42), 12 => date.AddDays(-21), 13 => date.AddDays(-28), 14 => date.AddMonths(-6), _ => date
+    };
+
+    private static bool IsTransferOrCardPayment(Transaction transaction)
+    {
+        var text = $"{transaction.Category?.CategoryName} {transaction.Payee?.PayeeName} {transaction.Notes}";
+        return text.Contains("transfer", StringComparison.OrdinalIgnoreCase) ||
+            (text.Contains("credit card", StringComparison.OrdinalIgnoreCase) && text.Contains("payment", StringComparison.OrdinalIgnoreCase));
+    }
 
     public Task<List<CategoryTrendRow>> GetCategoryTrendsAsync(int userId, DateOnly selectedMonth) =>
         new InsightsDataService(_db, _sharedBudgets).GetCategoryTrendAsync(userId, selectedMonth);

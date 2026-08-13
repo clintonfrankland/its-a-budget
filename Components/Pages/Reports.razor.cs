@@ -19,6 +19,7 @@ public partial class Reports
     private string activeView = "overview";
     private List<SpendPlanRow> spendPlan = [];
     private MonthCloseVarianceSnapshot? monthCloseVariance;
+    private MonthlyReport? monthlyReport;
     private List<CategoryTrendRow> trends = [];
     private List<InsightsMonth> months = [];
     private CashflowReport? cashflow;
@@ -82,6 +83,7 @@ public partial class Reports
         try
         {
             spendError = string.Empty;
+            monthlyReport = await ReportsData.GetMonthlyReportAsync(userId, selectedMonth);
             monthCloseVariance = await ReportsData.GetMonthCloseVarianceAsync(userId, selectedMonth);
             spendPlan = monthCloseVariance.Rows.ToList();
         }
