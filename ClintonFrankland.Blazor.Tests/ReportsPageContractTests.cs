@@ -1,3 +1,5 @@
+using ClintonFrankland.Models.ViewModels;
+
 namespace ClintonFrankland.Blazor.Tests;
 
 public class ReportsPageContractTests
