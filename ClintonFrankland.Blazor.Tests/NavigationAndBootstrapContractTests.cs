@@ -28,6 +28,8 @@ public class NavigationAndBootstrapContractTests
         Assert.Contains("<strong class=\"d-block\">Forecast</strong>", markup);
         Assert.Contains("<small class=\"d-block text-secondary mt-1\">Projected balances and upcoming items</small>", markup);
         Assert.Contains("Scheduled transactions and spending allowances", markup);
+        Assert.True(markup.IndexOf(">Plan</button>", StringComparison.Ordinal) < markup.IndexOf("href=\"/budget\"", StringComparison.Ordinal));
+        Assert.True(markup.IndexOf(">Manage</button>", StringComparison.Ordinal) < markup.IndexOf("href=\"/budgetitems\"", StringComparison.Ordinal));
         Assert.DoesNotContain("href=\"/category-budgets\"", markup);
         Assert.Contains("css/app.css?v=", app);
         Assert.DoesNotContain("href=\"insights\"", markup, StringComparison.OrdinalIgnoreCase);
