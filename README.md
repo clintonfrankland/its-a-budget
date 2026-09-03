@@ -225,7 +225,7 @@ flowchart TD
 1. Select the It's a Budget logo to return Home and check today's balance and upcoming bills; the primary menu omits a duplicate Home link
 2. Open Checkbook to record any new transactions and clear settled ones
 3. Open Reports to review this month's spending by category and payee
-4. Optionally open Forecast to see the shape of the next few weeks
+4. Optionally select the top-level Forecast menu item to see the shape of the next few weeks
 
 **First-time setup:**
 1. After the first successful sign-in, select **Start setup** from the onboarding offer on Home.
