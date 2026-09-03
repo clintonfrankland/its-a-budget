@@ -15,7 +15,6 @@
             @if (AuthService.IsAuthenticated)
             {
                 <ul class="navbar-nav me-auto app-primary-nav">
-                    <li class="nav-item"><a class="nav-link" href="/" @onclick="CollapseNavbar">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="/checkbook" @onclick="NavigateToCheckbook" @onclick:preventDefault="true">Checkbook</a></li>
                     <li class="nav-item dropdown">
                         <button class="nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Plan</button>

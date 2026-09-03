@@ -17,7 +17,8 @@ public class NavigationAndBootstrapContractTests
         var markup = Read("Components/Layout/MainLayout.razor");
         var app = Read("Components/App.razor");
 
-        Assert.Contains(">Home</a>", markup);
+        Assert.Contains("aria-label=\"It's a Budget home\"", markup);
+        Assert.DoesNotContain("<a class=\"nav-link\" href=\"/\"", markup);
         Assert.Contains(">Checkbook</a>", markup);
         Assert.Contains(">Plan</button>", markup);
         Assert.Contains(">Reports</a>", markup);

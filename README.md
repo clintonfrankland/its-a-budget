@@ -222,7 +222,7 @@ flowchart TD
 ```
 
 **Typical daily use:**
-1. Open Home to check today's balance and upcoming bills
+1. Select the It's a Budget logo to return Home and check today's balance and upcoming bills; the primary menu omits a duplicate Home link
 2. Open Checkbook to record any new transactions and clear settled ones
 3. Open Reports to review this month's spending by category and payee
 4. Optionally open Forecast to see the shape of the next few weeks
