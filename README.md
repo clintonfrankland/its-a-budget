@@ -14,7 +14,7 @@ Transaction rules let each signed-in user define ordered, account-aware rules th
 
 Checkbook supports CSV backups and bank imports. **Export CSV** downloads every transaction the signed-in user can read. **Import CSV** accepts a CSV up to 5 MB, suggests mappings for date, amount, payee, and category, shows a validation preview of the first ten records, and imports only after Date and Amount are mapped and all rows validate. Imported entries preserve amount signs and start uncleared; omitted payees/categories use `Unknown` and `Uncategorized`.
 
-Budget Items keeps Budget Name and Category flexible by omitting the Kind and monthly trend columns. Due / Reset and End Date use compact, right-aligned abbreviated-month/day dates with unpadded days (for example, `Sep-4`); edit forms and CSV/Excel exports retain full dates. The All / Scheduled / Allowances filter remains available.
+Budget Items keeps Budget Name and Category flexible by omitting the Kind and monthly trend columns. Both date columns are right-aligned with abbreviated months and unpadded days: Due / Reset uses `Sep-4`, while End Date includes the four-digit year (`Sep-4-2028`) in a slightly wider column. Edit forms and CSV/Excel exports retain full dates. The All / Scheduled / Allowances filter remains available.
 
 - **User Guide** → [docs/README.md](docs/README.md) (page-by-page walkthrough)
 - **Backups** → [docs/backups.md](docs/backups.md) (backup/restore commands)
