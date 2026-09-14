@@ -103,8 +103,8 @@ else
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="BudgetName" Title="Budget Name" SortOrder="SortOrder.Ascending" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Category" Title="Category" Visible="@IsAtLeast(ScreenSize.Large)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="85px" FormatString="{0:M/d}" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
-                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="EndDate" Title="End Date" Width="80px" FormatString="{0:M/d}" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="DueDate" Title="Due / Reset" Width="85px" FormatString="{0:MMM-d}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
+                    <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="EndDate" Title="End Date" Width="80px" FormatString="{0:MMM-d}" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="FrequencyName" Title="Frequency" Width="100px" Visible="@IsAtLeast(ScreenSize.ExtraExtraLarge)" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Property="Amount" Title="Amount" Width="100px" FormatString="{0:C}" TextAlign="TextAlign.Right" />
                     <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="Current" Width="135px" TextAlign="TextAlign.Right" Visible="@IsAtLeast(ScreenSize.Medium)">

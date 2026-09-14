@@ -42,8 +42,8 @@ public class NavigationAndBootstrapContractTests
         Assert.Contains("Property=\"BudgetName\" Title=\"Budget Name\"", markup);
         Assert.Contains("Property=\"Category\" Title=\"Category\" Visible=\"@IsAtLeast(ScreenSize.Large)\"", markup);
         Assert.Contains("Title=\"Current\" Width=\"135px\" TextAlign=\"TextAlign.Right\" Visible=\"@IsAtLeast(ScreenSize.Medium)\"", markup);
-        Assert.Contains("Property=\"DueDate\" Title=\"Due / Reset\" Width=\"85px\" FormatString=\"{0:M/d}\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
-        Assert.Contains("Property=\"EndDate\" Title=\"End Date\" Width=\"80px\" FormatString=\"{0:M/d}\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
+        Assert.Contains("Property=\"DueDate\" Title=\"Due / Reset\" Width=\"85px\" FormatString=\"{0:MMM-d}\" TextAlign=\"TextAlign.Right\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
+        Assert.Contains("Property=\"EndDate\" Title=\"End Date\" Width=\"80px\" FormatString=\"{0:MMM-d}\" TextAlign=\"TextAlign.Right\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
         Assert.Contains("Property=\"FrequencyName\" Title=\"Frequency\" Width=\"100px\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
         Assert.Contains("Property=\"Monthly\" Title=\"Monthly\" Width=\"100px\" FormatString=\"{0:C}\" TextAlign=\"TextAlign.Right\" Visible=\"@IsAtLeast(ScreenSize.ExtraExtraLarge)\"", markup);
         Assert.DoesNotContain("Title=\"Kind\"", markup);
