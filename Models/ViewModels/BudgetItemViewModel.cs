@@ -30,8 +30,7 @@ public class BudgetItemViewModel
     public string OccurrenceKey => $"{BudgetId}:{DueDate:yyyyMMdd}";
 
     // Additional fields for BudgetItems page
+    public DateTime? EndDate { get; set; }
     public string EndDateName { get; set; } = string.Empty;
     public decimal Monthly { get; set; }
-    /// <summary>Raw transaction sums for the last 3 complete months, oldest-first. May be negative for expenses.</summary>
-    public decimal[] SparklineData { get; set; } = [];
 }
