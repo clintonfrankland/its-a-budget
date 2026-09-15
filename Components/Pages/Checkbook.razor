@@ -48,8 +48,8 @@ else
                     {
                         <RadzenButton Icon="add" Text="@(IsAtLeast(ScreenSize.Medium) ? "Add Transaction" : "")" ButtonStyle="ButtonStyle.Primary"
                                       Size="ButtonSize.Medium" Click="ShowAddTransaction" class="me-2" />
-                        <RadzenButton Icon="upload_file" Text="@(IsAtLeast(ScreenSize.Medium) ? "Import CSV" : "")" ButtonStyle="ButtonStyle.Light"
-                                      Size="ButtonSize.Medium" Click="ShowImportTransactions" class="me-2" title="Map and import bank CSV transactions" />
+                        <RadzenButton Icon="upload_file" Text="@(IsAtLeast(ScreenSize.Medium) ? "Import" : "")" ButtonStyle="ButtonStyle.Light"
+                                      Size="ButtonSize.Medium" Click="ShowImportTransactions" Disabled="@importOpeningInProgress" class="me-2" title="Import CSV, OFX, QFX, or QIF transactions" />
                     }
                     <RadzenButton Icon="download" Text="@(IsAtLeast(ScreenSize.Medium) ? "Export CSV" : "")" ButtonStyle="ButtonStyle.Light"
                                   Size="ButtonSize.Medium" Click="ExportTransactionsAsync" class="me-2" title="Export all readable transactions as CSV" />
@@ -88,7 +88,7 @@ else
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
                                         <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
-                                            CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => ShowAddFromBudget(item))"
+                                            CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsSkippingBudget(item.BudgetId)" OnRecord="@(() => ShowAddFromBudget(item))"
                                             OnSkip="@(() => SkipBudgetAsync(item))" OnEdit="@(() => EditBudgetItem(item.BudgetId))"
                                             OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />
                                     </Template>
@@ -110,7 +110,7 @@ else
                                 <RadzenDataGridColumn TItem="BudgetItemViewModel" Title="" Width="70px" Sortable="false" TextAlign="TextAlign.Center">
                                     <Template Context="item">
                                         <BudgetItemActions Page="Checkbook" CanManage="@item.CanManageFinancialData" IsSpendingAllowance="@item.IsSpendingAllowance"
-                                            CanRecordToCheckbook="@item.CanRecordToCheckbook" OnRecord="@(() => ShowAddFromBudget(item))"
+                                            CanRecordToCheckbook="@item.CanRecordToCheckbook" IsInProgress="@IsSkippingBudget(item.BudgetId)" OnRecord="@(() => ShowAddFromBudget(item))"
                                             OnSkip="@(() => SkipBudgetAsync(item))" OnEdit="@(() => EditBudgetItem(item.BudgetId))"
                                             OnEditNext="@(() => EditNextBudgetItem(item.BudgetId))" />
                                     </Template>
@@ -392,33 +392,55 @@ else
     {
         <div class="container" style="max-width: 900px;">
             <RadzenCard class="mt-3">
-                <h4>Import Transactions from CSV</h4>
-                <p class="text-muted">Choose a bank CSV, map its columns, review the first rows, then import. Amount signs are preserved; imported transactions are initially uncleared.</p>
-                <InputFile OnChange="OnTransactionCsvSelectedAsync" accept=".csv,text/csv" class="form-control mb-3" />
-
-                @if (importDocument is not null)
+                <h4>Import Transactions</h4>
+                <p class="text-muted">Choose a CSV, OFX, QFX, or QIF statement (up to 5 MiB). Review the first ten rows before importing the entire file. Amount signs are preserved; CSV rows start uncleared, OFX/QFX rows are cleared, and QIF uses the file's cleared status.</p>
+                @if (importOpeningInProgress)
                 {
-                    <p class="small text-muted">@importFileName — @importDocument.Rows.Count data row(s)</p>
-                    <RadzenRow class="mb-3">
-                        <RadzenColumn Size="12" SizeMD="3"><label>Date (required)</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.DateColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Style="width:100%" /></RadzenColumn>
-                        <RadzenColumn Size="12" SizeMD="3"><label>Amount (required)</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.AmountColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Style="width:100%" /></RadzenColumn>
-                        <RadzenColumn Size="12" SizeMD="3"><label>Payee</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.PayeeColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Style="width:100%" /></RadzenColumn>
-                        <RadzenColumn Size="12" SizeMD="3"><label>Category</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.CategoryColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Style="width:100%" /></RadzenColumn>
-                    </RadzenRow>
-                    <h5>Mapping preview</h5>
-                    <RadzenDataGrid Data="@importPreview" TItem="TransactionCsvPreviewRow" Density="Density.Compact" class="rz-datatable-striped mb-3">
+                    <p role="status">Loading destination account…</p>
+                }
+                @if (importDestination is not null)
+                {
+                    <p><strong>Destination account:</strong> @importDestination.AccountName</p>
+                }
+                <p class="text-muted small">Statement account numbers are not matched automatically. Confirm this is the correct destination. Re-importing a file creates duplicate transactions; reference IDs are preview-only and are not used to detect previous imports.</p>
+                <p class="text-muted small">OFX/QFX: one USD bank or credit-card account. QIF: one Bank or CCard section with US month/day dates with four-digit years (or QIF apostrophe years); account definitions, transfers, splits, and investments are not supported.</p>
+                <InputFile OnChange="OnTransactionStatementSelectedAsync" accept=".csv,.ofx,.qfx,.qif" disabled="@(importInProgress || importOpeningInProgress)" class="form-control mb-3" />
+                @if (importReadInProgress)
+                {
+                    <p role="status">Reading statement…</p>
+                }
+                @if (importStatement is not null)
+                {
+                    <p class="small text-muted">@importFileName · @importStatement.Format · @importStatement.Rows.Count data row(s)</p>
+                    @if (!string.IsNullOrWhiteSpace(importStatement.SourceAccount))
+                    {
+                        <p class="small">Statement account: @importStatement.SourceAccount</p>
+                    }
+                    @if (importDocument is not null)
+                    {
+                        <RadzenRow class="mb-3">
+                            <RadzenColumn Size="12" SizeMD="3"><label>Date (required)</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.DateColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Disabled="@importInProgress" Style="width:100%" /></RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="3"><label>Amount (required)</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.AmountColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Disabled="@importInProgress" Style="width:100%" /></RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="3"><label>Payee</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.PayeeColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Disabled="@importInProgress" Style="width:100%" /></RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="3"><label>Category</label><RadzenDropDown Data="@importDocument.Headers" @bind-Value="importMapping.CategoryColumn" Change="@(_ => RefreshImportPreview())" AllowClear="true" Disabled="@importInProgress" Style="width:100%" /></RadzenColumn>
+                        </RadzenRow>
+                    }
+                    <h5>Statement preview</h5>
+                    <RadzenDataGrid Data="@importPreview" TItem="BankStatementRow" Density="Density.Compact" class="rz-datatable-striped mb-3">
                         <Columns>
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="SourceRow" Title="CSV Row" />
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="Date" Title="Date" FormatString="{0:MM/dd/yyyy}" />
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="Amount" Title="Amount" FormatString="{0:C}" />
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="Payee" Title="Payee" />
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="Category" Title="Category" />
-                            <RadzenDataGridColumn TItem="TransactionCsvPreviewRow" Property="Error" Title="Validation" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="SourceRow" Title="Row" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Date" Title="Date" FormatString="{0:MM/dd/yyyy}" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Amount" Title="Amount" FormatString="{0:C}" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Payee" Title="Payee" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Category" Title="Category" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Cleared" Title="Cleared" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="ExternalId" Title="Reference" />
+                            <RadzenDataGridColumn TItem="BankStatementRow" Property="Error" Title="Validation" />
                         </Columns>
                     </RadzenDataGrid>
                 }
-                <RadzenButton Text="Import" Icon="upload" ButtonStyle="ButtonStyle.Primary" Click="ImportTransactionsAsync" Disabled="@(importDocument is null || importDocument.Rows.Count == 0)" class="me-2" />
-                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelImport" />
+                <RadzenButton Text="@(importInProgress ? "Importing…" : "Import")" Icon="upload" ButtonStyle="ButtonStyle.Primary" Click="ImportTransactionsAsync" Disabled="@(importStatement is null || importStatement.Rows.Count == 0 || importDestination is null || importInProgress || importReadInProgress)" class="me-2" />
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="CancelImport" Disabled="@(importInProgress || importOpeningInProgress)" />
             </RadzenCard>
         </div>
     }

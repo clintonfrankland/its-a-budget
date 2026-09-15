@@ -47,7 +47,7 @@ On a transaction you can add:
 
 This is great for returns, reimbursements, and keeping a clean paper trail.
 
-Receipt uploads are limited to PDF and common image formats (JPG, PNG, GIF, WebP, BMP, and TIFF). The default maximum file size is 5 MB unless the administrator changes the `ReceiptAttachments:MaxFileSizeBytes` configuration value.
+Receipt uploads are limited to PDF and common image formats (JPG, PNG, GIF, WebP, BMP, and TIFF). The default maximum file size is 5 MiB unless the administrator changes the `ReceiptAttachments:MaxFileSizeBytes` configuration value.
 
 The app validates the receipt before saving it, stores it with a generated safe filename, and records only an app-relative path on the transaction. A pluggable scan hook runs during upload; the default local/review scanner is no-op, but a production scanner can reject an upload before the transaction references it.
 
@@ -96,3 +96,18 @@ For each upcoming item, you can:
 In the upcoming-items list, the original small green Radzen **Record to Checkbook** icon button sits beside a narrow three-dot **More actions** button. Tapping the trigger explicitly opens the overflow menu, which shows the app's original icons plus text for Skip, Edit, and Edit Next.
 
 This is one of the app’s best quality-of-life features. It helps you move from “planning” to “recording” without doing the same work twice.
+
+
+## Statement import formats
+
+Use **Import** to select a CSV, OFX, QFX, or QIF file up to 5 MiB. Review the destination account, statement account (when supplied), signed amounts, and cleared status. The preview shows the first ten records; importing validates and saves the entire file atomically. No transaction is saved while choosing a file or adjusting CSV mappings. Invalid replacement files clear the previous selection.
+
+- **CSV:** existing date/amount/payee/category column mapping; Date and Amount required. Entries start uncleared.
+- **OFX/QFX:** one USD bank or credit-card statement/account; XML and legacy SGML with `OFXHEADER:100` supported. Posted entries become cleared. Required transaction identifiers must be unique within the file. Multi-account, investment, unsupported currency, correction, or malformed statement structures are rejected.
+- **QIF:** one `!Type:Bank` or `!Type:CCard` section; US `M/d/yyyy` dates or QIF apostrophe years (`7/23'26` means 2026), signed amounts, payee/category and cleared markers. Account definitions, section changes, transfers, splits, investments and incomplete records are rejected instead of being silently flattened.
+
+All rows go to the displayed destination account; statement account numbers are **not** automatically matched. Confirm that the destination is correct. Changing the active/default account or losing permission after preview rejects the import, so reopen Import to select a fresh destination. Files do not create accounts. Re-importing files creates duplicate transactions; preview reference IDs are not stored for cross-upload deduplication. CSV export and Plaid reconciliation behavior are unchanged.
+
+During import, the Import/Cancel/mapping controls are disabled to prevent overlapping submissions. Skip actions in Checkbook and Forecast likewise remain busy until their operation finishes, including data refresh, and become available again after an error.
+
+Ambiguous slash dates with two-digit years are rejected rather than assigned a guessed century. XML namespaces, declarations such as DTDs, comments, pending/correction OFX entries, and unsupported QIF fields or category/classes are rejected. The 5 MiB parser limit is measured as UTF-8 bytes.

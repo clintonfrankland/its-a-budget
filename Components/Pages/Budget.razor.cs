@@ -44,6 +44,7 @@ public partial class Budget
     private List<FrequencyOption> frequencyOptions = new();
     private bool canCreateFinancialData;
     private BalanceSummaryViewModel? balanceSummary;
+    private readonly HashSet<int> skippingBudgetIds = [];
 
     // Grid reference and search
     private RadzenDataGrid<BudgetItemViewModel>? budgetGrid;
@@ -371,7 +372,7 @@ public partial class Budget
 
     private async Task SkipOccurrenceAsync(BudgetItemViewModel item)
     {
-        if (!item.CanManageFinancialData)
+        if (!item.CanManageFinancialData || !skippingBudgetIds.Add(item.BudgetId))
             return;
 
         try
@@ -384,7 +385,13 @@ public partial class Budget
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
+        finally
+        {
+            skippingBudgetIds.Remove(item.BudgetId);
+        }
     }
+
+    private bool IsSkippingBudget(int budgetId) => skippingBudgetIds.Contains(budgetId);
 
     private async Task RecordBudgetAsync(BudgetItemViewModel item)
     {

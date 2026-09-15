@@ -1,3 +1,4 @@
+using System.Data;
 using ClintonFrankland.Data;
 using ClintonFrankland.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -203,7 +204,50 @@ public class CheckbookDataService
         await _db.SaveChangesAsync();
     }
 
-    public async Task ImportTransactionsAsync(int userId, IReadOnlyCollection<ImportedTransaction> transactions)
+    /// <summary>Resolves the writable account and scope used by both import preview and persistence.</summary>
+    public async Task<ImportDestination?> GetImportDestinationAsync(int userId)
+    {
+        var user = userId > 0
+            ? await _db.Users.AsNoTracking().FirstOrDefaultAsync(user => user.UserId == userId && !user.IsDeleted)
+            : null;
+        if (user is null)
+            return null;
+
+        // Read the selection from storage, not a possibly stale tracked User from the preview.
+        var memberships = _db.BudgetMembers.AsNoTracking()
+            .Where(member => member.UserId == userId && member.Status == BudgetMemberStatus.Active);
+        var activeSharedBudgetId = user.ActiveSharedBudgetId.HasValue &&
+            await memberships.AnyAsync(member => member.SharedBudgetId == user.ActiveSharedBudgetId.Value)
+            ? user.ActiveSharedBudgetId
+            : await memberships.OrderBy(member => member.SharedBudgetId)
+                .Select(member => (int?)member.SharedBudgetId).FirstOrDefaultAsync();
+        if (!activeSharedBudgetId.HasValue && !await _db.Accounts.AsNoTracking().AnyAsync(account =>
+                account.UserId == userId && account.SharedBudgetId == null && !(account.IsDeleted ?? false)))
+            return null;
+
+        activeSharedBudgetId ??= await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId);
+        if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, activeSharedBudgetId, userId))
+            return null;
+
+        // Prefer the active budget, retaining only the user's own unscoped legacy accounts as a fallback.
+        var account = await _db.Accounts.AsNoTracking()
+            .Where(account => !(account.IsDeleted ?? false) &&
+                (activeSharedBudgetId.HasValue && account.SharedBudgetId == activeSharedBudgetId ||
+                 account.SharedBudgetId == null && account.UserId == userId))
+            .OrderByDescending(account => account.SharedBudgetId.HasValue)
+            .ThenByDescending(account => account.IsDefault)
+            .ThenBy(account => account.AccountId)
+            .FirstOrDefaultAsync();
+        if (account is null || !await _sharedBudgets.CanManageFinancialDataAsync(userId, account.SharedBudgetId, account.UserId))
+            return null;
+
+        return new ImportDestination(account.AccountId, account.SharedBudgetId, account.AccountName, activeSharedBudgetId);
+    }
+
+    public async Task ImportTransactionsAsync(
+        int userId,
+        IReadOnlyCollection<ImportedTransaction> transactions,
+        ImportDestination? expectedDestination = null)
     {
         ArgumentNullException.ThrowIfNull(transactions);
 
@@ -219,28 +263,29 @@ public class CheckbookDataService
         if (transactions.Count == 0)
             return;
 
-        await using var databaseTransaction = await _db.Database.BeginTransactionAsync();
+        // Hold the destination, active-budget selection, and membership reads stable until commit.
+        // InMemory has no relational isolation API; its existing test transaction behavior is retained.
+        await using var databaseTransaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : await _db.Database.BeginTransactionAsync();
         try
         {
-            var sharedBudgetId = await _sharedBudgets.GetDefaultSharedBudgetIdAsync(userId);
-            if (!await _sharedBudgets.CanManageFinancialDataAsync(userId, sharedBudgetId, userId))
-                return;
+            var destination = await GetImportDestinationAsync(userId)
+                ?? throw new InvalidOperationException("No writable account is available for this import.");
+            if (expectedDestination is not null &&
+                (destination.AccountId != expectedDestination.AccountId ||
+                 destination.SharedBudgetId != expectedDestination.SharedBudgetId ||
+                 destination.ActiveSharedBudgetId != expectedDestination.ActiveSharedBudgetId))
+                throw new InvalidOperationException("The import account or active budget changed. Preview the file again before importing.");
 
-            var account = sharedBudgetId.HasValue
-                ? await _db.Accounts
-                    .AsNoTracking()
-                    .Where(a => a.SharedBudgetId == sharedBudgetId)
-                    .OrderByDescending(a => a.IsDefault)
-                    .ThenBy(a => a.AccountId)
-                    .FirstOrDefaultAsync()
-                : await GetAccountForUserAsync(userId);
-            var accountId = account?.AccountId ?? 1;
+            var sharedBudgetId = destination.SharedBudgetId;
+            var accountId = destination.AccountId;
 
             var payeeNames = transactions.Select(t => NormalizeName(t.PayeeName, "Unknown")).Distinct().ToList();
             var categoryNames = transactions.Select(t => NormalizeName(t.CategoryName, "Uncategorized")).Distinct().ToList();
             var payees = (await _db.Payees.Where(p => p.UserId == userId && payeeNames.Contains(p.PayeeName)).ToListAsync())
                 .ToDictionary(p => p.PayeeName, StringComparer.Ordinal);
-            var categories = (await _db.Categories.Where(c => c.SharedBudgetId == sharedBudgetId && categoryNames.Contains(c.CategoryName!)).ToListAsync())
+            var categories = (await _db.Categories.Where(c => c.SharedBudgetId == sharedBudgetId && (sharedBudgetId.HasValue || c.UserId == userId) && categoryNames.Contains(c.CategoryName!)).ToListAsync())
                 .ToDictionary(c => c.CategoryName!, StringComparer.Ordinal);
 
             foreach (var import in transactions)
@@ -355,3 +400,9 @@ public sealed record ImportedTransaction(
     bool Cleared = false,
     string? Notes = null,
     string? AttachmentPath = null);
+
+public sealed record ImportDestination(
+    int AccountId,
+    int? SharedBudgetId,
+    string AccountName,
+    int? ActiveSharedBudgetId = null);

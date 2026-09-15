@@ -45,6 +45,9 @@ public partial class Checkbook : IDisposable
     private TransactionCsvService TransactionCsv { get; set; } = default!;
 
     [Inject]
+    private BankStatementImportService BankStatements { get; set; } = default!;
+
+    [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "search")]
@@ -64,10 +67,18 @@ public partial class Checkbook : IDisposable
     private bool showBudgetCollapse = false;
     private int budgetDays = 3;
     private bool canCreateFinancialData;
+    private readonly HashSet<int> skippingBudgetIds = [];
     private string transactionDestination = string.Empty;
+    private BankStatementDocument? importStatement;
+    private ImportDestination? importDestination;
+    private bool importInProgress;
+    private bool importOpeningInProgress;
+    private int importOpeningGeneration;
+    private bool importReadInProgress;
+    private int importSelectionGeneration;
     private TransactionCsvDocument? importDocument;
     private TransactionCsvMapping importMapping = new(null, null, null, null);
-    private IReadOnlyList<TransactionCsvPreviewRow> importPreview = [];
+    private IReadOnlyList<BankStatementRow> importPreview = [];
     private string importFileName = string.Empty;
 
     // Budget days dropdown options
@@ -155,6 +166,7 @@ public partial class Checkbook : IDisposable
             if (previousQuickAddRoute == isQuickAddRoute)
                 return;
 
+            importOpeningGeneration++;
             errorMessage = string.Empty;
             ruleReviewMessage = string.Empty;
 
@@ -177,6 +189,8 @@ public partial class Checkbook : IDisposable
 
     public void Dispose()
     {
+        importOpeningGeneration++;
+        importSelectionGeneration++;
         Navigation.LocationChanged -= OnLocationChanged;
     }
 
@@ -406,6 +420,9 @@ public partial class Checkbook : IDisposable
     // Skip a budget item (mark as paid without creating a transaction)
     private async Task SkipBudgetAsync(BudgetItemViewModel item)
     {
+        if (!item.CanManageFinancialData || !skippingBudgetIds.Add(item.BudgetId))
+            return;
+
         try
         {
             await BudgetSchedule.SkipOccurrenceAsync(CurrentUser.UserId, item.BudgetId, item.DueDate);
@@ -415,7 +432,13 @@ public partial class Checkbook : IDisposable
         {
             errorMessage = $"{ex.GetType()}: {ex.Message}";
         }
+        finally
+        {
+            skippingBudgetIds.Remove(item.BudgetId);
+        }
     }
+    private bool IsSkippingBudget(int budgetId) => skippingBudgetIds.Contains(budgetId);
+
     private void EditBudgetItem(int budgetId) => Navigation.NavigateTo($"/budgetitems?edit={budgetId}");
     private void EditNextBudgetItem(int budgetId) => Navigation.NavigateTo($"/budget?editNext={budgetId}");
     private async Task MarkBudgetPaidAsync(int budgetId)
@@ -506,64 +529,126 @@ public partial class Checkbook : IDisposable
         currentView = ViewMode.Edit;
     }
 
-    private void ShowImportTransactions()
+    private async Task ShowImportTransactions()
     {
-        if (!canCreateFinancialData)
+        if (!canCreateFinancialData || importInProgress || importOpeningInProgress)
             return;
 
         SaveGridState();
+        ResetImportSelection();
+        importDestination = null;
+        currentView = ViewMode.Import;
+        importOpeningInProgress = true;
+        var openingGeneration = ++importOpeningGeneration;
+        try
+        {
+            var destination = await CheckbookData.GetImportDestinationAsync(CurrentUser.UserId);
+            if (openingGeneration != importOpeningGeneration)
+                return;
+            importDestination = destination;
+            if (importDestination is null)
+                errorMessage = "No writable destination account is available. Choose a budget with an account before importing.";
+        }
+        catch (Exception)
+        {
+            if (openingGeneration == importOpeningGeneration)
+                errorMessage = "Could not load the destination account. Close and reopen Import to try again.";
+        }
+        finally
+        {
+            importOpeningInProgress = false;
+        }
+    }
+
+    private void ResetImportSelection()
+    {
+        importSelectionGeneration++;
+        importStatement = null;
         importDocument = null;
         importMapping = new TransactionCsvMapping(null, null, null, null);
         importPreview = [];
         importFileName = string.Empty;
         errorMessage = string.Empty;
-        currentView = ViewMode.Import;
+        importReadInProgress = false;
     }
 
-    private async Task OnTransactionCsvSelectedAsync(InputFileChangeEventArgs eventArgs)
+    private async Task OnTransactionStatementSelectedAsync(InputFileChangeEventArgs eventArgs)
     {
+        if (importInProgress || importOpeningInProgress || !canCreateFinancialData)
+            return;
+
+        ResetImportSelection();
+        var selectionGeneration = importSelectionGeneration;
+        importReadInProgress = true;
         try
         {
             await using var stream = eventArgs.File.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
             using var reader = new StreamReader(stream);
-            importDocument = TransactionCsv.Read(await reader.ReadToEndAsync());
-            importMapping = TransactionCsv.SuggestMapping(importDocument.Headers);
+            var contents = await reader.ReadToEndAsync();
+            if (selectionGeneration != importSelectionGeneration)
+                return;
+            var statement = BankStatements.Read(eventArgs.File.Name, contents);
+            importStatement = statement;
+            importDocument = statement.CsvDocument;
+            importMapping = importDocument is null
+                ? new TransactionCsvMapping(null, null, null, null)
+                : TransactionCsv.SuggestMapping(importDocument.Headers);
             importFileName = eventArgs.File.Name;
             RefreshImportPreview();
         }
         catch (Exception exception)
         {
-            errorMessage = $"Could not read the CSV file: {exception.Message}";
+            if (selectionGeneration == importSelectionGeneration)
+                errorMessage = exception is InvalidOperationException
+                    ? $"Could not read the statement: {exception.Message}"
+                    : "Could not read the statement. Choose a supported file no larger than 5 MiB.";
+        }
+        finally
+        {
+            if (selectionGeneration == importSelectionGeneration)
+                importReadInProgress = false;
         }
     }
 
+    private IReadOnlyList<BankStatementRow> GetImportRows(int maximumRows) =>
+        importDocument is not null
+            ? TransactionCsv.Preview(importDocument, importMapping, maximumRows)
+                .Select(row => new BankStatementRow(row.SourceRow, row.Date, row.Amount, row.Payee,
+                    row.Category, false, null, row.Error)).ToList()
+            : importStatement?.Rows.Take(maximumRows).ToList() ?? [];
+
     private void RefreshImportPreview()
     {
-        importPreview = importDocument is null ? [] : TransactionCsv.Preview(importDocument, importMapping);
+        importPreview = GetImportRows(10);
     }
 
     private async Task ImportTransactionsAsync()
     {
-        if (!canCreateFinancialData || importDocument is null)
+        if (!canCreateFinancialData || importStatement is null || importDestination is null ||
+            importInProgress || importReadInProgress)
             return;
-        if (importMapping.DateColumn is null || importMapping.AmountColumn is null)
+        if (importDocument is not null && (importMapping.DateColumn is null || importMapping.AmountColumn is null))
         {
             errorMessage = "Map both Date and Amount before importing.";
             return;
         }
 
-        var preview = TransactionCsv.Preview(importDocument, importMapping, int.MaxValue);
-        var invalidRows = preview.Where(row => row.Error is not null).ToList();
-        if (invalidRows.Count > 0)
+        var preview = GetImportRows(int.MaxValue);
+        var invalidRows = preview.Count(row => row.Error is not null || row.Date is null || row.Amount is null);
+        if (invalidRows > 0 || preview.Count == 0)
         {
-            errorMessage = $"Correct the mapping or CSV values; {invalidRows.Count} row(s) have invalid dates or amounts.";
+            errorMessage = $"Correct the statement or CSV mapping; {invalidRows} row(s) have invalid dates or amounts. Nothing was imported.";
             return;
         }
 
+        importInProgress = true;
+        errorMessage = string.Empty;
         try
         {
             await CheckbookData.ImportTransactionsAsync(CurrentUser.UserId, preview.Select(row =>
-                new ImportedTransaction(row.Date!.Value, row.Payee, row.Category, row.Amount!.Value)).ToList());
+                new ImportedTransaction(row.Date!.Value, row.Payee, row.Category, row.Amount!.Value, row.Cleared)).ToList(),
+                expectedDestination: importDestination);
+            ResetImportSelection();
             currentView = ViewMode.List;
             await LoadDataAsync();
             shouldRestoreGridState = true;
@@ -571,6 +656,10 @@ public partial class Checkbook : IDisposable
         catch (Exception exception)
         {
             errorMessage = $"Could not import transactions: {exception.Message}";
+        }
+        finally
+        {
+            importInProgress = false;
         }
     }
 
@@ -582,6 +671,10 @@ public partial class Checkbook : IDisposable
 
     private void CancelImport()
     {
+        if (importInProgress || importOpeningInProgress)
+            return;
+        importOpeningGeneration++;
+        ResetImportSelection();
         currentView = ViewMode.List;
         shouldRestoreGridState = true;
     }
