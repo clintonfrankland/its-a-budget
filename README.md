@@ -107,10 +107,10 @@ legacy-row handling, and repair boundary are documented in [Ledger scope](docs/l
 `.github/workflows/tests.yml` remains the required restore, build, and test gate.
 `.github/workflows/publish-ghcr.yml` has no direct `push`, pull-request, or
 manual trigger. GitHub starts it only after a `Tests` workflow run completes,
-and its job-level guard requires a successful run from
-`clintonfrankland/its-a-budget` on `main`. This rejects pull-request and fork
-contexts. The workflow checks out `github.event.workflow_run.head_sha`, not a
-moving `main` reference, so it builds the exact commit that Tests accepted.
+and its job-level guard requires a successful `push`-triggered run from
+`clintonfrankland/its-a-budget` on `main`. This rejects manual, pull-request,
+and fork contexts. The workflow checks out `github.event.workflow_run.head_sha`,
+not a moving `main` reference, so it builds the exact commit that Tests accepted.
 
 The publication target is `ghcr.io/clintonfrankland/its-a-budget`. Each image
 has exactly two workflow-enforced immutable tags:
@@ -125,7 +125,7 @@ versions: publication is permitted only when both tags are unused; a semantic
 tag and SHA tag already paired on the same image cause a successful no-op; and
 any other existing semantic tag or SHA tag, invalid version metadata, or
 package-metadata/authentication error fails the run before it can push. The
-The no-op prevents reruns from reassigning either tag. In its post-push
+no-op prevents reruns from reassigning either tag. In its post-push
 verification, the workflow reads GHCR again and fails unless both tags identify
 the pushed build digest. This is a workflow-enforced policy, not an atomic registry guarantee:
 GHCR has no compare-and-set tag operation. Repository administrators must
@@ -143,11 +143,12 @@ The GitHub repository is public, but GHCR package visibility is managed at the
 package level and must be verified after its first publication.
 
 To check a previously tested commit again, open that commit's completed
-**Tests** run in GitHub Actions and select **Re-run all jobs**. The new
-successful run retains the tested commit SHA and triggers this workflow, which
-completes without pushing when that SHA and semantic version already exist.
-Running **Tests** with its existing `workflow_dispatch` control on `main` is
-also accepted. This workflow builds and publishes an image only; it performs no
+**Tests** run that was originally triggered by a main-branch push and select
+**Re-run all jobs**. The successful rerun retains the tested commit SHA and
+triggers this workflow, which completes without pushing when that SHA and
+semantic version already exist. The standalone `workflow_dispatch` control in
+the Tests workflow remains available for CI diagnostics but cannot publish an
+image. This workflow builds and publishes an image only; it performs no
 deployment, rollout, or runtime configuration change.
 
 ### Local configuration
@@ -564,7 +565,7 @@ Local application CSS and JavaScript URLs include the application version. This 
 
 Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. Skip is occurrence-aware: selecting a projected row advances through that row's due date without creating a Checkbook transaction, and a repeated or stale request for that occurrence does nothing. The page's most common action uses the original small Radzen icon button and original icon immediately beside a fixed 1.5rem-wide icon-only More actions trigger; both expose descriptive accessible names and tooltips. The fixed inline size overrides the Radzen theme loaded later in the document, so the trigger stays narrow on phones. The trigger uses explicit application state so tapping it reliably opens the overflow menu, which retains the app's original icon and a visible label for each remaining command. The menu is rendered in the browser's top-layer popover and positioned against its trigger in viewport coordinates. It automatically opens above or below according to available space, but remains outside the grid's scroll geometry so opening it never adds a list scrollbar or clips it behind another row. The compact pair uses a 70px list column so it remains adjacent and visible on narrow screens, whether list actions are placed on the left or right. The layout loads the shared-budget switcher in an isolated dependency-injection scope because layout and page first-render work can overlap in a Blazor circuit; this prevents refresh-time EF operations from sharing one `DbContext`.
 
-### Statement import and row-action safeguards (5.38.1, build 230)
+### Statement import and row-action safeguards (5.38.2, build 231)
 
 `Services/BankStatementImportService.cs` validates single-account USD OFX/QFX and single-section Bank/CCard QIF documents while preserving the existing CSV mapper. `Services/CheckbookDataService.cs` resolves a writable, nondeleted import destination and revalidates its account and budget scope at save time. A changed destination or lost permission requires reopening Import; no fallback to account ID 1 is allowed. All transaction/payee/category writes remain in one transaction. No schema changes.
 

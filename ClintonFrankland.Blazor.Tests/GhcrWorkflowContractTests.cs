@@ -22,6 +22,16 @@ public class GhcrWorkflowContractTests
     }
 
     [Fact]
+    public void PublishWorkflow_OnlyAcceptsSuccessfulMainPushTestsRuns()
+    {
+        var workflow = ReadRepoFile(".github/workflows/publish-ghcr.yml");
+
+        Assert.Contains("github.event.workflow_run.event == 'push'", workflow, StringComparison.Ordinal);
+        Assert.Contains("github.event.workflow_run.head_branch == 'main'", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("github.event.workflow_run.event == 'workflow_dispatch'", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Readme_DescribesWorkflowEnforcedImmutabilityAndResidualRace()
     {
         var readme = ReadRepoFile("README.md");
