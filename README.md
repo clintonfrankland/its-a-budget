@@ -102,6 +102,47 @@ legacy-row handling, and repair boundary are documented in [Ledger scope](docs/l
 | `dotnet run -- restore-smoketest --file ./backups/...` | Verify a backup file is readable |
 | `dotnet run -- restore --file ./backups/...` | Restore a backup |
 
+## CI and production container images
+
+`.github/workflows/tests.yml` remains the required restore, build, and test gate.
+`.github/workflows/publish-ghcr.yml` has no direct `push`, pull-request, or
+manual trigger. GitHub starts it only after a `Tests` workflow run completes,
+and its job-level guard requires a successful run from
+`clintonfrankland/its-a-budget` on `main`. This rejects pull-request and fork
+contexts. The workflow checks out `github.event.workflow_run.head_sha`, not a
+moving `main` reference, so it builds the exact commit that Tests accepted.
+
+The publication target is `ghcr.io/clintonfrankland/its-a-budget`. Each image
+has exactly two tags:
+
+- The complete tested commit SHA.
+- The `MAJOR.MINOR.PATCH` value parsed and validated from `VersionPrefix` in
+  `ClintonFrankland.Blazor.csproj` at that exact commit.
+
+There are no `latest`, branch, environment, or other moving tags. Publishing
+runs are serialized. Before a build, the workflow reads existing GHCR package
+versions: an unused semantic tag is permitted, and rerunning publication for
+the same SHA is permitted. A semantic tag already owned by another commit,
+invalid version metadata, or any package-metadata/authentication error fails
+the run before it can push. Do not write semantic tags outside this workflow;
+the registry protocol has no compare-and-set tag operation, so that is required
+to preserve the workflow's checked collision policy.
+
+The workflow grants the default `GITHUB_TOKEN` only `contents: read` and
+`packages: write`, then uses it to log in to GHCR. Before enabling publication,
+confirm the repository's Actions policy allows a workflow to request
+`packages: write`, that the required `test` status check protects `main`, and
+that the GHCR package visibility/access settings match the intended audience.
+The GitHub repository is public, but GHCR package visibility is managed at the
+package level and must be verified after its first publication.
+
+To republish a tested commit, open that commit's completed **Tests** run in
+GitHub Actions and select **Re-run all jobs**. The new successful run retains
+the tested commit SHA and triggers publication again. Running **Tests** with
+its existing `workflow_dispatch` control on `main` is also accepted. This
+workflow builds and publishes an image only; it performs no deployment,
+rollout, or runtime configuration change.
+
 ### Local configuration
 
 Committed settings files must not contain real SQL or fallback login secrets. `appsettings.Development.json` is intentionally safe to commit and leaves secret-bearing values empty. Use .NET user secrets for local development:
@@ -318,6 +359,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | Moment.js | 2.30.1 | Date formatting in Chart.js (CDN) |
 | DataTables | — | Checkbook transaction grid with search/sort (CDN) |
 | jQuery | 3.7.1 | Required by DataTables (CDN) |
+| GitHub Actions | — | Required Tests workflow and success-gated GHCR image publication |
 
 ---
 
@@ -370,6 +412,8 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 | `appsettings.json` | Connection string, `AppSettings`, `AuthSecurity`, receipt attachment limits, logging config |
 | `appsettings.Development.json` | Dev credentials and overrides (not committed to production) |
 | `Dockerfile` | Multi-stage Docker build |
+| `.github/workflows/tests.yml` | Required restore, build, and test workflow for main and pull requests |
+| `.github/workflows/publish-ghcr.yml` | Publishes a tested main commit to GHCR after the Tests workflow succeeds |
 | `GLOBALIZATION.md` | Explains why culture is pinned to en-US |
 | `Components/App.razor` | HTML shell — loads CDN assets (Bootstrap, FA, Chart.js, DataTables) |
 | `Components/_Imports.razor` | Global `@using` and `@inject` for all components |
@@ -447,6 +491,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 - Do not introduce another UI component library alongside Radzen.Blazor.
 - Do not casually modify secrets or login credentials.
 - Do not skip build and test verification before calling a task done.
+- Do not weaken or modify `.github/workflows/tests.yml`; GHCR publication is triggered only by its successful trusted main-branch run.
 - Do not hold `DbContext` instances across Blazor renders.
 - Do not rename or remove `cf`-prefixed tables without a deliberate migration plan.
 
@@ -460,6 +505,7 @@ Replacing, removing, or deleting an attachment only deletes files that resolve u
 - **SQL Server migration dialect.** EF Core migrations use SQL Server-specific syntax. Do not apply migrations generated for another provider.
 - **Background worker timezone handling.** The bill-due notification worker operates in each user's stored timezone, not the server timezone. Changes to notification logic must account for this.
 - **Semantic project version.** `ClintonFrankland.Blazor.csproj` uses `<Version>major.minor.patch</Version>`. The displayed app version is read directly from this field — increment the appropriate semantic component in every task.
+- **GHCR semantic tags are immutable by policy.** The publish workflow serializes its runs and refuses a semantic-version tag already owned by a different commit. A version bump is required before a different commit can publish; authentication or package-metadata errors fail closed.
 - **Startup migrations.** EF migrations run automatically on startup. Always verify migration safety before deploying schema changes.
 
 ---
@@ -511,7 +557,7 @@ Local application CSS and JavaScript URLs include the application version. This 
 
 Manageable recurring budget rows use the same four actions throughout Checkbook, Budget Forecast, and Budget Items: Record to Checkbook, Skip, Edit, and Edit Next. Skip is occurrence-aware: selecting a projected row advances through that row's due date without creating a Checkbook transaction, and a repeated or stale request for that occurrence does nothing. The page's most common action uses the original small Radzen icon button and original icon immediately beside a fixed 1.5rem-wide icon-only More actions trigger; both expose descriptive accessible names and tooltips. The fixed inline size overrides the Radzen theme loaded later in the document, so the trigger stays narrow on phones. The trigger uses explicit application state so tapping it reliably opens the overflow menu, which retains the app's original icon and a visible label for each remaining command. The menu is rendered in the browser's top-layer popover and positioned against its trigger in viewport coordinates. It automatically opens above or below according to available space, but remains outside the grid's scroll geometry so opening it never adds a list scrollbar or clips it behind another row. The compact pair uses a 70px list column so it remains adjacent and visible on narrow screens, whether list actions are placed on the left or right. The layout loads the shared-budget switcher in an isolated dependency-injection scope because layout and page first-render work can overlap in a Blazor circuit; this prevents refresh-time EF operations from sharing one `DbContext`.
 
-### Statement import and row-action safeguards (5.37.0, build 228)
+### Statement import and row-action safeguards (5.38.0, build 229)
 
 `Services/BankStatementImportService.cs` validates single-account USD OFX/QFX and single-section Bank/CCard QIF documents while preserving the existing CSV mapper. `Services/CheckbookDataService.cs` resolves a writable, nondeleted import destination and revalidates its account and budget scope at save time. A changed destination or lost permission requires reopening Import; no fallback to account ID 1 is allowed. All transaction/payee/category writes remain in one transaction. No schema changes.
 

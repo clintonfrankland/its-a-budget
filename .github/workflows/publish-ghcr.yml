@@ -1,0 +1,136 @@
+name: Publish to GHCR
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-ghcr
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == 'clintonfrankland/its-a-budget' &&
+      (
+        (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') ||
+        (github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.head_branch == 'main')
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Read shipped semantic version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_prefix="$(grep -oP '(?<=<VersionPrefix>)[^<]+(?=</VersionPrefix>)' ClintonFrankland.Blazor.csproj)"
+
+          if [[ ! "$version_prefix" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VersionPrefix must be a MAJOR.MINOR.PATCH semantic version; found '$version_prefix'." >&2
+            exit 1
+          fi
+
+          echo "value=$version_prefix" >> "$GITHUB_OUTPUT"
+
+      - name: Reject semantic-version tag collision
+        uses: actions/github-script@v7
+        env:
+          IMAGE_NAME: its-a-budget
+          SEMVER_TAG: ${{ steps.version.outputs.value }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner } = context.repo;
+            const packageName = process.env.IMAGE_NAME;
+            const semanticVersion = process.env.SEMVER_TAG;
+            const sourceSha = process.env.SOURCE_SHA;
+            let packageVersions;
+
+            try {
+              packageVersions = await github.paginate(
+                'GET /users/{username}/packages/{package_type}/{package_name}/versions',
+                {
+                  username: owner,
+                  package_type: 'container',
+                  package_name: packageName,
+                  per_page: 100
+                }
+              );
+            } catch (error) {
+              if (error.status === 404) {
+                core.info(`No existing GHCR package named ${packageName}; ${semanticVersion} is available.`);
+                return;
+              }
+
+              throw error;
+            }
+
+            const matchingVersions = packageVersions.filter(version =>
+              (version.metadata?.container?.tags ?? []).includes(semanticVersion)
+            );
+
+            if (matchingVersions.length === 0) {
+              core.info(`GHCR tag ${semanticVersion} is available.`);
+              return;
+            }
+
+            if (
+              matchingVersions.length === 1 &&
+              (matchingVersions[0].metadata?.container?.tags ?? []).includes(sourceSha)
+            ) {
+              core.info(`GHCR tag ${semanticVersion} already belongs to ${sourceSha}; republishing is allowed.`);
+              return;
+            }
+
+            core.setFailed(
+              `Refusing to overwrite existing GHCR semantic tag ${semanticVersion}. ` +
+              `Bump VersionPrefix before publishing a different commit.`
+            );
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/clintonfrankland/its-a-budget
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }},priority=200
+            type=raw,value=${{ steps.version.outputs.value }},priority=100
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
+            org.opencontainers.image.source=https://github.com/clintonfrankland/its-a-budget
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
