@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           version_prefix="$(grep -oP '(?<=<VersionPrefix>)[^<]+(?=</VersionPrefix>)' ClintonFrankland.Blazor.csproj)"
 
-          if [[ ! "$version_prefix" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$version_prefix" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "VersionPrefix must be a MAJOR.MINOR.PATCH semantic version; found '$version_prefix'." >&2
             exit 1
           fi
@@ -80,19 +80,23 @@ jobs:
               throw error;
             }
 
-            const matchingVersions = packageVersions.filter(version =>
+            const matchingSemanticVersions = packageVersions.filter(version =>
               (version.metadata?.container?.tags ?? []).includes(semanticVersion)
             );
+            const matchingSourceVersions = packageVersions.filter(version =>
+              (version.metadata?.container?.tags ?? []).includes(sourceSha)
+            );
 
-            if (matchingVersions.length === 0) {
-              core.info(`GHCR tag ${semanticVersion} is available.`);
+            if (matchingSemanticVersions.length === 0 && matchingSourceVersions.length === 0) {
+              core.info(`GHCR tags ${semanticVersion} and ${sourceSha} are available.`);
               core.setOutput('should_publish', 'true');
               return;
             }
 
             if (
-              matchingVersions.length === 1 &&
-              (matchingVersions[0].metadata?.container?.tags ?? []).includes(sourceSha)
+              matchingSemanticVersions.length === 1 &&
+              matchingSourceVersions.length === 1 &&
+              matchingSemanticVersions[0].id === matchingSourceVersions[0].id
             ) {
               core.info(`GHCR tag ${semanticVersion} already belongs to ${sourceSha}; publication is already complete.`);
               core.setOutput('should_publish', 'false');
@@ -100,8 +104,8 @@ jobs:
             }
 
             core.setFailed(
-              `Refusing to overwrite existing GHCR semantic tag ${semanticVersion}. ` +
-              `Bump VersionPrefix before publishing a different commit.`
+              `Refusing to overwrite existing GHCR tag ${semanticVersion} or ${sourceSha}. ` +
+              `Bump VersionPrefix before publishing a different commit; do not reuse a tested commit SHA.`
             );
 
       - name: Set up Docker Buildx

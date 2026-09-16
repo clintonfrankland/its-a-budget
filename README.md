@@ -113,7 +113,7 @@ contexts. The workflow checks out `github.event.workflow_run.head_sha`, not a
 moving `main` reference, so it builds the exact commit that Tests accepted.
 
 The publication target is `ghcr.io/clintonfrankland/its-a-budget`. Each image
-has exactly two tags:
+has exactly two immutable tags:
 
 - The complete tested commit SHA.
 - The `MAJOR.MINOR.PATCH` value parsed and validated from `VersionPrefix` in
@@ -121,13 +121,14 @@ has exactly two tags:
 
 There are no `latest`, branch, environment, or other moving tags. Publishing
 runs are serialized. Before a build, the workflow reads existing GHCR package
-versions: an unused semantic tag is permitted; a tag already paired with the
-same SHA causes a successful no-op; and a semantic tag owned by another commit,
-invalid version metadata, or any package-metadata/authentication error fails
-the run before it can push. The no-op prevents reruns from reassigning either
-immutable tag. Do not write semantic tags outside this workflow; the registry
-protocol has no compare-and-set tag operation, so that is required to preserve
-the workflow's checked collision policy.
+versions: publication is permitted only when both tags are unused; a semantic
+tag and SHA tag already paired on the same image cause a successful no-op; and
+any other existing semantic tag or SHA tag, invalid version metadata, or
+package-metadata/authentication error fails the run before it can push. The
+no-op prevents reruns from reassigning either immutable tag. Do not write these
+tags outside this workflow; the registry protocol has no compare-and-set tag
+operation, so that is required to preserve the workflow's checked collision
+policy.
 
 The workflow grants the default `GITHUB_TOKEN` only `contents: read` and
 `packages: write`, then uses it to log in to GHCR. Before enabling publication,
