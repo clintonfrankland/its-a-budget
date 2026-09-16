@@ -311,7 +311,7 @@ For full endpoint details, see [docs/api/home-dashboard-summary.md](docs/api/hom
 | Entity Framework Core | 10.0.3 | ORM; migrations applied automatically on startup |
 | Microsoft.Data.SqlClient | 6.1.4 | SQL Server driver |
 | Radzen.Blazor | 9.0.6 | UI component library (forms, dialogs, grids) |
-| MailKit | 4.15.1 | SMTP email dispatch |
+| MailKit | 4.16.0 | SMTP email dispatch |
 | Bootstrap | 5.3.3 | Layout and utility CSS (CDN) |
 | Font Awesome | 6.5.1 | Icons (CDN) |
 | Chart.js | 4.4.1 | Budget forecast line chart (CDN) |
@@ -493,7 +493,7 @@ All tables use the `cf` prefix.
 
 | Name | Version | Purpose |
 |---|---|---|
-| MailKit | 4.15.1 | SMTP email |
+| MailKit | 4.16.0 | SMTP email |
 | Microsoft.Data.SqlClient | 6.1.4 | SQL Server wire protocol |
 | Microsoft.EntityFrameworkCore.SqlServer | 10.0.3 | EF Core SQL Server provider |
 | Microsoft.EntityFrameworkCore.Design | 10.0.3 | `dotnet ef` tooling support |
