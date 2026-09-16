@@ -121,12 +121,13 @@ has exactly two tags:
 
 There are no `latest`, branch, environment, or other moving tags. Publishing
 runs are serialized. Before a build, the workflow reads existing GHCR package
-versions: an unused semantic tag is permitted, and rerunning publication for
-the same SHA is permitted. A semantic tag already owned by another commit,
+versions: an unused semantic tag is permitted; a tag already paired with the
+same SHA causes a successful no-op; and a semantic tag owned by another commit,
 invalid version metadata, or any package-metadata/authentication error fails
-the run before it can push. Do not write semantic tags outside this workflow;
-the registry protocol has no compare-and-set tag operation, so that is required
-to preserve the workflow's checked collision policy.
+the run before it can push. The no-op prevents reruns from reassigning either
+immutable tag. Do not write semantic tags outside this workflow; the registry
+protocol has no compare-and-set tag operation, so that is required to preserve
+the workflow's checked collision policy.
 
 The workflow grants the default `GITHUB_TOKEN` only `contents: read` and
 `packages: write`, then uses it to log in to GHCR. Before enabling publication,
@@ -136,12 +137,13 @@ that the GHCR package visibility/access settings match the intended audience.
 The GitHub repository is public, but GHCR package visibility is managed at the
 package level and must be verified after its first publication.
 
-To republish a tested commit, open that commit's completed **Tests** run in
-GitHub Actions and select **Re-run all jobs**. The new successful run retains
-the tested commit SHA and triggers publication again. Running **Tests** with
-its existing `workflow_dispatch` control on `main` is also accepted. This
-workflow builds and publishes an image only; it performs no deployment,
-rollout, or runtime configuration change.
+To check a previously tested commit again, open that commit's completed
+**Tests** run in GitHub Actions and select **Re-run all jobs**. The new
+successful run retains the tested commit SHA and triggers this workflow, which
+completes without pushing when that SHA and semantic version already exist.
+Running **Tests** with its existing `workflow_dispatch` control on `main` is
+also accepted. This workflow builds and publishes an image only; it performs no
+deployment, rollout, or runtime configuration change.
 
 ### Local configuration
 
